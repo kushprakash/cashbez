@@ -9,7 +9,7 @@
 
 set -e
 
-DEPLOY_PATH="/var/www/test.cashbez.com"
+DEPLOY_PATH="/var/www/banking.cashbez.com"
 RELEASES_PATH="$DEPLOY_PATH/releases"
 
 # List available releases

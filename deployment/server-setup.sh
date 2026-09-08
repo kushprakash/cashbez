@@ -9,8 +9,8 @@
 set -e
 
 # Configuration
-DEPLOY_PATH="/var/www/test.cashbez.com"
-DOMAIN="test.cashbez.com"
+DEPLOY_PATH="/var/www/banking.cashbez.com"
+DOMAIN="banking.cashbez.com"
 USER="ec2-user"
 PHP_SOCKET="/run/php-fpm/www.sock"
 
@@ -37,11 +37,11 @@ echo "✅ Directories created"
 if [ ! -f "$DEPLOY_PATH/shared/.env" ]; then
     echo "📝 Creating .env file template..."
     cat > /tmp/.env.template << 'EOF'
-APP_NAME="CashBez ERP"
+APP_NAME="CashBez"
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false
-APP_URL=https://test.cashbez.com
+APP_URL=https://banking.cashbez.com
 
 LOG_CHANNEL=daily
 LOG_LEVEL=error
@@ -74,20 +74,20 @@ echo "🌐 Setting up Nginx configuration..."
 sudo tee /etc/nginx/conf.d/$DOMAIN.conf > /dev/null << 'NGINX'
 server {
     listen 80;
-    server_name test.cashbez.com;
+    server_name banking.cashbez.com;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name test.cashbez.com;
+    server_name banking.cashbez.com;
     
-    root /var/www/test.cashbez.com/current/public;
+    root /var/www/banking.cashbez.com/current/public;
     index index.php index.html;
     
     # SSL Configuration (Certbot)
-    ssl_certificate /etc/letsencrypt/live/test.cashbez.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/test.cashbez.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/banking.cashbez.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/banking.cashbez.com/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256;
     ssl_prefer_server_ciphers off;
@@ -148,8 +148,8 @@ server {
     }
     
     # Logs
-    access_log /var/www/test.cashbez.com/logs/access.log;
-    error_log /var/www/test.cashbez.com/logs/error.log;
+    access_log /var/www/banking.cashbez.com/logs/access.log;
+    error_log /var/www/banking.cashbez.com/logs/error.log;
 }
 NGINX
 

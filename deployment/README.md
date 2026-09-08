@@ -13,7 +13,7 @@ Professional zero-downtime deployment for Laravel + Vite on Amazon Linux 2023.
 ## 📁 Server Directory Structure
 
 ```
-/var/www/test.cashbez.com/
+/var/www/banking.cashbez.com/
 ├── current/      → symlink to active release
 ├── releases/     → timestamped releases
 ├── shared/
@@ -45,7 +45,7 @@ ssh -i your-key.pem ec2-user@YOUR_SERVER_IP
 bash server-setup.sh
 
 # Edit .env with your values
-sudo nano /var/www/test.cashbez.com/shared/.env
+sudo nano /var/www/banking.cashbez.com/shared/.env
 
 # Generate APP_KEY locally and add to .env
 php artisan key:generate --show
@@ -67,10 +67,10 @@ SSH to server and run:
 
 ```bash
 # List releases
-bash /var/www/test.cashbez.com/deployment/rollback.sh
+bash /var/www/banking.cashbez.com/deployment/rollback.sh
 
 # Rollback to specific release
-bash /var/www/test.cashbez.com/deployment/rollback.sh 20240105_103045
+bash /var/www/banking.cashbez.com/deployment/rollback.sh 20240105_103045
 ```
 
 ## 📋 Deployment Pipeline
@@ -93,15 +93,15 @@ bash /var/www/test.cashbez.com/deployment/rollback.sh 20240105_103045
 ### Check deployment logs
 ```bash
 # Laravel logs
-tail -f /var/www/test.cashbez.com/shared/storage/logs/laravel.log
+tail -f /var/www/banking.cashbez.com/shared/storage/logs/laravel.log
 
 # Nginx logs
-tail -f /var/www/test.cashbez.com/logs/error.log
+tail -f /var/www/banking.cashbez.com/logs/error.log
 ```
 
 ### Verify current release
 ```bash
-ls -la /var/www/test.cashbez.com/current
+ls -la /var/www/banking.cashbez.com/current
 ```
 
 ### Restart PHP-FPM
