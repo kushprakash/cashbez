@@ -70,17 +70,17 @@ class AuthController extends Controller
 
       
 
-            if ($user) {
-                if ($user->status == 0) {
-                    return response()->json([
-                        'status' => 0,
-                        'message' => 'Your account is blocked. Contact support.',
-                    ]);
-                }
+        if ($user) {
+            if ($user->status == 0) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Your account is blocked. Contact support.',
+                ]);
+            }
 
 
-                $admin = DB::table('users')->where('mid', $user->admin_mid)->first();
-                $adminId = $admin->id ?? 1;
+            $admin = DB::table('users')->where('mid', $user->admin_mid)->first();
+            $adminId = $admin->id ?? 1;
 
             if(isset($request->type) && $request->type != 'web') {
 
@@ -111,10 +111,10 @@ class AuthController extends Controller
             eval("\$message = \"$messageTemplate\";");
             
             $res=sendSms($message, $adminId, $number,$messageRow->template_id);
-            } else {
+        } else {
 
-                $adminId = 1;
-                $messageRow = getMessageRow("VerificationOTP", $adminId);
+            $adminId = 1;
+            $messageRow = getMessageRow("VerificationOTP", $adminId);
             if (!$messageRow) {
                 return [
                     'status' => 0,

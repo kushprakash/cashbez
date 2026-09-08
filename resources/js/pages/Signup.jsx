@@ -686,7 +686,7 @@ const Signup = () => {
                                                     </div>
 
                                                     {/* Role Select Option */}
-                                                    <div className="mb-3">
+                                                    <div className="mb-3 d-none">
                                                         <label className="form-label small text-muted fw-bold d-block">Select Role Option</label>
                                                         <div className="d-flex gap-2">
                                                             <button

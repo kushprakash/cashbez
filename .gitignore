@@ -46,3 +46,4 @@ error_log
 /storage/
 /public/storage
 *.apk
+*.zip
