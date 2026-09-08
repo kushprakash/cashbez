@@ -849,16 +849,16 @@ if (!function_exists('processCommissionCharge')) {
 
 if (!function_exists('sendSms')) {
 
-    function sendSms($message,$adminId,$number,$template_id = '213181'){
+    function sendSms($message,$adminId,$number){
         
         try {
 
             $setting = DB::table('settings')->where('user_id', $adminId)->first();
 
-            if (!$setting || empty($setting->apikey)) {
+            if (!$setting) {
                 return [
                     'status' => 0,
-                    'message' => 'Message settings not found'
+                    'message' => 'Message settings not found for : ' . $setting->company_name
                 ];
             }
 
@@ -867,8 +867,7 @@ if (!function_exists('sendSms')) {
             $encoded_sender = urlencode($setting->sender_id);
             $encoded_number = urlencode($number);
 
-            $url = "https://www.fast2sms.com/dev/bulkV2?authorization=" . $encoded_key . "&route=dlt&sender_id=" . $encoded_sender . "&message=" . $template_id . "&variables_values=" . $encoded_message . "&numbers=" . $encoded_number . "&schedule_time=";
-            //$url = "http://buzzify.in/V2/http-api.php?apikey=" . $encoded_key . "&senderid=" . $encoded_sender . "&number=" . $encoded_number . "&message=" . $encoded_message . "&format=json";
+            $url = "http://buzzify.in/V2/http-api.php?apikey=" . $encoded_key . "&senderid=" . $encoded_sender . "&number=" . $encoded_number . "&message=" . $encoded_message . "&format=json";
 
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
@@ -932,7 +931,7 @@ if (!function_exists('sentMail')) {
 
             $curl = curl_init();
             curl_setopt_array($curl, [
-                CURLOPT_URL => 'https://enexa.in/mail/mailer/send_mail.php',
+                CURLOPT_URL => 'https://enexademo.in/mail/mailer/send_mail.php',
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_POST => true,
                 CURLOPT_POSTFIELDS => $mailData,
@@ -968,24 +967,7 @@ if (!function_exists('sentMail')) {
 if (!function_exists('getMessageRow')) {
     function getMessageRow($message_name, $userId)
     {
-        if (!\Schema::hasTable('messages')) {
-            return (object)[
-                'message' => 'Your OTP for verification is $otp.',
-                'template_id' => null,
-            ];
-        }
-
-        $row = \DB::table('messages')->where('name', $message_name)->where('user_id', $userId)->first();
-        if (!$row) {
-            $row = \DB::table('messages')->where('name', $message_name)->first();
-        }
-        if (!$row) {
-            $row = (object)[
-                'message' => 'Your OTP for verification is $otp.',
-                'template_id' => null,
-            ];
-        }
-        return $row;
+        return \DB::table('messages')->where('name', $message_name)->where('user_id', $userId)->first();
     }
 }
 
