@@ -13,20 +13,26 @@ $git_token = $_GET['git_token'] ?? $_GET['github_token'] ?? null;
 
 // Project path on server (Auto-detected based on deploy.php location in public folder)
 $project_path = dirname(__DIR__);
-putenv("HOME=/home/icchhamatidataservice");
+
+// Set HOME to writable directory (fallback to sys_get_temp_dir if user home is not writable)
+$home_dir = '/home/icchhamatidataservice';
+if (!is_dir($home_dir) || !is_writable($home_dir)) {
+    $home_dir = sys_get_temp_dir();
+}
+putenv("HOME={$home_dir}");
 putenv("PATH=" . getenv("PATH") . ":/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/icchhamatidataservice/.nvm/versions/node/v20.0.0/bin:/home/icchhamatidataservice/.nvm/versions/node/v18.0.0/bin");
 
 // Update remote URL with token if git_token is provided in URL
 if (!empty($git_token)) {
     $remoteUrl = "https://{$git_token}@github.com/kushprakash/cashbez.git";
-    exec("cd {$project_path} && git remote set-url origin {$remoteUrl} 2>&1");
+    exec("cd {$project_path} && git -c safe.directory=\"*\" remote set-url origin {$remoteUrl} 2>&1");
 }
 
 // List of commands to run (incorporating force flags and direct vite path)
 $commands = [
-    'Git Safe Directory' => 'git config --global --add safe.directory "*"',
+    'Git Safe Directory' => 'HOME=/tmp git config --global --add safe.directory "*" || true',
     'Remove Git Lock File' => 'rm -f .git/index.lock',
-    'Git Fetch & Force Reset' => 'rm -f .git/index.lock && (git fetch origin main || git fetch --all) && git reset --hard origin/main',
+    'Git Fetch & Force Reset' => 'rm -f .git/index.lock && (git -c safe.directory="*" fetch origin main || git -c safe.directory="*" fetch --all) && git -c safe.directory="*" reset --hard origin/main',
     'Composer Install' => 'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
     'NPM Build' => 'export PATH=$PATH:/usr/local/bin:/usr/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin; if command -v npm >/dev/null 2>&1; then npm run build; else echo "NPM command not available on server, using pre-built assets"; fi',
     'Clear Caches' => 'php artisan cache:clear && php artisan config:clear && php artisan route:clear && php artisan view:clear',
