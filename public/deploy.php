@@ -15,12 +15,12 @@ $git_token = $_GET['git_token'] ?? $_GET['github_token'] ?? null;
 $project_path = dirname(__DIR__);
 
 // Set HOME to writable directory (fallback to sys_get_temp_dir if user home is not writable)
-$home_dir = '/home/icchhamatidataservice';
+$home_dir = '/home/cashbez-banking';
 if (!is_dir($home_dir) || !is_writable($home_dir)) {
     $home_dir = sys_get_temp_dir();
 }
 putenv("HOME={$home_dir}");
-putenv("PATH=" . getenv("PATH") . ":/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/icchhamatidataservice/.nvm/versions/node/v20.0.0/bin:/home/icchhamatidataservice/.nvm/versions/node/v18.0.0/bin");
+putenv("PATH=" . getenv("PATH") . ":/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/cashbez-banking/.nvm/versions/node/v20.0.0/bin:/home/cashbez-banking/.nvm/versions/node/v18.0.0/bin");
 
 // Update remote URL with token if git_token is provided in URL
 if (!empty($git_token)) {
