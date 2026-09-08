@@ -1,0 +1,47 @@
+.table-shimmer-loader {
+  width: 100%;
+  padding: 1.5rem 0;
+  background: transparent;
+}
+
+.shimmer-table-wrapper {
+  overflow-x: auto;
+  border-radius: 12px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08), 0 1.5px 4px rgba(0,0,0,0.04);
+  background: #fff;
+}
+
+.shimmer-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.shimmer-table th, .shimmer-table td {
+  padding: 1rem 0.75rem;
+  border: none;
+}
+
+.shimmer-header {
+  height: 18px;
+  width: 80%;
+  margin: 0 auto;
+  border-radius: 6px;
+}
+
+.shimmer-cell {
+  height: 16px;
+  width: 90%;
+  margin: 0 auto;
+  border-radius: 6px;
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}

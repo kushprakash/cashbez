@@ -1,0 +1,79 @@
+/* Service Section Styles */
+.service_section {
+  background-color: #222; /* Dark background */
+  padding-top: 60px;
+  padding-bottom: 60px;
+}
+
+.service_block {
+  transition: all 0.3s ease-in-out;
+}
+
+.service_block:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.service_icon {
+  position: relative;
+  padding: 30px;
+  text-align: center;
+}
+
+.service_icon_bg {
+  background-size: cover;
+  background-position: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  opacity: 0.2;
+}
+
+.service_icon_img {
+  position: relative;
+  z-index: 2;
+  max-width: 60px;
+}
+
+.service_content {
+  position: relative;
+  z-index: 3;
+}
+
+.service_title a {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+  text-decoration: none;
+}
+
+.service_description {
+  font-size: 1rem;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.service_content a {
+  font-weight: 500;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.service_content a:hover {
+  text-decoration: underline;
+}
+
+.service_content .btn-icon {
+  margin-left: 10px;
+  font-size: 1.2rem;
+}
+
+/* Hover Effects */
+.service_block:hover .service_title a {
+  color: #0066cc;
+}

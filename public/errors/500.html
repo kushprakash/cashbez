@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 - Server Error</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #fff;
+            padding: 20px;
+        }
+        
+        .container {
+            text-align: center;
+            max-width: 500px;
+        }
+        
+        .icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 60px rgba(0, 184, 148, 0.4);
+            position: relative;
+        }
+        
+        .icon::after {
+            content: "";
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            border: 3px solid rgba(0, 184, 148, 0.3);
+            border-radius: 50%;
+            animation: ripple 2s ease-out infinite;
+        }
+        
+        @keyframes ripple {
+            0% { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+        
+        .icon svg {
+            width: 60px;
+            height: 60px;
+            stroke: #fff;
+            stroke-width: 2;
+            fill: none;
+        }
+        
+        .error-code {
+            font-size: 72px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #00b894, #00cec9);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            letter-spacing: -2px;
+        }
+        
+        .error-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #fff;
+        }
+        
+        .error-message {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        
+        .status-box {
+            background: rgba(0, 184, 148, 0.15);
+            border: 1px solid rgba(0, 184, 148, 0.3);
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #00b894;
+            border-radius: 50%;
+            animation: blink 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        .status-text {
+            font-size: 14px;
+            color: #00b894;
+            font-weight: 500;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 184, 148, 0.3);
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(0, 184, 148, 0.4);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: none;
+        }
+        
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: none;
+        }
+        
+        .footer {
+            margin-top: 50px;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+        </div>
+        <div class="error-code">500</div>
+        <h1 class="error-title">Something Went Wrong</h1>
+        <p class="error-message">
+            We're experiencing technical difficulties. Our team has been notified 
+            and is working to fix the issue. Please try again in a few moments.
+        </p>
+        <div class="status-box">
+            <div class="status-dot"></div>
+            <span class="status-text">Our team is working on it</span>
+        </div>
+        <div class="btn-group">
+            <button class="btn" onclick="location.reload()">Try Again</button>
+            <a href="/" class="btn btn-outline">Go to Homepage</a>
+        </div>
+        <div class="footer"><span id="domain"></span> &copy; <span id="year"></span></div>
+    </div>
+    <script>
+        document.getElementById('domain').textContent = 'www.' + window.location.hostname.replace(/^www\./, '');
+        document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+    </div>
+</body>
+</html>

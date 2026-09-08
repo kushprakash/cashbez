@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS `bill_udhar_entries` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `merchant_id` BIGINT UNSIGNED NOT NULL,
+  `customer_id` BIGINT UNSIGNED NULL,
+  `local_id` VARCHAR(64) NOT NULL,
+  `bill_id` BIGINT UNSIGNED NULL,
+  `customer_name` VARCHAR(255) NOT NULL,
+  `customer_phone` VARCHAR(15) NOT NULL,
+  `customer_address` VARCHAR(255) NULL,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `paid_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `due_date` DATE NOT NULL,
+  `status` ENUM('pending','partial','cleared') NOT NULL DEFAULT 'pending',
+  `reminder_day_before_sent` TINYINT(1) NOT NULL DEFAULT 0,
+  `reminder_day_sent` TINYINT(1) NOT NULL DEFAULT 0,
+  `synced` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NULL,
+  `updated_at` TIMESTAMP NULL,
+  UNIQUE INDEX `bill_udhar_entries_local_id_unique` (`local_id`),
+  INDEX `bill_udhar_entries_merchant_id_index` (`merchant_id`),
+  INDEX `bill_udhar_entries_status_index` (`status`),
+  INDEX `bill_udhar_entries_due_date_index` (`due_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

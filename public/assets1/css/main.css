@@ -1,0 +1,271 @@
+.site_header .site_logo .site_link {
+    max-width: 160px;
+}
+
+.tp-footer-logo{
+    margin-bottom: 25px;
+}
+
+.tp-footer-logo img{
+    max-width: 160px;
+    width: 100%;
+    height: auto;
+}
+
+
+.footer_layout_1.footer_layout_2 .content_wrap {
+    padding: 0;
+    border-radius: 0;
+    background-color: transparent;
+    border: none;
+}
+
+.footer_layout_1.footer_layout_2.section_space {
+    padding-top: 80px;
+    padding-bottom: 0;
+}
+
+
+
+
+
+
+
+.header_layout_1 {
+  padding: 20px 0;
+}
+.header_layout_1 .site_logo img:nth-child(2) {
+  display: none;
+}
+.header_layout_1 .xb-header:not(.stricked-menu) .main_menu_list > li > a {
+  color: var(--bs-dark);
+}
+.header_layout_1 .xb-header:not(.stricked-menu) .main_menu_list > li > a:after {
+  color: var(--bs-dark);
+}
+
+
+.online_banking .btn-outline-light {
+    background: transparent;
+    border-color: var(--bs-dark);
+    color: var(--bs-dark);
+    border: 2px solid;
+    border-radius: 50px;
+}
+
+
+.btn{
+    padding: 20px 40px;
+    border: 2px solid;
+    border-radius: 50px;
+}
+
+.btn-theme{
+    background-color: var(--primary-color);
+    color: var(--bs-light);
+    backdrop-filter: blur(15px);
+    box-shadow: 0px 8px 18px 0 rgba(0, 0, 0, 0.08);
+}
+
+.online_banking .btn-pill:hover{
+    border-color: var(--primary-color);
+    color: var(--bs-dark);
+}
+
+.hero_section .btn{
+    border: 2px solid;  
+}
+.hero_section .btn:hover,
+.feature_section .btn:hover
+{
+    color: var(--bs-dark);
+}
+.clients_logo_carousel .image_block.border1 {
+    padding: 10px 20px;
+    border-radius: 30px;
+    border: 2px solid; 
+    border-color: rgb(0 0 0 / 25%) !important;
+}
+
+
+.clients_logo_carousel .image_block.border1 img {
+    max-height: 45px;
+}
+
+
+.hero_online_banking {
+    padding: 120px 0 0;
+}   
+
+.text-theme{
+    color: var(--primary-color);
+}
+
+.ob_process_section.review_section_process {
+    padding-bottom: 260px;
+}
+
+
+.authorbox_block {
+  gap: 15px;
+  display: flex;
+  align-items: center;
+}
+
+.authorbox_block .author_image {
+  background-color: var(--bs-dark);
+}
+
+
+.ob_process_section + .review_section .online_banking_review {
+    background: linear-gradient(0deg, #f9ffe0, rgb(217 255 212 / 25%));
+    backdrop-filter: blur(50px);
+}
+
+.review_section_process  .heading_block.style_2 .heading_text{
+    background: linear-gradient(0deg, rgb(249 255 224 / 10%), rgb(240 253 237 / 5%));
+    backdrop-filter: blur(10px);
+    border-radius: 50px;
+    display: inline-block;
+    padding: 4px 40px;
+}
+
+.footer_layout_2 .footer_bottom {
+    padding: 24px 0;
+}
+
+.footer_layout_2 hr {
+    margin: 40px 0;
+}
+
+.ob_process_section .overlay {
+    opacity: 0.1;
+}
+
+@media screen and (max-width: 680px) {
+    .ob_process_section + .review_section .online_banking_review {
+        margin-top: -260px;
+    }
+}
+
+.review_block_2 .review_comment {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.orange_color{ color:var(--primary-color);} .blue_color{ color:#303289;} .dark_color{ color:#1a1a1a;}
+
+
+.multiple_service ul li{ text-align:center;} 
+.multiple_service ul li a{ text-decoration:none;}
+.multiple_service ul li a i{ display:inline-flex; align-items:center; justify-content:center; padding-left:5px; width:76px; height:79px;}
+.multiple_service ul li a i img{ width:76px;} .multiple_service ul li:last-child a i img{ width:64px;}
+.multiple_service ul li a p{ color:var(--secondary-color); font-size:14px; font-weight:600; padding-top:6px; line-height:18px;}  
+.multiple_service ul li a:hover img{ filter: brightness(1.1) drop-shadow(2px 2px 4px #f5f5f5); } 
+.multiple_service ul li a:hover p{ color:var(--primary-color);}
+
+
+
+.oneapp_sec_2 {
+  background: linear-gradient(90deg, #4cc073, #cff9dd); /* Premium gradient background */
+  border-radius: 12px; /* Rounded corners for smooth appearance */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Soft shadow for depth */
+  padding: 10px 20px; /* Inner spacing for a compact design */
+  margin-top:  20px; /* Inner spacing for a compact design */
+}
+
+.oneapp_sec_2 .nav-tabs {
+  border-bottom: none; /* Remove default border */
+  display: flex;
+  gap: 10px; /* Space between tabs */
+}
+
+.oneapp_sec_2 .nav-tabs .nav-item {
+  flex-grow: 1; /* Make tabs equally spaced */
+}
+
+.oneapp_sec_2 .nav-tabs .nav-link {
+  background: #ffffff; /* Tab background color */
+  color: #333333; /* Text color for readability */
+  font-weight: 500;
+  text-align: center; /* Center align text */
+  border: 1px solid transparent; /* Default no border */
+  border-radius: 6px; /* Smooth corners */
+  padding: 10px 15px; /* Adequate padding */
+  transition: all 0.3s ease; /* Smooth animations */
+}
+
+.oneapp_sec_2 .nav-tabs .nav-link.active {
+  background: var(--bs-black); /* Active tab background */
+  color: #ffffff; /* Active tab text color */
+  font-weight: 600;
+  border: 1px solid var(--bs-black); /* Border for active state */
+  box-shadow: 0 2px 6px rgba(42, 82, 152, 0.3); /* Glow effect */
+}
+
+.oneapp_sec_2 .nav-tabs .nav-link:hover {
+  background: #f3f4f6; /* Hover effect */
+  color: #4cc073; /* Text hover color */
+  border: 1px solid #4cc073; /* Subtle hover border */
+  box-shadow: 0 2px 4px rgba(30, 60, 114, 0.2); /* Hover shadow */
+}
+
+
+.service_nav_pills .nav-tabs{ background:#ffffff; border-radius:5px;  border:var(--primary-color) 1px solid;} 
+.service_nav_pills .nav-tabs .nav-link{ border:none; margin:0px; padding:15px 15px; text-align:center; background:none; font-size:16px; font-weight:600; color:#77838f; border-bottom:#fff 4px solid; display:flex; justify-content:center; align-items:center; position:relative;}
+.service_nav_pills .nav-tabs .nav-link.active{ background:none; color:var(--primary-color); border-bottom:var(--primary-color) 4px solid;}
+.service_nav_pills .nav-tabs .nav-item{ width:49%;}  
+.service_nav_pills .nav-tabs .nav-item:first-child .nav-link{ border-radius:0px 0px 0px 4px;} 
+.service_nav_pills .nav-tabs .nav-item:last-child .nav-link{ border-radius:0px 0px 4px 0px;} 
+.service_nav_pills .nav-tabs .nav-item:first-child .nav-link:after{ content:""; width:1px; height:90%; position:absolute; right:-10px; top:10%; background:#d6d6d6;}
+
+.service_nav_pills .nav-tabs .nav-link i{ display:inline-block; margin-right:25px;} 
+.service_nav_pills .nav-tabs .nav-link i img{ height:38px;}
+.service_nav_pills .nav-tabs .nav-link i img:last-child{ display:none;} 
+.service_nav_pills .nav-tabs .nav-link.active i img:last-child{ display:inline-block;} 
+.service_nav_pills .nav-tabs .nav-link.active i img:first-child{ display:none;} 
+
+
+.bd_service ul li{ background:#ffffff; height: 100%; padding:25px; margin-bottom:10px; border-radius:30px; box-shadow:0px 0px 12px rgba(0,0,0,.12); text-align:center;}
+.bd_service ul li h6{ padding-top:8px; font-weight:600;}   
+.bd_service ul li a{ text-decoration:none;}
+.bd_service ul li a i{ display:inline-flex; align-items:center; justify-content:center; padding-left:5px; width:73px; height:74px;} .bd_service ul li a i img{ height:44px;}
+.bd_service ul li a:hover h6{ color:var(--primary-color);}
+
+
+@media screen and (max-width:768px){
+    .bd_service ul li{
+       padding:20px 10px; margin-bottom:0;
+    }
+    
+    .bd_service ul [class*="col-"]{
+        padding:10px !important;
+    }
+    
+    .bd_service ul li h6{
+        paddint-top:4px;
+    }
+    
+    .bd_service ul li a i{
+         width:53px; height:54px;
+    }
+}
+
+.btn-outline-light {
+    --bs-btn-color: #000;
+    --bs-btn-hover-bg: #222;
+}
+
+.breadcrumb_nav > li > a {
+    color: #111;
+}
+
+.breadcrumb_nav > li:not(:last-child):after{
+    background-color: #555;
+}
+
+.page_header {
+    padding: 148px 0 128px;
+}

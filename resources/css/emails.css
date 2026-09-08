@@ -1,0 +1,123 @@
+/* Email Dashboard Styles */
+.email-dashboard {
+    height: calc(100vh - 100px);
+}
+
+.email-sidebar {
+    border-right: 1px solid #e0e0e0;
+    background-color: #fafafa;
+}
+
+.email-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.email-list-item {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+}
+
+.email-list-item:hover {
+    background-color: #f5f5f5;
+}
+
+.email-list-item.unread {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+.email-list-item.selected {
+    background-color: #e3f2fd;
+}
+
+.email-attachment {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    margin: 2px;
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.email-attachment:hover {
+    background-color: #e0e0e0;
+    cursor: pointer;
+}
+
+.email-priority-high {
+    color: #d32f2f;
+}
+
+.email-priority-low {
+    color: #1976d2;
+}
+
+.email-body {
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.email-body img {
+    max-width: 100%;
+    height: auto;
+}
+
+.email-compose-editor {
+    min-height: 300px;
+}
+
+.email-recipient-chip {
+    margin: 2px;
+}
+
+.email-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    background-color: #fafafa;
+}
+
+.email-search {
+    max-width: 300px;
+}
+
+.email-pagination {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .email-sidebar {
+        display: none;
+    }
+    
+    .email-compose-fab {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        z-index: 1000;
+    }
+}
+
+/* Print styles */
+@media print {
+    .email-toolbar,
+    .email-sidebar,
+    .email-pagination {
+        display: none !important;
+    }
+    
+    .email-content {
+        width: 100% !important;
+        max-width: none !important;
+    }
+}

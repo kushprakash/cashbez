@@ -1,0 +1,759 @@
+@import './sidebar.css';
+
+/* Global CSS Variables for Sidebar Theme */
+:root {
+    --primary-color: #00a5ce;
+    /* #67b259 */
+    --success-color: #1bb394;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+    --secondary-color: #6c757d;
+    --light-color: #f8f9fa;
+    --dark-color: #343a40;
+    --sidebar-bg: #2c3e50;
+}
+
+[data-theme="dark"] {
+    --primary-color: #60a5fa;
+    --success-color: #34d399;
+    --danger-color: #f87171;
+    --warning-color: #fbbf24;
+    --info-color: #38bdf8;
+    --secondary-color: #9ca3af;
+    --light-color: #f3f4f6;
+    --dark-color: #111827;
+    --sidebar-bg: #282f36;
+}
+
+/* Mobile Recharge Specific Styles */
+.mobile-recharge-card {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0056b3 100%);
+    border-radius: 20px;
+    border: none;
+    color: white;
+}
+
+/* Dark mode support for mobile recharge card */
+[data-theme="dark"] .mobile-recharge-card {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #1e40af 100%);
+    box-shadow: 0 8px 32px rgba(96, 165, 250, 0.2);
+}
+
+.mobile-recharge-card .card-body {
+    padding: 2rem;
+}
+
+.plan-card {
+    transition: all 0.3s ease;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    background-color: #ffffff !important;
+    color: #333333;
+}
+
+/* Dark mode support for plan cards */
+[data-theme="dark"] .plan-card {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+    border-color: #4b5563 !important;
+}
+
+[data-theme="dark"] .plan-card .card-text {
+    color: #d1d5db !important;
+}
+
+[data-theme="dark"] .plan-card .text-muted {
+    color: #9ca3af !important;
+}
+
+[data-theme="dark"] .plan-card .text-primary {
+    color: var(--primary-color) !important;
+}
+
+[data-theme="dark"] .plan-card .text-success {
+    color: var(--success-color) !important;
+}
+
+.plan-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary-color) !important;
+}
+
+/* Dark mode hover effects */
+[data-theme="dark"] .plan-card:hover {
+    box-shadow: 0 8px 25px rgba(96, 165, 250, 0.3) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.plan-card.active {
+    border-color: var(--primary-color) !important;
+    background-color: rgba(0, 165, 206, 0.05) !important;
+}
+
+/* Dark mode active state */
+[data-theme="dark"] .plan-card.active {
+    background-color: rgba(96, 165, 250, 0.1) !important;
+    border-color: var(--primary-color) !important;
+}
+
+/* Plan card responsive layout fixes */
+.plan-card .card-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.plan-card .card-text {
+    flex-grow: 1;
+}
+
+/* Plan card buttons in dark mode */
+[data-theme="dark"] .plan-card .btn-outline-primary {
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+    background-color: transparent;
+}
+
+[data-theme="dark"] .plan-card .btn-outline-primary:hover {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    color: #ffffff !important;
+}
+
+/* Badge colors in dark mode plan cards */
+[data-theme="dark"] .plan-card .badge.bg-success {
+    background-color: var(--success-color) !important;
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] .plan-card .badge.bg-info {
+    background-color: var(--info-color) !important;
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] .plan-card .badge.bg-warning {
+    background-color: var(--warning-color) !important;
+    color: #000000 !important;
+}
+
+[data-theme="dark"] .plan-card .badge.bg-secondary {
+    background-color: var(--secondary-color) !important;
+    color: #ffffff !important;
+}
+
+/* Responsive breakpoints for plan cards */
+@media (max-width: 1199.98px) {
+    .plans-grid .col-md-3 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+}
+
+@media (max-width: 767.98px) {
+
+    .plans-grid .col-md-3,
+    .plans-grid .col-sm-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+/* Plan grid container improvements */
+.plans-grid {
+    display: flex;
+    flex-wrap: wrap;
+    margin: -0.75rem;
+}
+
+.plans-grid>* {
+    padding: 0.75rem;
+}
+
+/* Ensure plan cards fill height properly */
+.plans-grid .plan-card {
+    height: 100%;
+    min-height: 280px;
+}
+
+.plans-grid .plan-card .card-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.operator-logo {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: white;
+    padding: 4px;
+}
+
+/* Dark mode support for operator logo */
+[data-theme="dark"] .operator-logo {
+    background: #374151;
+    border: 1px solid #4b5563;
+}
+
+.plan-type-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.mobile-input {
+    border-radius: 12px;
+    border: 2px solid #e9ecef;
+    padding: 1rem;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+    background-color: #ffffff;
+}
+
+/* Dark mode support for mobile input */
+[data-theme="dark"] .mobile-input {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .mobile-input::placeholder {
+    color: #9ca3af;
+}
+
+.mobile-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(0, 165, 206, 0.25);
+}
+
+/* Dark mode focus state */
+[data-theme="dark"] .mobile-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(96, 165, 250, 0.25);
+}
+
+.recharge-stats {
+    background: linear-gradient(45deg, #f8f9fa, #ffffff);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+/* Dark mode support for recharge stats */
+[data-theme="dark"] .recharge-stats {
+    background: linear-gradient(45deg, #374151, #4b5563);
+    color: #f9fafb;
+}
+
+.plan-filter-tabs {
+    border-bottom: 2px solid #e9ecef;
+}
+
+/* Dark mode support for plan filter tabs */
+[data-theme="dark"] .plan-filter-tabs {
+    border-bottom-color: #4b5563;
+}
+
+.plan-filter-tabs .nav-link {
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: #6c757d;
+    font-weight: 600;
+    padding: 1rem 1.5rem;
+    transition: all 0.3s ease;
+}
+
+/* Dark mode support for nav links */
+[data-theme="dark"] .plan-filter-tabs .nav-link {
+    color: #9ca3af;
+}
+
+.plan-filter-tabs .nav-link:hover,
+.plan-filter-tabs .nav-link.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    background: none;
+}
+
+.amount-badge {
+    background: linear-gradient(45deg, var(--primary-color), #0056b3);
+    color: white;
+    font-weight: bold;
+    font-size: 1.1rem;
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+}
+
+/* Dark mode support for amount badge */
+[data-theme="dark"] .amount-badge {
+    background: linear-gradient(45deg, var(--primary-color), #1e40af);
+    box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
+}
+
+/* Banking Dashboard Service Cards */
+.service-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    background: white;
+}
+
+/* Dark mode support for service cards */
+[data-theme="dark"] .service-card {
+    background: #374151;
+    color: #f9fafb;
+    border-color: #4b5563;
+}
+
+.service-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Dark mode hover effects for service cards */
+[data-theme="dark"] .service-card:hover {
+    box-shadow: 0 10px 30px rgba(96, 165, 250, 0.3) !important;
+}
+
+.service-card:hover .card-title {
+    color: var(--primary-color) !important;
+}
+
+.service-card:hover i {
+    transform: scale(1.1);
+    transition: transform 0.3s ease;
+}
+
+/* Mobile Recharge Dark Mode Additional Styles */
+/* Search input dark mode */
+[data-theme="dark"] .form-control {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .form-control::placeholder {
+    color: #9ca3af;
+}
+
+[data-theme="dark"] .form-control:focus {
+    background-color: #374151;
+    border-color: var(--primary-color);
+    color: #f9fafb;
+}
+
+/* Input group text dark mode */
+[data-theme="dark"] .input-group-text {
+    background-color: #4b5563;
+    border-color: #4b5563;
+    color: #f9fafb;
+}
+
+/* General card dark mode support */
+[data-theme="dark"] .card {
+    background-color: #374151 !important;
+    border-color: #4b5563 !important;
+    color: #f9fafb !important;
+}
+
+[data-theme="dark"] .card .card-body {
+    background-color: #374151 !important;
+    color: #f9fafb !important;
+}
+
+/* Shadow adjustments for dark mode */
+[data-theme="dark"] .shadow-sm {
+    box-shadow: 0 .125rem .25rem rgba(96, 165, 250, 0.075) !important;
+}
+
+[data-theme="dark"] .shadow {
+    box-shadow: 0 .5rem 1rem rgba(96, 165, 250, 0.15) !important;
+}
+
+/* Card headers dark mode */
+[data-theme="dark"] .card-header {
+    background-color: #374151 !important;
+    border-color: #4b5563 !important;
+    color: #f9fafb !important;
+}
+
+[data-theme="dark"] .card-header .badge.bg-primary {
+    background-color: var(--primary-color) !important;
+    color: #ffffff !important;
+}
+
+/* Search input dark mode fixes */
+[data-theme="dark"] .input-group-text.bg-light {
+    background-color: #4b5563 !important;
+    border-color: #4b5563 !important;
+    color: #f9fafb !important;
+}
+
+[data-theme="dark"] .form-control.bg-light {
+    background-color: #374151 !important;
+    border-color: #4b5563 !important;
+    color: #f9fafb !important;
+}
+
+[data-theme="dark"] .form-control.bg-light:focus {
+    background-color: #374151 !important;
+    border-color: var(--primary-color) !important;
+    color: #f9fafb !important;
+    box-shadow: 0 0 0 0.2rem rgba(96, 165, 250, 0.25) !important;
+}
+
+[data-theme="dark"] .form-control.bg-light::placeholder {
+    color: #9ca3af !important;
+}
+
+/* Modal dark mode support */
+[data-theme="dark"] .modal-content {
+    background-color: #374151;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .modal-header {
+    border-color: #4b5563;
+}
+
+[data-theme="dark"] .modal-footer {
+    border-color: #4b5563;
+}
+
+/* Badge dark mode */
+[data-theme="dark"] .badge {
+    color: #f9fafb;
+}
+
+/* Plan category buttons dark mode */
+[data-theme="dark"] .btn-outline-primary:not(.btn-primary) {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: var(--primary-color);
+}
+
+[data-theme="dark"] .btn-outline-success:not(.btn-success) {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: var(--success-color);
+}
+
+[data-theme="dark"] .btn-outline-info:not(.btn-info) {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: var(--info-color);
+}
+
+[data-theme="dark"] .btn-outline-warning:not(.btn-warning) {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: var(--warning-color);
+}
+
+[data-theme="dark"] .btn-outline-secondary:not(.btn-secondary) {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: var(--secondary-color);
+}
+
+/* List group items dark mode */
+[data-theme="dark"] .list-group-item {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .list-group-item.active {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+/* Alert dark mode */
+[data-theme="dark"] .alert-info {
+    background-color: rgba(96, 165, 250, 0.1);
+    border-color: var(--primary-color);
+    color: #f9fafb;
+}
+
+.bg-primary-subtle {
+    background-color: rgba(0, 165, 206, 0.1) !important;
+}
+
+
+/* ===== PRIMARY ===== */
+.btn-primary {
+    --bs-btn-bg: var(--primary-color);
+    --bs-btn-border-color: var(--primary-color);
+    --bs-btn-hover-bg: var(--primary-color);
+    --bs-btn-hover-border-color: var(--primary-color);
+    --bs-btn-active-bg: var(--primary-color);
+    --bs-btn-active-border-color: var(--primary-color);
+    --bs-btn-disabled-bg: var(--primary-color);
+    --bs-btn-disabled-border-color: var(--primary-color);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #fff;
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--primary-color);
+    --bs-btn-border-color: var(--primary-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--primary-color);
+    --bs-btn-hover-border-color: var(--primary-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--primary-color);
+    --bs-btn-active-border-color: var(--primary-color);
+    --bs-btn-disabled-color: var(--primary-color);
+    --bs-btn-disabled-border-color: var(--primary-color);
+}
+
+
+/* ===== SUCCESS ===== */
+.btn-success {
+    --bs-btn-bg: var(--success-color);
+    --bs-btn-border-color: var(--success-color);
+    --bs-btn-hover-bg: var(--success-color);
+    --bs-btn-hover-border-color: var(--success-color);
+    --bs-btn-active-bg: var(--success-color);
+    --bs-btn-active-border-color: var(--success-color);
+    --bs-btn-disabled-bg: var(--success-color);
+    --bs-btn-disabled-border-color: var(--success-color);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #fff;
+}
+
+.btn-outline-success {
+    --bs-btn-color: var(--success-color);
+    --bs-btn-border-color: var(--success-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--success-color);
+    --bs-btn-hover-border-color: var(--success-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--success-color);
+    --bs-btn-active-border-color: var(--success-color);
+    --bs-btn-disabled-color: var(--success-color);
+    --bs-btn-disabled-border-color: var(--success-color);
+}
+
+
+/* ===== DANGER ===== */
+.btn-danger {
+    --bs-btn-bg: var(--danger-color);
+    --bs-btn-border-color: var(--danger-color);
+    --bs-btn-hover-bg: var(--danger-color);
+    --bs-btn-hover-border-color: var(--danger-color);
+    --bs-btn-active-bg: var(--danger-color);
+    --bs-btn-active-border-color: var(--danger-color);
+    --bs-btn-disabled-bg: var(--danger-color);
+    --bs-btn-disabled-border-color: var(--danger-color);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #fff;
+}
+
+.btn-outline-danger {
+    --bs-btn-color: var(--danger-color);
+    --bs-btn-border-color: var(--danger-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--danger-color);
+    --bs-btn-hover-border-color: var(--danger-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--danger-color);
+    --bs-btn-active-border-color: var(--danger-color);
+    --bs-btn-disabled-color: var(--danger-color);
+    --bs-btn-disabled-border-color: var(--danger-color);
+}
+
+/* ==== WARNING ==== */
+.btn-warning {
+    --bs-btn-bg: var(--warning-color);
+    --bs-btn-border-color: var(--warning-color);
+    --bs-btn-hover-bg: var(--warning-color);
+    --bs-btn-hover-border-color: var(--warning-color);
+    --bs-btn-active-bg: var(--warning-color);
+    --bs-btn-active-border-color: var(--warning-color);
+    --bs-btn-disabled-bg: var(--warning-color);
+    --bs-btn-disabled-border-color: var(--warning-color);
+    --bs-btn-color: #000;
+    --bs-btn-hover-color: #000;
+    --bs-btn-active-color: #000;
+    --bs-btn-disabled-color: #000;
+}
+
+.btn-outline-warning {
+    --bs-btn-color: var(--warning-color);
+    --bs-btn-border-color: var(--warning-color);
+    --bs-btn-hover-color: #000;
+    --bs-btn-hover-bg: var(--warning-color);
+    --bs-btn-hover-border-color: var(--warning-color);
+    --bs-btn-active-color: #000;
+    --bs-btn-active-bg: var(--warning-color);
+    --bs-btn-active-border-color: var(--warning-color);
+    --bs-btn-disabled-color: var(--warning-color);
+    --bs-btn-disabled-border-color: var(--warning-color);
+}
+
+
+/* ==== INFO ==== */
+.btn-info {
+    --bs-btn-bg: var(--info-color);
+    --bs-btn-border-color: var(--info-color);
+    --bs-btn-hover-bg: var(--info-color);
+    --bs-btn-hover-border-color: var(--info-color);
+    --bs-btn-active-bg: var(--info-color);
+    --bs-btn-active-border-color: var(--info-color);
+    --bs-btn-disabled-bg: var(--info-color);
+    --bs-btn-disabled-border-color: var(--info-color);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #fff;
+}
+
+.btn-outline-info {
+    --bs-btn-color: var(--info-color);
+    --bs-btn-border-color: var(--info-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--info-color);
+    --bs-btn-hover-border-color: var(--info-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--info-color);
+    --bs-btn-active-border-color: var(--info-color);
+    --bs-btn-disabled-color: var(--info-color);
+    --bs-btn-disabled-border-color: var(--info-color);
+}
+
+
+/* ==== SECONDARY ==== */
+.btn-secondary {
+    --bs-btn-bg: var(--secondary-color);
+    --bs-btn-border-color: var(--secondary-color);
+    --bs-btn-hover-bg: var(--secondary-color);
+    --bs-btn-hover-border-color: var(--secondary-color);
+    --bs-btn-active-bg: var(--secondary-color);
+    --bs-btn-active-border-color: var(--secondary-color);
+    --bs-btn-disabled-bg: var(--secondary-color);
+    --bs-btn-disabled-border-color: var(--secondary-color);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #fff;
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--secondary-color);
+    --bs-btn-border-color: var(--secondary-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--secondary-color);
+    --bs-btn-hover-border-color: var(--secondary-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--secondary-color);
+    --bs-btn-active-border-color: var(--secondary-color);
+    --bs-btn-disabled-color: var(--secondary-color);
+    --bs-btn-disabled-border-color: var(--secondary-color);
+}
+
+
+/* ==== LIGHT ==== */
+.btn-light {
+    --bs-btn-bg: var(--light-color);
+    --bs-btn-border-color: var(--light-color);
+    --bs-btn-hover-bg: var(--light-color);
+    --bs-btn-hover-border-color: var(--light-color);
+    --bs-btn-active-bg: var(--light-color);
+    --bs-btn-active-border-color: var(--light-color);
+    --bs-btn-disabled-bg: var(--light-color);
+    --bs-btn-disabled-border-color: var(--light-color);
+    --bs-btn-color: #000;
+    --bs-btn-hover-color: #000;
+    --bs-btn-active-color: #000;
+    --bs-btn-disabled-color: #000;
+}
+
+.btn-outline-light {
+    --bs-btn-color: var(--light-color);
+    --bs-btn-border-color: var(--light-color);
+    --bs-btn-hover-color: #000;
+    --bs-btn-hover-bg: var(--light-color);
+    --bs-btn-hover-border-color: var(--light-color);
+    --bs-btn-active-color: #000;
+    --bs-btn-active-bg: var(--light-color);
+    --bs-btn-active-border-color: var(--light-color);
+    --bs-btn-disabled-color: var(--light-color);
+    --bs-btn-disabled-border-color: var(--light-color);
+}
+
+
+/* ==== DARK ==== */
+.btn-dark {
+    --bs-btn-bg: var(--dark-color);
+    --bs-btn-border-color: var(--dark-color);
+    --bs-btn-hover-bg: var(--dark-color);
+    --bs-btn-hover-border-color: var(--dark-color);
+    --bs-btn-active-bg: var(--dark-color);
+    --bs-btn-active-border-color: var(--dark-color);
+    --bs-btn-disabled-bg: var(--dark-color);
+    --bs-btn-disabled-border-color: var(--dark-color);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-color: #fff;
+}
+
+.btn-outline-dark {
+    --bs-btn-color: var(--dark-color);
+    --bs-btn-border-color: var(--dark-color);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--dark-color);
+    --bs-btn-hover-border-color: var(--dark-color);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--dark-color);
+    --bs-btn-active-border-color: var(--dark-color);
+    --bs-btn-disabled-color: var(--dark-color);
+    --bs-btn-disabled-border-color: var(--dark-color);
+}
+
+/* Sidebar base styling */
+.sidebar {
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-text);
+}
+
+.sidebar .nav-link {
+    color: var(--sidebar-text);
+    transition: all 0.3s ease;
+}
+
+.sidebar .nav-link:hover {
+    color: var(--sidebar-text);
+    background-color: var(--sidebar-hover);
+}
+
+.wrapper .page-content {
+    padding: 1.5rem;
+}
+
+.page-content-box {
+    margin-top: 1rem;
+}
+
+
+.btn-icon {
+    width: 2.8rem;
+    height: 2.5rem;
+    font-size: 1rem;
+    padding: 0;
+    margin-right: 1rem;
+}
+
+.topbar {
+    z-index: 100 !important;
+}

@@ -1,0 +1,12 @@
+{
+    "resources/js/app.jsx": {
+        "file": "assets/app.abc123.js",
+        "src": "resources/js/app.jsx",
+        "isEntry": true,
+        "imports": []
+    },
+    "resources/css/app.css": {
+        "file": "assets/app.def456.css",
+        "src": "resources/css/app.css"
+    }
+}

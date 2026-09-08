@@ -1,0 +1,184 @@
+.pageContainer {
+    min-height: 100vh;
+    background: #0f172a;
+    color: #f8fafc;
+    position: relative;
+    overflow-x: hidden;
+    padding-bottom: 4rem;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.blurBlob1 {
+    position: absolute;
+    top: -10%;
+    left: 15%;
+    width: 450px;
+    height: 450px;
+    background: radial-gradient(circle, rgba(var(--theme-primary-rgb, 16, 185, 129), 0.3) 0%, rgba(0, 0, 0, 0) 70%);
+    filter: blur(80px);
+    pointer-events: none;
+}
+
+.blurBlob2 {
+    position: absolute;
+    bottom: 10%;
+    right: 10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(var(--theme-secondary-rgb, 6, 182, 212), 0.25) 0%, rgba(0, 0, 0, 0) 70%);
+    filter: blur(100px);
+    pointer-events: none;
+}
+
+.heroCard {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 3rem 2rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.appLogo {
+    height: 72px;
+    max-width: 260px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
+.title {
+    font-size: 2.75rem;
+    font-weight: 800;
+    line-height: 1.2;
+    background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-top: 1rem;
+}
+
+.subtitle {
+    font-size: 1.15rem;
+    color: #94a3b8;
+    margin-top: 1rem;
+    max-width: 600px;
+}
+
+.badgePill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.primaryDownloadBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: linear-gradient(135deg, var(--theme-primary, #10b981) 0%, var(--theme-secondary, #06b6d4) 100%);
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 1.15rem;
+    padding: 16px 36px;
+    border-radius: 16px;
+    border: none;
+    text-decoration: none !important;
+    box-shadow: 0 10px 25px rgba(var(--theme-primary-rgb, 16, 185, 129), 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.primaryDownloadBtn:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 16px 32px rgba(var(--theme-primary-rgb, 16, 185, 129), 0.5);
+    color: #ffffff !important;
+}
+
+.secondaryDownloadBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #f1f5f9 !important;
+    font-weight: 600;
+    font-size: 1rem;
+    padding: 14px 28px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+}
+
+.secondaryDownloadBtn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #ffffff !important;
+    transform: translateY(-2px);
+}
+
+.qrWrapper {
+    position: relative;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    text-align: center;
+}
+
+.qrContainer {
+    width: 200px;
+    height: 200px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 12px;
+    margin: 0 auto 1rem auto;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.featureCard {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 1.75rem 1.5rem;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.featureCard:hover {
+    background: rgba(30, 41, 59, 0.8);
+    border-color: rgba(var(--theme-primary-rgb, 16, 185, 129), 0.4);
+    transform: translateY(-4px);
+}
+
+.iconBox {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    background: rgba(var(--theme-primary-rgb, 16, 185, 129), 0.15);
+    color: var(--theme-primary, #10b981);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.stepNumber {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--theme-primary, #10b981), var(--theme-secondary, #06b6d4));
+    color: #ffffff;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}

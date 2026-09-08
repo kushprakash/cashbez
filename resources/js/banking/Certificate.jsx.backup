@@ -1,0 +1,877 @@
+import React, { useState, useRef, useContext, useEffect } from 'react';
+import ApiService from '../core/services/ApiService';
+import Pageheader from '../layouts/Pageheader';
+import 'react-toastify/dist/ReactToastify.css';
+import { AuthContext } from '../core/hooks/context';
+import userPhoto from '../../../public/assets/images/users/avatar-1.jpg';
+import { apiUrl } from '../core/config';
+import { useLocation } from 'react-router-dom';
+
+const Certificate = (params) => {
+
+  const context = useContext(AuthContext);
+  const { userData: user, logout } = context || {};
+  const location = useLocation();
+  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const lastPath = pathSegments[pathSegments.length - 1];
+  const userMid = (!context || !user) ? atob(lastPath) : user?.mid;
+  const fileInputRef = useRef(null);
+
+  const [state, setState] = useState({
+    photoPreview: user?.photo || userPhoto,
+    qrCodeDataUrl: '',
+    adminData: null,
+    employeeData: {
+      name: '',
+      designation: 'CSP Merchant',
+      code: userMid || '',
+      team: 'Bussiness Team',
+      address: '',
+      phone: '',
+      email: '',
+      photo: ''
+    },
+    color1: 'rgba(0, 165, 206, 0.85)',
+    color2: 'rgba(60, 87, 114, 0.84)'
+  });
+
+
+  useEffect(() => {
+    // Return early if no context or no user data
+    if (userMid) {
+      fetchUserData(userMid);
+    }
+  }, [userMid]);
+
+
+  const hostname = window.location.hostname;
+
+  // Extract main domain (remove subdomain)
+  const domainParts = hostname.split('.');
+  let mainDomain = hostname;
+  if (domainParts.length > 2) {
+    // Get last two parts (e.g., domain.com)
+    mainDomain = domainParts.slice(-2).join('.');
+  }
+
+  // Remove "www." if present and format domain text
+  const cleanDomain = mainDomain.replace(/^www\./, '').toUpperCase();
+  const websiteDomain = 'WWW.' + cleanDomain;
+
+  const baseUrl = window.location.origin;
+
+  const qrCodeUrl =
+    apiUrl +
+    '/api/qr-generate-v26?text=' +
+    encodeURIComponent(baseUrl + '/user/' + btoa(state.employeeData.code));
+
+  // Fetch admin data
+  const fetchUserData = async (mid) => {
+    try {
+      const AdminData = apiUrl + '/api/getUserData/' + mid;
+      const response = await fetch(AdminData);
+      const data = await response.json();
+      const adminData1 = data.user;
+
+      setState(prevState => ({
+        ...prevState,
+        adminData: adminData1,
+        employeeData: {
+          name: adminData1?.name || '',
+          designation: 'CSP Merchant',
+          code: adminData1?.mid || userMid || '',
+          team: 'Bussiness Team',
+          address: adminData1?.address || '',
+          phone: adminData1?.mobile || '',
+          email: adminData1?.email || '',
+          photo: adminData1?.photo || ''
+        },
+        photoPreview: adminData1?.photo || '',
+        color1: adminData1?.color1 ? hexToRgba(adminData1.color1, 0.75) : 'rgba(0, 165, 206, 0.85)',
+        color2: adminData1?.color2 ? hexToRgba(adminData1.color2, 0.64) : 'rgba(60, 87, 114, 0.84)'
+      }));
+    } catch (error) {
+      console.error('Error fetching admin data:', error);
+    }
+  };
+
+
+  // Set QR code URL directly without fetching
+  useEffect(() => {
+    if (state.employeeData?.code) {
+      const cacheBuster = new Date().getTime();
+      setState(prevState => ({
+        ...prevState,
+        qrCodeDataUrl: `${qrCodeUrl}&_=${cacheBuster}`
+      }));
+    }
+  }, [state.employeeData.code]);
+
+
+  return (
+    <>
+      <div className="page-content-box">
+        <div className="page-content-box-inner">
+          <div className="certificate-container">
+            <div className="certificate-wrapper">
+              {/* Decorative Border */}
+              <div className="certificate-border">
+                {/* Header Section */}
+                <div className="certificate-header">
+                  <div className="header-left">
+                    <img src={state.adminData?.logo} alt="Fino Logo" className="fino-logo" />
+                  </div>
+                  <div className="header-center">
+                    <div className="ribbon-badge">
+                      <div className="ribbon-circle">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='35' fill='%23fff' stroke='%234169e1' stroke-width='3'/%3E%3Cpath d='M50 30 L55 45 L70 45 L58 54 L63 69 L50 60 L37 69 L42 54 L30 45 L45 45 Z' fill='%23ffd700' stroke='%23daa520' stroke-width='1'/%3E%3C/svg%3E" alt="Badge" className="badge-icon" />
+                      </div>
+                      <div className="ribbon-left"></div>
+                      <div className="ribbon-right"></div>
+                    </div>
+                  </div>
+                  <div className="header-right">
+                    <div className="bc-id">BC ID: <em>{state.employeeData.code || '110652019'}</em></div>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div className="certificate-title">
+                  BUSINESS CORRESPONDENT CERTIFICATE
+                </div>
+
+                {/* Certificate Content */}
+                <div className="certificate-content">
+                  <div className="certificate-text">
+                    <p className="text-line">
+                      This is to certify that <span className="recipient-name">{state.employeeData.name || 'MISS PALAK ANAND'}</span>
+                    </p>
+                    <p className="text-line">
+                      Address: <span className="address-text">{state.employeeData.address || 'Savanahua ka tola savanahua bajar, Savanahua Harnaut, NALANDA, Nawada, Bihar - 803110'}</span>
+                    </p>
+                    <p className="text-line authorization">
+                      is an authorized Business Correspondent of Fino Payments Bank Ltd.
+                    </p>
+                  </div>
+
+                  {/* Signatures */}
+                  <div className="signatures-section">
+                    <div className="signature-left">
+                      <div className="active-from">
+                        <div>Active from</div>
+                        <div>Date: <span className="date-value">.06.../...10./.2019......</span></div>
+                      </div>
+                    </div>
+                    <div className="signature-center">
+                      <div className="signature-line">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'%3E%3Cpath d='M10 30 Q20 10, 40 25 T70 20 T100 28' stroke='%23000' stroke-width='2' fill='none'/%3E%3C/svg%3E" alt="Signature" className="signature-img" />
+                      </div>
+                      <div className="signature-name">Shailesh Pandey</div>
+                      <div className="signature-title">Chief Sales & Distribution Head</div>
+                      <div className="signature-region">(West & South)</div>
+                    </div>
+                    <div className="signature-right">
+                      <div className="signature-line">
+                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='40' viewBox='0 0 120 40'%3E%3Cpath d='M10 25 Q30 15, 50 28 T90 22 T110 30' stroke='%23000' stroke-width='2' fill='none'/%3E%3C/svg%3E" alt="Signature" className="signature-img" />
+                      </div>
+                      <div className="signature-name">Vipr Bhardwaj</div>
+                      <div className="signature-title">Chief Sales & Distribution Head</div>
+                      <div className="signature-region">(North & East)</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Watermark */}
+                <div className="watermark">A</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .certificate-container {
+          margin: 20px auto;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 40px 20px;
+          background: #f5f5f5;
+        }
+
+        .certificate-wrapper {
+          width: 1000px;
+          background: white;
+          position: relative;
+        }
+
+        .certificate-border {
+          border: 15px solid;
+          border-image: repeating-linear-gradient(
+            0deg,
+            #c62828 0px,
+            #c62828 5px,
+            #8b1a1a 5px,
+            #8b1a1a 10px
+          ) 15;
+          padding: 30px 60px;
+          position: relative;
+          background: white;
+          box-shadow: 0 0 0 3px #c62828;
+        }
+
+        .certificate-border::before {
+          content: '';
+          position: absolute;
+          top: -20px;
+          left: -20px;
+          right: -20px;
+          bottom: -20px;
+          background: repeating-linear-gradient(
+            90deg,
+            transparent 0px,
+            transparent 8px,
+            #c62828 8px,
+            #c62828 10px
+          );
+          z-index: -1;
+          pointer-events: none;
+        }
+
+        .certificate-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 30px;
+          position: relative;
+        }
+
+        .header-left {
+          flex: 0 0 auto;
+        }
+
+        .fino-logo {
+          height: 60px;
+          width: auto;
+        }
+
+        .header-center {
+          position: absolute;
+          left: 50%;
+          top: -15px;
+          transform: translateX(-50%);
+        }
+
+        .ribbon-badge {
+          position: relative;
+          width: 120px;
+          height: 150px;
+        }
+
+        .ribbon-circle {
+          position: absolute;
+          top: 0;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 100px;
+          height: 100px;
+          background: radial-gradient(circle, #dc143c 0%, #b22222 50%, #8b0000 100%);
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .ribbon-circle::before {
+          content: '';
+          position: absolute;
+          width: 130%;
+          height: 130%;
+          background: conic-gradient(from 0deg, 
+            transparent 0deg, transparent 10deg,
+            #dc143c 10deg, #dc143c 20deg,
+            transparent 20deg, transparent 30deg,
+            #dc143c 30deg, #dc143c 40deg,
+            transparent 40deg, transparent 50deg,
+            #dc143c 50deg, #dc143c 60deg,
+            transparent 60deg, transparent 70deg,
+            #dc143c 70deg, #dc143c 80deg,
+            transparent 80deg, transparent 90deg,
+            #dc143c 90deg, #dc143c 100deg,
+            transparent 100deg, transparent 110deg,
+            #dc143c 110deg, #dc143c 120deg,
+            transparent 120deg, transparent 130deg,
+            #dc143c 130deg, #dc143c 140deg,
+            transparent 140deg, transparent 150deg,
+            #dc143c 150deg, #dc143c 160deg,
+            transparent 160deg, transparent 170deg,
+            #dc143c 170deg, #dc143c 180deg,
+            transparent 180deg, transparent 190deg,
+            #dc143c 190deg, #dc143c 200deg,
+            transparent 200deg, transparent 210deg,
+            #dc143c 210deg, #dc143c 220deg,
+            transparent 220deg, transparent 230deg,
+            #dc143c 230deg, #dc143c 240deg,
+            transparent 240deg, transparent 250deg,
+            #dc143c 250deg, #dc143c 260deg,
+            transparent 260deg, transparent 270deg,
+            #dc143c 270deg, #dc143c 280deg,
+            transparent 280deg, transparent 290deg,
+            #dc143c 290deg, #dc143c 300deg,
+            transparent 300deg, transparent 310deg,
+            #dc143c 310deg, #dc143c 320deg,
+            transparent 320deg, transparent 330deg,
+            #dc143c 330deg, #dc143c 340deg,
+            transparent 340deg, transparent 350deg,
+            #dc143c 350deg, #dc143c 360deg
+          );
+        }
+
+        .badge-icon {
+          width: 50px;
+          height: 50px;
+          z-index: 3;
+          position: relative;
+        }
+
+        .ribbon-left,
+        .ribbon-right {
+          position: absolute;
+          top: 70px;
+          width: 200px;
+          height: 70px;
+          background: linear-gradient(135deg, #dc143c 0%, #b22222 50%, #8b0000 100%);
+        }
+
+        .ribbon-left {
+          right: 50%;
+          transform: translateX(-5px);
+          clip-path: polygon(0 0, 100% 0, 90% 50%, 100% 100%, 15% 100%, 25% 50%);
+        }
+
+        .ribbon-right {
+          left: 50%;
+          transform: translateX(5px);
+          clip-path: polygon(0 0, 100% 0, 75% 50%, 85% 100%, 0 100%, 10% 50%);
+        }
+
+        .header-right {
+          flex: 0 0 auto;
+        }
+
+        .bc-id {
+          font-size: 16px;
+          font-weight: 400;
+          color: #333;
+        }
+
+        .bc-id em {
+          font-style: italic;
+          color: #666;
+        }
+
+        .certificate-title {
+          text-align: center;
+          font-size: 26px;
+          font-weight: 700;
+          color: #4a148c;
+          margin: 50px 0 40px 0;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        }
+
+        .certificate-content {
+          margin: 40px 0;
+        }
+
+        .certificate-text {
+          text-align: center;
+          line-height: 2.2;
+        }
+
+        .text-line {
+          font-size: 18px;
+          color: #333;
+          margin: 12px 0;
+        }
+
+        .recipient-name {
+          font-weight: 400;
+          text-decoration: underline;
+          text-decoration-style: dotted;
+          text-decoration-color: #333;
+          text-underline-offset: 3px;
+          color: #000;
+        }
+
+        .address-text {
+          text-decoration: underline;
+          text-decoration-style: dotted;
+          text-decoration-color: #333;
+          text-underline-offset: 3px;
+          color: #333;
+        }
+
+        .authorization {
+          margin-top: 25px !important;
+          font-weight: 400;
+        }
+
+        .signatures-section {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 30px;
+          margin-top: 80px;
+          align-items: end;
+        }
+
+        .signature-left {
+          text-align: left;
+        }
+
+        .signature-center,
+        .signature-right {
+          text-align: center;
+        }
+
+        .active-from {
+          font-size: 14px;
+          color: #333;
+          line-height: 1.8;
+        }
+
+        .date-value {
+          text-decoration: underline;
+          text-decoration-style: dotted;
+          text-decoration-color: #333;
+        }
+
+        .signature-line {
+          height: 50px;
+          margin-bottom: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .signature-img {
+          width: 120px;
+          height: 40px;
+        }
+
+        .signature-name {
+          font-size: 16px;
+          font-weight: 600;
+          color: #000;
+          margin-bottom: 5px;
+        }
+
+        .signature-title {
+          font-size: 14px;
+          color: #333;
+          margin-bottom: 3px;
+        }
+
+        .signature-region {
+          font-size: 14px;
+          color: #333;
+        }
+
+        .watermark {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          font-size: 400px;
+          font-weight: 900;
+          color: rgba(255, 192, 203, 0.08);
+          z-index: 0;
+          pointer-events: none;
+          font-family: Arial, sans-serif;
+        }
+
+        @media print {
+          body {
+            background-color: white;
+          }
+
+          .wrapper .page-content {
+            padding: 0;
+          }
+
+          .page-content-box,
+          .page-content-box-inner {
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
+          }
+
+          .page-header-breadcrumb {
+            display: none !important;
+          }
+
+          .certificate-container {
+            padding: 0;
+            background: white;
+          }
+
+          .certificate-wrapper {
+            page-break-inside: avoid;
+          }
+        }
+
+        @media screen and (max-width: 1100px) {
+          .certificate-wrapper {
+            width: 95%;
+            max-width: 1000px;
+          }
+
+          .certificate-border {
+            padding: 25px 40px;
+          }
+
+          .certificate-title {
+            font-size: 22px;
+          }
+
+          .text-line {
+            font-size: 16px;
+          }
+
+          .signatures-section {
+            gap: 20px;
+          }
+        }
+
+        @media screen and (max-width: 768px) {
+          .certificate-border {
+            padding: 20px 25px;
+          }
+
+          .certificate-title {
+            font-size: 18px;
+            margin: 35px 0 25px 0;
+          }
+
+          .text-line {
+            font-size: 14px;
+          }
+
+          .signatures-section {
+            grid-template-columns: 1fr;
+            gap: 25px;
+          }
+
+          .signature-left {
+            text-align: center;
+          }
+
+          .ribbon-badge {
+            transform: scale(0.8);
+          }
+        }
+      `}</style>
+
+    </>
+  );
+};
+
+const hexToRgba = (hex, opacity) => {
+  const bigint = parseInt(hex.replace('#', ''), 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+export default Certificate;
+          border-radius: 12px;
+          position: relative;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          border: 1px solid #d1d5db;
+          overflow: hidden;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+          background: url(data:image/jpeg;base64,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);
+          background-size: 105%;
+        }
+
+        /* Header Section with Gradient and Dot Pattern */
+        .id-header {
+            background: linear-gradient(135deg, #e8eef3 0%, #dce6f2 100%);
+            position: relative;
+            padding: 12px 0;
+        }
+
+   
+        .company-logo {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          position: relative;
+          z-index: 1;
+        }
+
+        .company-info {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .company-info img {
+            height: 60px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        .company-text {
+          margin-top: 2px;
+        }
+
+        .company-subtitle {
+          font-size: 8px;
+          color: #4b5563;
+          text-transform: uppercase;
+          font-weight: 500;
+          letter-spacing: 0.3px;
+        }
+
+        .qr-code {
+          position: relative;
+          z-index: 1;
+        }
+
+        .qr-code img {
+          width: 165px;
+          height: 165px;
+          border-radius: 6px;
+          background: white;
+          padding: 3px;
+        }
+
+      
+
+        /* Profile Section with Enhanced Design */
+        .employee-info {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        }
+
+        .employee-photo-wrapper {
+            position: relative;
+        }
+
+        .employee-photo {
+          position: relative;
+          z-index: 1;
+        }
+
+        .photo-img {
+            width: 120px;
+            height: 120px;
+            border-radius: 20px;
+            object-fit: cover;
+            border: 3px solid ${state.adminData?.color1 || '#00a5ce'};
+        }
+
+        .employee-details {
+          position: relative;
+          z-index: 1;
+          text-align: start;
+          padding-left: 15px;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .employee-name {
+          font-size: clamp(18px, 5vw, 22px);
+          font-weight: 700;
+          color: #1e3a5f;
+          margin: 0 0 4px 0;
+          line-height: 1.2;
+          text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          word-break: break-all;
+          hyphens: auto;
+          max-width: 100%;
+        }
+
+        .employee-designation {
+            font-size: 14px;
+            color: ${state.adminData?.color1 || '#00a5ce'};
+            text-transform: uppercase;
+            margin: 0 0 12px 0;
+            font-weight: 500;
+            border-bottom: 2px dashed;
+            padding-bottom: 12px;
+        }
+
+        .employee-code-section {
+            font-size: 12px;
+            font-weight: 900;
+          color: #053946;
+        }
+
+    
+
+        /* Details Section with Enhanced Gradient */
+        .details-grid {
+            background: linear-gradient(228deg, ${state.color1} 0%, ${state.color2} 100%);
+            backdrop-filter: blur(1px);
+            -webkit-backdrop-filter: blur(1px);
+            position: relative;
+            padding: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1.9fr;
+            gap: 8px;
+            color: white;
+        }
+
+        .details-grid::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Cpath d='M0 30 L30 0' stroke='rgba(255,255,255,0.06)' stroke-width='1.5'/%3E%3Cpath d='M15 30 L30 15' stroke='rgba(255,255,255,0.06)' stroke-width='1.5'/%3E%3C/svg%3E");
+          background-repeat: repeat;
+          opacity: 0.3;
+          pointer-events: none;
+        }
+
+        .detail-item {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          position: relative;
+          z-index: 1;
+          padding-left: 8px;
+          border-left: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .detail-email {
+          grid-column: span 2;
+        }
+
+        .detail-label {
+          font-size: 10px;
+          opacity: 0.9;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+          font-size: 13px;
+          font-weight: 600;
+          word-break: break-word;
+          line-height: 1.3;
+        }
+
+        /* Barcode Section */
+        .barcode-section {
+          background: transparent;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          padding: 18px 20px;
+        }
+
+        .barcode-img {
+          height: 55px;
+          max-width: 85%;
+          object-fit: contain;
+        }
+
+        /* Footer Section with Enhanced Pattern */
+        .website-footer {
+          background: linear-gradient(135deg, ${state.adminData?.color1 || '#00a5ce'} 0%, ${state.adminData?.color2 || '#12687eff'} 100%);
+          color: white;
+          text-align: center;
+          padding: 12px;
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 2.5px;
+          text-transform: uppercase;
+          position: relative;
+          border-radius: 0 0 11px 11px;
+        }
+
+        .website-footer::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(255,255,255,0.08)' stroke-width='1'/%3E%3C/svg%3E");
+          background-repeat: repeat;
+          opacity: 0.4;
+          pointer-events: none;
+        }
+
+        @media print {
+            body{
+                background-color: white;
+            }
+
+            .wrapper .page-content {
+                padding: 0.15rem;
+            }
+
+            .page-content-box, .page-content-box-inner{
+            margin-top: 0;
+            padding: 0;
+            box-shadow: none;
+            }
+
+          .page-header-breadcrumb{
+            display: none !important;
+          }
+          
+          .col-md-8 {
+            width: 100% !important;
+            max-width: none !important;
+          }
+          
+          .employee-certificate {
+            border: 1px solid #d1d5db;
+            page-break-inside: avoid;
+            box-shadow: none;
+            transform: scale(0.7);
+            transform-origin: top left;
+          }
+
+          .certificate-container {
+            margin: 0;
+            display: block;
+          }
+        }
+
+        @media screen and (max-width: 768px) {
+          .employee-certificate {
+            width: 100%;
+            max-width: 380px;
+          }
+        }
+      `}</style>
+
+    </>
+  );
+};
+
+const hexToRgba = (hex, opacity) => {
+  const bigint = parseInt(hex.replace('#', ''), 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+export default Certificate;

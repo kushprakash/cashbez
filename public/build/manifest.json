@@ -1,0 +1,148 @@
+{
+  "node_modules/boxicons/fonts/boxicons.eot": {
+    "file": "assets/boxicons-CSrLvhY_.eot",
+    "src": "node_modules/boxicons/fonts/boxicons.eot"
+  },
+  "node_modules/boxicons/fonts/boxicons.svg": {
+    "file": "assets/boxicons-Dp7W9qN3.svg",
+    "src": "node_modules/boxicons/fonts/boxicons.svg"
+  },
+  "node_modules/boxicons/fonts/boxicons.ttf": {
+    "file": "assets/boxicons-EIQNrSje.ttf",
+    "src": "node_modules/boxicons/fonts/boxicons.ttf"
+  },
+  "node_modules/boxicons/fonts/boxicons.woff": {
+    "file": "assets/boxicons-CTVby2V1.woff",
+    "src": "node_modules/boxicons/fonts/boxicons.woff"
+  },
+  "node_modules/boxicons/fonts/boxicons.woff2": {
+    "file": "assets/boxicons-CeGEncwm.woff2",
+    "src": "node_modules/boxicons/fonts/boxicons.woff2"
+  },
+  "node_modules/canvg/lib/index.es.js": {
+    "file": "assets/index.es-CqM19WfT.js",
+    "name": "index.es",
+    "src": "node_modules/canvg/lib/index.es.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "node_modules/dompurify/dist/purify.es.mjs": {
+    "file": "assets/purify.es-B6FQ9oRL.js",
+    "name": "purify.es",
+    "src": "node_modules/dompurify/dist/purify.es.mjs",
+    "isDynamicEntry": true
+  },
+  "public/assets/images/users/avatar-1.jpg": {
+    "file": "assets/avatar-1-54wpc3UM.jpg",
+    "src": "public/assets/images/users/avatar-1.jpg"
+  },
+  "resources/js/app.jsx": {
+    "file": "assets/app-D97A2ufM.js",
+    "name": "app",
+    "src": "resources/js/app.jsx",
+    "isEntry": true,
+    "isDynamicEntry": true,
+    "dynamicImports": [
+      "resources/js/crm/CRMDashboard.jsx",
+      "resources/js/hrms/HRMDashboard.jsx",
+      "resources/js/pages/MasterDashboard.jsx",
+      "resources/js/banking/BankingDashboard.jsx",
+      "node_modules/dompurify/dist/purify.es.mjs",
+      "node_modules/canvg/lib/index.es.js"
+    ],
+    "css": [
+      "assets/app-8sxER07L.css"
+    ],
+    "assets": [
+      "assets/avatar-1-54wpc3UM.jpg",
+      "assets/npci-logo-B_4cK4BX.png",
+      "assets/shop-cashbez-_Mv8Ujjv.png",
+      "assets/logo-black-DskDhNPX.png",
+      "assets/ribon-BFrstTE2.png",
+      "assets/digital-india-i99L2c9C.png",
+      "assets/Digital_India_logo-Coe5gYtI.png",
+      "assets/boxicons-CSrLvhY_.eot",
+      "assets/boxicons-CeGEncwm.woff2",
+      "assets/boxicons-CTVby2V1.woff",
+      "assets/boxicons-EIQNrSje.ttf",
+      "assets/boxicons-Dp7W9qN3.svg"
+    ]
+  },
+  "resources/js/banking/BankingDashboard.jsx": {
+    "file": "assets/BankingDashboard-Bw2x5c-4.js",
+    "name": "BankingDashboard",
+    "src": "resources/js/banking/BankingDashboard.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.jsx",
+      "resources/js/pages/MasterDashboard.jsx"
+    ],
+    "dynamicImports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "resources/js/banking/cashDeposit/npci-logo.png": {
+    "file": "assets/npci-logo-B_4cK4BX.png",
+    "src": "resources/js/banking/cashDeposit/npci-logo.png"
+  },
+  "resources/js/banking/digital-india.png": {
+    "file": "assets/digital-india-i99L2c9C.png",
+    "src": "resources/js/banking/digital-india.png"
+  },
+  "resources/js/banking/logo-black.png": {
+    "file": "assets/logo-black-DskDhNPX.png",
+    "src": "resources/js/banking/logo-black.png"
+  },
+  "resources/js/banking/ribon.png": {
+    "file": "assets/ribon-BFrstTE2.png",
+    "src": "resources/js/banking/ribon.png"
+  },
+  "resources/js/banking/shop-cashbez.png": {
+    "file": "assets/shop-cashbez-_Mv8Ujjv.png",
+    "src": "resources/js/banking/shop-cashbez.png"
+  },
+  "resources/js/banking/startup-india.webp": {
+    "file": "assets/startup-india-DDTuKUUW.webp",
+    "src": "resources/js/banking/startup-india.webp"
+  },
+  "resources/js/crm/CRMDashboard.jsx": {
+    "file": "assets/CRMDashboard-CWoPE5aY.js",
+    "name": "CRMDashboard",
+    "src": "resources/js/crm/CRMDashboard.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "resources/js/hrms/HRMDashboard.jsx": {
+    "file": "assets/HRMDashboard-DmIaq6Bt.js",
+    "name": "HRMDashboard",
+    "src": "resources/js/hrms/HRMDashboard.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "resources/js/online_service/download/Digital_India_logo.png": {
+    "file": "assets/Digital_India_logo-Coe5gYtI.png",
+    "src": "resources/js/online_service/download/Digital_India_logo.png"
+  },
+  "resources/js/pages/MasterDashboard.jsx": {
+    "file": "assets/MasterDashboard-Cb3XOS1U.js",
+    "name": "MasterDashboard",
+    "src": "resources/js/pages/MasterDashboard.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.jsx"
+    ],
+    "dynamicImports": [
+      "resources/js/app.jsx"
+    ]
+  },
+  "resources/js/pages/aeps/npci-logo.png": {
+    "file": "assets/npci-logo-B_4cK4BX.png",
+    "src": "resources/js/banking/cashDeposit/npci-logo.png"
+  }
+}

@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS `bill_items` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `bill_id` BIGINT UNSIGNED NOT NULL,
+  `product_id` BIGINT UNSIGNED NULL,
+  `name` VARCHAR(255) NOT NULL,
+  `qty` DECIMAL(8,2) NOT NULL DEFAULT 1.00,
+  `unit_price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `gst_rate` DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+  `line_total` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `created_at` TIMESTAMP NULL,
+  `updated_at` TIMESTAMP NULL,
+  INDEX `bill_items_bill_id_index` (`bill_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

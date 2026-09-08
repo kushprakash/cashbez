@@ -1,0 +1,349 @@
+import React, { useState, useEffect } from 'react';
+import {
+    Box,
+    Paper,
+    Typography,
+    List,
+    ListItem,
+    ListItemIcon,
+    ListItemText,
+    ListItemSecondaryAction,
+    Checkbox,
+    IconButton,
+    Chip,
+    TextField,
+    InputAdornment,
+    MenuItem,
+    Menu,
+    Tooltip,
+    Avatar,
+    Divider,
+    Pagination
+} from '@mui/material';
+import {
+    Search as SearchIcon,
+    Send as SendIcon,
+    MoreVert as MoreVertIcon,
+    AttachFile as AttachFileIcon,
+    Delete as DeleteIcon,
+    MarkAsUnread as MarkAsUnreadIcon,
+    Archive as ArchiveIcon
+} from '@mui/icons-material';
+import { useNavigate, useParams, useOutletContext } from 'react-router-dom';
+import { format, isToday, isYesterday } from 'date-fns';
+import ApiService from '../../core/services/ApiService';
+
+const EmailList = ({ folder = 'sent' }) => {
+    const navigate = useNavigate();
+    const { refreshStats } = useOutletContext();
+    const apiService = ApiService();
+    const [emails, setEmails] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedEmails, setSelectedEmails] = useState([]);
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [actionEmailId, setActionEmailId] = useState(null);
+
+    useEffect(() => {
+        fetchEmails();
+    }, [folder, page, search]);
+
+    const fetchEmails = async () => {
+        setLoading(true);
+        try {
+            const params = { page, per_page: 20 };
+            if (search) params.search = search;
+            
+            const response = await apiService.vGet(`/api/crm/emails/${folder}`, { params });
+            setEmails(response.data.data);
+            setTotalPages(response.data.last_page);
+        } catch (error) {
+            console.error('Error fetching emails:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        if (isToday(date)) {
+            return format(date, 'HH:mm');
+        } else if (isYesterday(date)) {
+            return 'Yesterday';
+        } else {
+            return format(date, 'MMM dd');
+        }
+    };
+
+    const handleEmailClick = (email) => {
+        navigate(`/crm/emails/view/${email.id}`);
+    };
+
+    const handleSelectEmail = (emailId) => {
+        setSelectedEmails(prev => 
+            prev.includes(emailId) 
+                ? prev.filter(id => id !== emailId)
+                : [...prev, emailId]
+        );
+    };
+
+    const handleSelectAll = () => {
+        if (selectedEmails.length === emails.length) {
+            setSelectedEmails([]);
+        } else {
+            setSelectedEmails(emails.map(email => email.id));
+        }
+    };
+
+    const handleMenuOpen = (event, emailId) => {
+        event.stopPropagation();
+        setAnchorEl(event.currentTarget);
+        setActionEmailId(emailId);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+        setActionEmailId(null);
+    };
+
+    const handleMarkAsRead = async (emailId, isRead = true) => {
+        try {
+            await apiService.vPatch(`/api/crm/emails/${emailId}/read`, { is_read: isRead });
+            fetchEmails();
+            refreshStats();
+            handleMenuClose();
+        } catch (error) {
+            console.error('Error marking email:', error);
+        }
+    };
+
+    const handleDelete = async (emailId) => {
+        try {
+            await apiService.vDelete(`/api/crm/emails/${emailId}`);
+            fetchEmails();
+            refreshStats();
+            handleMenuClose();
+        } catch (error) {
+            console.error('Error deleting email:', error);
+        }
+    };
+
+    const handleSearchChange = (event) => {
+        setSearch(event.target.value);
+        setPage(1);
+    };
+
+    const getPriorityColor = (priority) => {
+        switch (priority) {
+            case 'high': return 'error';
+            case 'low': return 'info';
+            default: return 'default';
+        }
+    };
+
+    const getSubjectPreview = (email) => {
+        const maxLength = 60;
+        if (email.subject.length <= maxLength) return email.subject;
+        return email.subject.substring(0, maxLength) + '...';
+    };
+
+    const getBodyPreview = (email) => {
+        const plainText = email.body.replace(/<[^>]*>/g, ''); // Remove HTML tags
+        const maxLength = 120;
+        if (plainText.length <= maxLength) return plainText;
+        return plainText.substring(0, maxLength) + '...';
+    };
+
+    if (loading) {
+        return (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography>Loading emails...</Typography>
+            </Box>
+        );
+    }
+
+    return (
+        <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column', borderRadius: 1 }}>
+            {/* Header */}
+            <Box sx={{ p: 3, borderBottom: 1, borderColor: 'divider', bgcolor: 'grey.50' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Checkbox
+                            checked={selectedEmails.length === emails.length && emails.length > 0}
+                            indeterminate={selectedEmails.length > 0 && selectedEmails.length < emails.length}
+                            onChange={handleSelectAll}
+                        />
+                        <Typography variant="h6" sx={{ ml: 1, textTransform: 'capitalize', fontWeight: 'bold' }}>
+                            {folder} Emails
+                        </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary">
+                        {emails.length} email{emails.length !== 1 ? 's' : ''}
+                    </Typography>
+                </Box>
+                
+                <TextField
+                    fullWidth
+                    placeholder="Search sent emails..."
+                    value={search}
+                    onChange={handleSearchChange}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon />
+                            </InputAdornment>
+                        ),
+                    }}
+                    size="small"
+                />
+            </Box>
+
+            {/* Email List */}
+            <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+                {emails.length === 0 ? (
+                    <Box sx={{ 
+                        p: 6, 
+                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '50%'
+                    }}>
+                        <SendIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                        <Typography variant="h6" color="text.secondary" gutterBottom>
+                            No {folder} emails found
+                        </Typography>
+                        <Typography variant="body2" color="text.disabled">
+                            {search ? 'Try adjusting your search terms' : 'Start composing emails to see them here'}
+                        </Typography>
+                    </Box>
+                ) : (
+                    <List disablePadding>
+                        {emails.map((email, index) => (
+                            <React.Fragment key={email.id}>
+                                <ListItem
+                                    button
+                                    onClick={() => handleEmailClick(email)}
+                                    sx={{
+                                        backgroundColor: email.is_read ? 'transparent' : 'action.hover',
+                                        '&:hover': {
+                                            backgroundColor: 'action.selected',
+                                        },
+                                        py: 1.5
+                                    }}
+                                >
+                                    <ListItemIcon>
+                                        <Checkbox
+                                            checked={selectedEmails.includes(email.id)}
+                                            onChange={() => handleSelectEmail(email.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </ListItemIcon>
+
+                                    <Avatar
+                                        sx={{ width: 32, height: 32, mr: 2 }}
+                                        src={email.sender?.avatar}
+                                    >
+                                        {email.sender?.name?.charAt(0)}
+                                    </Avatar>
+
+                                    <ListItemText
+                                        primary={
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                                                <Typography
+                                                    variant="body1"
+                                                    sx={{ 
+                                                        fontWeight: email.is_read ? 'normal' : 'bold',
+                                                        minWidth: 150,
+                                                        flexShrink: 0
+                                                    }}
+                                                >
+                                                    {email.sender?.name || 'Unknown Sender'}
+                                                </Typography>
+                                                <Typography
+                                                    variant="body1"
+                                                    sx={{ 
+                                                        fontWeight: email.is_read ? 'normal' : 'bold',
+                                                        flexGrow: 1,
+                                                        mr: 2
+                                                    }}
+                                                >
+                                                    {getSubjectPreview(email)}
+                                                </Typography>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                                                    {email.has_attachments && (
+                                                        <AttachFileIcon fontSize="small" color="action" />
+                                                    )}
+                                                    {email.priority !== 'normal' && (
+                                                        <Chip
+                                                            label={email.priority}
+                                                            size="small"
+                                                        color={getPriorityColor(email.priority)}
+                                                        variant="outlined"
+                                                    />
+                                                )}
+                                            </Box>
+                                        }
+                                        secondary={
+                                            <Typography variant="body2" color="text.secondary" noWrap>
+                                                {getBodyPreview(email)}
+                                            </Typography>
+                                        }
+                                    />
+
+                                    <ListItemSecondaryAction>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {formatDate(email.created_at)}
+                                            </Typography>
+                                            <IconButton
+                                                size="small"
+                                                onClick={(e) => handleMenuOpen(e, email.id)}
+                                            >
+                                                <MoreVertIcon />
+                                            </IconButton>
+                                        </Box>
+                                    </ListItemSecondaryAction>
+                                </ListItem>
+                                {index < emails.length - 1 && <Divider />}
+                            </React.Fragment>
+                        ))}
+                    </List>
+                )}
+            </Box>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'center', borderTop: 1, borderColor: 'divider' }}>
+                    <Pagination
+                        count={totalPages}
+                        page={page}
+                        onChange={(event, value) => setPage(value)}
+                        color="primary"
+                    />
+                </Box>
+            )}
+
+            {/* Context Menu */}
+            <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleMenuClose}
+            >
+                <MenuItem onClick={() => handleMarkAsRead(actionEmailId, false)}>
+                    <MarkAsUnreadIcon sx={{ mr: 1 }} />
+                    Mark as unread
+                </MenuItem>
+                <MenuItem onClick={() => handleDelete(actionEmailId)}>
+                    <DeleteIcon sx={{ mr: 1 }} />
+                    Delete
+                </MenuItem>
+            </Menu>
+        </Paper>
+    );
+};
+
+export default EmailList;

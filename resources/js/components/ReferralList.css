@@ -1,0 +1,233 @@
+/* Referral List Component Styles */
+.referral-list-container {
+  padding: 20px;
+}
+
+.referral-list-container .ant-card {
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.referral-list-container .ant-card-head {
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.referral-list-container .ant-card-head-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+/* Period Filter Buttons */
+.referral-list-container .ant-btn-group {
+  margin-bottom: 20px;
+}
+
+.referral-list-container .ant-btn-group .ant-btn {
+  border-radius: 6px;
+  margin-right: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.referral-list-container .ant-btn-group .ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+}
+
+/* Statistics Cards */
+.referral-list-container .ant-statistic {
+  text-align: center;
+}
+
+.referral-list-container .ant-statistic-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.referral-list-container .ant-statistic-content {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.referral-list-container .ant-statistic-content-value {
+  color: #1890ff;
+}
+
+/* Business Metrics Grid */
+.referral-list-container .business-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.referral-list-container .metric-card {
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.referral-list-container .metric-card:hover {
+  border-color: #1890ff;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.1);
+}
+
+/* Table Styles */
+.referral-list-container .ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #333;
+}
+
+.referral-list-container .ant-table-tbody > tr > td {
+  padding: 12px 16px;
+}
+
+.referral-list-container .ant-table-tbody > tr:hover > td {
+  background: #f5f5f5 !important;
+}
+
+/* Tags */
+.referral-list-container .ant-tag {
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+}
+
+/* Expandable Row */
+.referral-list-container .ant-table-expanded-row {
+  background: #f9f9f9;
+}
+
+.referral-list-container .ant-table-expanded-row > td {
+  padding: 16px !important;
+}
+
+/* Loading States */
+.referral-list-container .ant-spin-container {
+  min-height: 200px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .referral-list-container {
+    padding: 12px;
+  }
+  
+  .referral-list-container .ant-btn-group .ant-btn {
+    margin-bottom: 8px;
+    margin-right: 4px;
+    font-size: 12px;
+    padding: 4px 12px;
+  }
+  
+  .referral-list-container .ant-statistic-title {
+    font-size: 10px;
+  }
+  
+  .referral-list-container .ant-statistic-content {
+    font-size: 14px;
+  }
+  
+  .referral-list-container .ant-card-body {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 576px) {
+  .referral-list-container .business-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .referral-list-container .ant-col {
+    margin-bottom: 12px;
+  }
+}
+
+/* Animation Effects */
+.referral-list-container .fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Success Rate Indicators */
+.referral-list-container .success-rate-high {
+  color: #52c41a;
+}
+
+.referral-list-container .success-rate-medium {
+  color: #1890ff;
+}
+
+.referral-list-container .success-rate-low {
+  color: #faad14;
+}
+
+.referral-list-container .success-rate-poor {
+  color: #f5222d;
+}
+
+/* Amount Display */
+.referral-list-container .amount-display {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  color: #52c41a;
+}
+
+.referral-list-container .amount-display.negative {
+  color: #f5222d;
+}
+
+/* Card Hover Effects */
+.referral-list-container .ant-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+
+/* Tab Customization */
+.referral-list-container .ant-tabs-tab {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.referral-list-container .ant-tabs-tab-active {
+  color: #1890ff !important;
+}
+
+.referral-list-container .ant-tabs-ink-bar {
+  background: #1890ff;
+  height: 3px;
+}
+
+/* Button Customization */
+.referral-list-container .ant-btn-primary {
+  background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.referral-list-container .ant-btn-primary:hover {
+  background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4);
+}

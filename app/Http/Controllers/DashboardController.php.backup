@@ -1,0 +1,564 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Models\Account;
+use App\Models\AepsDraft;
+use App\Models\AepsTransaction;
+use App\Models\CashDeposit;
+use App\Models\Recharge;
+use App\Models\Payout;
+use App\Models\Passbook;
+use App\Models\AccountsAddMoney;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+class DashboardController extends Controller
+{
+
+    // if role==1 then super admin else if role==2 then admin else user
+
+    //every table have user_id , admin_id  field to filter data accordingly
+
+    //super admin can show all data and admin show from admin_id and user from user_id
+ 
+    // this is user data $user=$request->get('user');
+
+    //if role==1 then no any condition else if role==2 then filter by admin_id from session $user->id else filter by user_id session $user->id
+
+    // utility mobile , dth , bill table is recharge table with type 1,2,3 respectively
+
+    //aeps cw , ap , be , ms are aeps_transaction table with aeps_type CW , AP , BE , MS respectively 
+
+    //cash_deposit table is cash_deposits table
+
+    //merchants table is aeps_drafts table aeps_status drafts=0 , onboarding=1 , ekyc=2 , biomatrickyc=3 , 2fa=4 respectively
+
+    //add_fund from accounts_add_money table status ='pending', 'success', 'failed' create modal if not exist
+    // this is sql query structure for reference INSERT INTO `accounts_add_money`(`id`, `user_id`, `account_id`, `amount`, `txnid`, `utr`, `status`, `message`, `callback`, `created_at`, `updated_at`)
+    
+    /**
+     * Get role-based filtering condition for queries
+     * 
+     * @param User $user
+     * @param string $userColumn Column name for user filtering (default: 'user_id', for AEPS: 'mid')
+     * @param bool $useIdForUser Whether to use 'id' field for user filtering (false for AEPS which uses 'mid')
+     * @return \Closure
+     */
+    private function getRoleBasedFilter($user, $userColumn = 'user_id', $useIdForUser = true)
+    {
+        return function ($query) use ($user, $userColumn, $useIdForUser) {
+            if ($user->role == 1) {
+                // Super Admin - no filter, can see all data
+                return $query;
+            } elseif ($user->role == 2) {
+                // Admin - filter by admin_id (use mid for AEPS tables)
+                $adminValue = $useIdForUser ? $user->id : $user->mid;
+                return $query->where('admin_id', $adminValue);
+            } else {
+                // User - filter by user_id or mid
+                $userValue = $useIdForUser ? $user->id : $user->mid;
+                return $query->where($userColumn, $userValue);
+            }
+        };
+    }
+
+    /**
+     * Get aggregated transaction data for different time periods
+     */
+    private function getTransactionAggregation($query, $includeAmount = true)
+    {
+        $today = Carbon::today();
+        $thisMonth = Carbon::now()->startOfMonth();
+
+        $result = [
+            'total' => ['success' => ['count' => 0], 'failed' => ['count' => 0], 'pending' => ['count' => 0]],
+            'today' => ['success' => ['count' => 0], 'failed' => ['count' => 0], 'pending' => ['count' => 0]],
+            'this_month' => ['success' => ['count' => 0], 'failed' => ['count' => 0], 'pending' => ['count' => 0]]
+        ];
+
+        if ($includeAmount) {
+            $result['total']['success']['amount'] = 0;
+            $result['total']['failed']['amount'] = 0;
+            $result['total']['pending']['amount'] = 0;
+            $result['today']['success']['amount'] = 0;
+            $result['today']['failed']['amount'] = 0;
+            $result['today']['pending']['amount'] = 0;
+            $result['this_month']['success']['amount'] = 0;
+            $result['this_month']['failed']['amount'] = 0;
+            $result['this_month']['pending']['amount'] = 0;
+        }
+
+        // Get total aggregation
+        $totalAgg = $query->selectRaw(
+            $includeAmount 
+                ? 'COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount, response_status'
+                : 'COUNT(*) as count, response_status'
+        )->groupBy('response_status')->get();
+
+        foreach ($totalAgg as $agg) {
+            $status = $agg->response_status ? 'success' : 'failed';
+            $result['total'][$status]['count'] = $agg->count;
+            if ($includeAmount) {
+                $result['total'][$status]['amount'] = (float) $agg->total_amount;
+            }
+        }
+
+        // Get today aggregation
+        $todayAgg = (clone $query)->whereDate('created_at', $today)
+            ->selectRaw(
+                $includeAmount 
+                    ? 'COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount, response_status'
+                    : 'COUNT(*) as count, response_status'
+            )->groupBy('response_status')->get();
+
+        foreach ($todayAgg as $agg) {
+            $status = $agg->response_status ? 'success' : 'failed';
+            $result['today'][$status]['count'] = $agg->count;
+            if ($includeAmount) {
+                $result['today'][$status]['amount'] = (float) $agg->total_amount;
+            }
+        }
+
+        // Get this month aggregation
+        $monthAgg = (clone $query)->where('created_at', '>=', $thisMonth)
+            ->selectRaw(
+                $includeAmount 
+                    ? 'COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount, response_status'
+                    : 'COUNT(*) as count, response_status'
+            )->groupBy('response_status')->get();
+
+        foreach ($monthAgg as $agg) {
+            $status = $agg->response_status ? 'success' : 'failed';
+            $result['this_month'][$status]['count'] = $agg->count;
+            if ($includeAmount) {
+                $result['this_month'][$status]['amount'] = (float) $agg->total_amount;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Get aggregated data with custom status mapping
+     */
+    private function getCustomStatusAggregation($query, $statusMap, $includeAmount = true)
+    {
+        $today = Carbon::today();
+        $thisMonth = Carbon::now()->startOfMonth();
+
+        $result = [
+            'total' => ['success' => ['count' => 0], 'failed' => ['count' => 0], 'pending' => ['count' => 0]],
+            'today' => ['success' => ['count' => 0], 'failed' => ['count' => 0], 'pending' => ['count' => 0]],
+            'this_month' => ['success' => ['count' => 0], 'failed' => ['count' => 0], 'pending' => ['count' => 0]]
+        ];
+
+        if ($includeAmount) {
+            foreach (['total', 'today', 'this_month'] as $period) {
+                foreach (['success', 'failed', 'pending'] as $status) {
+                    $result[$period][$status]['amount'] = 0;
+                }
+            }
+        }
+
+        // Get total aggregation
+        $totalAgg = $query->selectRaw(
+            $includeAmount 
+                ? 'COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount, status'
+                : 'COUNT(*) as count, status'
+        )->groupBy('status')->get();
+
+        foreach ($totalAgg as $agg) {
+            $mappedStatus = $statusMap[$agg->status] ?? 'pending';
+            $result['total'][$mappedStatus]['count'] += $agg->count;
+            if ($includeAmount) {
+                $result['total'][$mappedStatus]['amount'] += (float) $agg->total_amount;
+            }
+        }
+
+        // Get today aggregation
+        $todayAgg = (clone $query)->whereDate('created_at', $today)
+            ->selectRaw(
+                $includeAmount 
+                    ? 'COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount, status'
+                    : 'COUNT(*) as count, status'
+            )->groupBy('status')->get();
+
+        foreach ($todayAgg as $agg) {
+            $mappedStatus = $statusMap[$agg->status] ?? 'pending';
+            $result['today'][$mappedStatus]['count'] += $agg->count;
+            if ($includeAmount) {
+                $result['today'][$mappedStatus]['amount'] += (float) $agg->total_amount;
+            }
+        }
+
+        // Get this month aggregation
+        $monthAgg = (clone $query)->where('created_at', '>=', $thisMonth)
+            ->selectRaw(
+                $includeAmount 
+                    ? 'COUNT(*) as count, COALESCE(SUM(amount), 0) as total_amount, status'
+                    : 'COUNT(*) as count, status'
+            )->groupBy('status')->get();
+
+        foreach ($monthAgg as $agg) {
+            $mappedStatus = $statusMap[$agg->status] ?? 'pending';
+            $result['this_month'][$mappedStatus]['count'] += $agg->count;
+            if ($includeAmount) {
+                $result['this_month'][$mappedStatus]['amount'] += (float) $agg->total_amount;
+            }
+        }
+
+        return $result;
+    }
+
+    public function index(Request $request)
+    {
+        $user = $request->get('user');
+        $filter = $this->getRoleBasedFilter($user);
+        $aepsFilter = $this->getRoleBasedFilter($user, 'mid', false); // AEPS uses 'mid' instead of 'user_id', and stores mid values
+        
+        try {
+            // AEPS Transactions
+            $aepsData = [];
+            $aepsTypes = ['CW' => 'cw', 'AP' => 'ap', 'BE' => 'be', 'MS' => 'ms'];
+            
+            foreach ($aepsTypes as $dbType => $key) {
+                $query = AepsTransaction::where('aeps_type', $dbType)->where($aepsFilter);
+                $includeAmount = in_array($dbType, ['CW', 'AP']); // Only CW and AP have amounts
+                $aepsData[$key] = $this->getTransactionAggregation($query, $includeAmount);
+            }
+
+            // Cash Deposit - also uses 'mid'
+            $cashDepositQuery = CashDeposit::where($aepsFilter);
+            $cashDepositData = $this->getCustomStatusAggregation($cashDepositQuery, [
+                'success' => 'success',
+                'failed' => 'failed',
+                'pending' => 'pending'
+            ]);
+
+            // Utility Transactions (Recharge table)
+            $utilityData = [];
+            $utilityTypes = [1 => 'mobile', 2 => 'dth', 3 => 'bill'];
+            
+            foreach ($utilityTypes as $type => $key) {
+                $query = Recharge::where('type', $type)->where($filter);
+                $utilityData[$key] = $this->getCustomStatusAggregation($query, [
+                    'success' => 'success',
+                    'failed' => 'failed',
+                    'pending' => 'pending'
+                ]);
+            }
+
+            // Payouts
+            $payoutQuery = Payout::where($filter);
+            $payoutData = $this->getCustomStatusAggregation($payoutQuery, [
+                'success' => 'success',
+                'failed' => 'failed',
+                'pending' => 'pending'
+            ]);
+
+            // Accounts Statistics
+            $accountQuery = Account::where($filter);
+            
+            $userId = $user->id;
+
+            // Latest balance for each account
+            $balanceSubquery = DB::table('passbooks as p1')
+                ->select('p1.account_id', 'p1.balance')
+                ->whereRaw('p1.id = (SELECT MAX(p2.id) FROM passbooks p2 WHERE p2.account_id = p1.account_id)');
+
+            // Main Passbook Query
+            $query = DB::table('passbooks')
+                ->join('users', 'users.id', '=', 'passbooks.user_id')
+                ->join('accounts', 'accounts.id', '=', 'passbooks.account_id')
+
+                // Role-based filter using FIND_IN_SET (more accurate than LIKE)
+                ->where('users.id', $userId)
+
+                // Join latest balance
+                ->leftJoinSub($balanceSubquery, 'balance_table', function ($join) {
+                    $join->on('balance_table.account_id', '=', 'passbooks.account_id');
+                })
+
+                ->select(
+                    'passbooks.*',
+                    'users.name as user_name',
+                    'users.root',
+                    'balance_table.balance as latest_balance'
+                )
+                ->orderBy('passbooks.id', 'DESC')
+                ->get();
+
+
+            // Accounts with latest balance
+            $accountsWithBalance = Account::leftJoinSub($balanceSubquery, 'latest_balance', function ($join) {
+                $join->on('accounts.id', '=', 'latest_balance.account_id');
+            });
+
+            $lastBalances = Passbook::where('user_id', $userId)
+            ->select('account_id', 'balance')
+            ->whereIn('id', function ($query) use ($userId) {
+                $query->selectRaw('MAX(id)')
+                    ->from('passbooks')
+                    ->where('user_id', $userId)
+                    ->groupBy('account_id');
+            })
+            ->get();
+            
+            $accountStats = [
+                'count' => $accountQuery->count(),
+                'total_balance' => (float) $lastBalances->sum('balance'),
+                'hold_balance' => (float) $accountQuery->sum('hold_amount'),
+                'available_balance' => (float) $lastBalances->sum('balance')-(float) $accountQuery->sum('hold_amount'),
+                'active_accounts' => (clone $accountQuery)->where('status', 1)->count(),
+                'inactive_accounts' => (clone $accountQuery)->where('status', 0)->count(),
+            ];
+
+            // Add Fund - Check if table exists first
+            $addFundData = [
+                'total' => ['success' => ['count' => 0, 'amount' => 0], 'failed' => ['count' => 0, 'amount' => 0], 'pending' => ['count' => 0, 'amount' => 0]],
+                'today' => ['success' => ['count' => 0, 'amount' => 0], 'failed' => ['count' => 0, 'amount' => 0], 'pending' => ['count' => 0, 'amount' => 0]],
+                'this_month' => ['success' => ['count' => 0, 'amount' => 0], 'failed' => ['count' => 0, 'amount' => 0], 'pending' => ['count' => 0, 'amount' => 0]]
+            ];
+            
+            try {
+                // Check if accounts_add_money table exists
+                if (DB::getSchemaBuilder()->hasTable('accounts_add_money')) {
+                    $addFundQuery = AccountsAddMoney::where($filter);
+                    $addFundData = $this->getCustomStatusAggregation($addFundQuery, [
+                        'success' => 'success',
+                        'failed' => 'failed',
+                        'pending' => 'pending'
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('accounts_add_money table does not exist or error accessing it: ' . $e->getMessage());
+            }
+
+            // Users Statistics - only for Super Admin and Admin
+            $userStats = null;
+            if ($user->role == 1 || $user->role == 2) {
+                $today = Carbon::today();
+                $thisMonth = Carbon::now()->startOfMonth();
+                
+                $userQuery = User::query();
+                if ($user->role == 2) {
+                    // Admin can see users under them - use admin_mid instead of admin_id
+                    $userQuery->where('admin_mid', $user->mid);
+                }
+
+                $userStats = [
+                    'total' => [
+                        'active' => $userQuery->where('status', 1)->count(),
+                        'inactive' => $userQuery->where('status', 0)->count()
+                    ],
+                    'today' => [
+                        'active' => (clone $userQuery)->where('status', 1)->whereDate('created_at', $today)->count(),
+                        'inactive' => (clone $userQuery)->where('status', 0)->whereDate('created_at', $today)->count()
+                    ],
+                    'this_month' => [
+                        'active' => (clone $userQuery)->where('status', 1)->where('created_at', '>=', $thisMonth)->count(),
+                        'inactive' => (clone $userQuery)->where('status', 0)->where('created_at', '>=', $thisMonth)->count()
+                    ]
+                ];
+            }
+
+            // Merchants (AEPS Drafts) - only for Super Admin and Admin
+            $merchantStats = null;
+            if ($user->role == 1 || $user->role == 2) {
+                $today = Carbon::today();
+                $thisMonth = Carbon::now()->startOfMonth();
+                
+                $merchantQuery = AepsDraft::where($aepsFilter);
+                $merchantStatusMap = [0 => 'drafts', 1 => 'onboarding', 2 => 'ekyc', 3 => 'biomatrickyc', 4 => '2fa'];
+                
+                $merchantStats = [
+                    'total' => ['drafts' => 0, 'onboarding' => 0, 'ekyc' => 0, 'biomatrickyc' => 0, '2fa' => 0, 'total_active' => 0],
+                    'today' => ['drafts' => 0, 'onboarding' => 0, 'ekyc' => 0, 'biomatrickyc' => 0, '2fa' => 0, 'total_active' => 0],
+                    'this_month' => ['drafts' => 0, 'onboarding' => 0, 'ekyc' => 0, 'biomatrickyc' => 0, '2fa' => 0, 'total_active' => 0]
+                ];
+
+                // Total merchants
+                $totalMerchants = $merchantQuery->selectRaw('COUNT(*) as count, aeps_status')->groupBy('aeps_status')->get();
+                foreach ($totalMerchants as $merchant) {
+                    $status = $merchantStatusMap[$merchant->aeps_status] ?? 'drafts';
+                    $merchantStats['total'][$status] = $merchant->count;
+                    if ($merchant->aeps_status >= 1) {
+                        $merchantStats['total']['total_active'] += $merchant->count;
+                    }
+                }
+
+                // Today merchants
+                $todayMerchants = (clone $merchantQuery)->whereDate('created_at', $today)
+                    ->selectRaw('COUNT(*) as count, aeps_status')->groupBy('aeps_status')->get();
+                foreach ($todayMerchants as $merchant) {
+                    $status = $merchantStatusMap[$merchant->aeps_status] ?? 'drafts';
+                    $merchantStats['today'][$status] = $merchant->count;
+                    if ($merchant->aeps_status >= 1) {
+                        $merchantStats['today']['total_active'] += $merchant->count;
+                    }
+                }
+
+                // This month merchants
+                $monthMerchants = (clone $merchantQuery)->where('created_at', '>=', $thisMonth)
+                    ->selectRaw('COUNT(*) as count, aeps_status')->groupBy('aeps_status')->get();
+                foreach ($monthMerchants as $merchant) {
+                    $status = $merchantStatusMap[$merchant->aeps_status] ?? 'drafts';
+                    $merchantStats['this_month'][$status] = $merchant->count;
+                    if ($merchant->aeps_status >= 1) {
+                        $merchantStats['this_month']['total_active'] += $merchant->count;
+                    }
+                }
+            }
+
+            // Fetch Virtual Account (VA) data for the authenticated user by mid or mobile
+            $vaData = null;
+            if ($user) {
+                $vaData = DB::table('va')->where('mid', $user->mid)->first();
+            }
+
+            // Fetch user specific wallets (Trade & Utility) for 1-query rendering
+            $userWallets = DB::table('accounts')
+                ->where('user_id', $userId)
+                ->select('id', 'name', 'number', 'primary_status', 'hold_amount')
+                ->get()
+                ->map(function ($acc) {
+                    $latestBal = DB::table('passbooks')
+                        ->where('account_id', $acc->id)
+                        ->orderBy('id', 'desc')
+                        ->value('balance') ?? 0;
+                    $availBal = (float)$latestBal - (float)($acc->hold_amount ?? 0);
+                    $isPrimary = (bool)$acc->primary_status;
+                    return [
+                        'id' => $acc->id,
+                        'name' => $acc->name,
+                        'number' => '****' . substr($acc->number, -4),
+                        'primary_status' => $isPrimary,
+                        'is_primary' => $isPrimary,
+                        'wallet_type' => $isPrimary ? 'Trade Wallet' : 'Utility Wallet',
+                        'balance' => (float)$latestBal,
+                        'raw_balance' => (float)$latestBal,
+                        'raw_available_balance' => $availBal,
+                        'available_balance' => $availBal,
+                        'hold_amount' => (float)($acc->hold_amount ?? 0),
+                    ];
+                });
+            // Fetch bank account details from user_kyc table for the logged in user
+            $kycAccount = null;
+            if ($user) {
+                $kycAccount = DB::table('user_kyc')
+                    ->where('user_id', $user->id)
+                    ->select('name', 'account_number', 'ifsc_code', 'bank_name')
+                    ->first();
+            }
+
+            // Fetch recent 7 passbook transactions for the logged in user
+            $recentPassbook = DB::table('passbooks')
+                ->where('user_id', $userId)
+                ->orderBy('id', 'desc')
+                ->limit(7)
+                ->get();
+
+            // Fetch helpline/whatsapp support settings
+            $adminId = $user->admin_id ?? 1;
+            $supportSetting = DB::table('settings')->where('user_id', $adminId)->first();
+            // Fetch service-wise commission breakdown for Retailer
+            $commissionStats = [
+                'total_commission' => 0.0,
+                'recharge_commission' => 0.0,
+                'bbps_commission' => 0.0,
+                'aeps_commission' => 0.0,
+                'pan_commission' => 0.0,
+                'other_commission' => 0.0,
+                'recharge_txns' => 0,
+                'bbps_txns' => 0,
+                'aeps_txns' => 0,
+                'pan_txns' => 0,
+                'other_txns' => 0,
+            ];
+
+            try {
+                // Optimized single-query commission stats aggregation directly from passbooks table
+                $passbookComms = DB::table('passbooks')
+                    ->where('user_id', $userId)
+                    ->where('type', 'CR')
+                    ->where(function($q) {
+                        $q->where('description', 'LIKE', '%commission%')
+                          ->orWhere('description', 'LIKE', '%comm%')
+                          ->orWhere('description', 'LIKE', '%cashback%');
+                    })
+                    ->selectRaw('description, COALESCE(SUM(amount), 0) as total_comm, COUNT(*) as txn_count')
+                    ->groupBy('description')
+                    ->get();
+
+                foreach ($passbookComms as $comm) {
+                    $amt = (float) $comm->total_comm;
+                    $count = (int) $comm->txn_count;
+                    $desc = strtoupper($comm->description ?? '');
+
+                    $commissionStats['total_commission'] += $amt;
+
+                    if (str_contains($desc, 'RECHARGE') || str_contains($desc, 'MOBILE') || str_contains($desc, 'DTH')) {
+                        $commissionStats['recharge_commission'] += $amt;
+                        $commissionStats['recharge_txns'] += $count;
+                    } elseif (str_contains($desc, 'BBPS') || str_contains($desc, 'BILL') || str_contains($desc, 'ELECTRICITY')) {
+                        $commissionStats['bbps_commission'] += $amt;
+                        $commissionStats['bbps_txns'] += $count;
+                    } elseif (str_contains($desc, 'AEPS') || str_contains($desc, 'WITHDRAWAL') || str_contains($desc, 'MATM') || str_contains($desc, 'STATEMENT')) {
+                        $commissionStats['aeps_commission'] += $amt;
+                        $commissionStats['aeps_txns'] += $count;
+                    } elseif (str_contains($desc, 'PAN') || str_contains($desc, 'CMS')) {
+                        $commissionStats['pan_commission'] += $amt;
+                        $commissionStats['pan_txns'] += $count;
+                    } else {
+                        $commissionStats['other_commission'] += $amt;
+                        $commissionStats['other_txns'] += $count;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Commission stats aggregation warning: ' . $e->getMessage());
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Dashboard data fetch error: ' . $e->getMessage());
+            
+            return response()->json([
+                'status' => 0,
+                'message' => 'Error fetching dashboard data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+        
+        $responseData = [
+            'aeps' => $aepsData,
+            'cash_deposit' => $cashDepositData,
+            'utility' => $utilityData,
+            'payouts' => $payoutData,
+            'accounts' => $accountStats,
+            'add_fund' => $addFundData,
+            'va_data' => $vaData,
+            'user_wallets' => $userWallets,
+            'kyc_account' => $kycAccount,
+            'recent_passbook' => $recentPassbook,
+            'support_setting' => $supportSetting,
+            'commission_stats' => $commissionStats,
+        ];
+
+        // Only include users and merchants for Super Admin and Admin
+        if ($user->role == 1 || $user->role == 2) {
+            $responseData['users'] = $userStats;
+            $responseData['merchants'] = $merchantStats;
+        }
+
+        return response()->json([
+            'status' => 1,
+            'message' => 'Dashboard data fetched successfully',
+            'data' => $responseData
+        ]);
+    }
+}

@@ -1,0 +1,48 @@
+# Laravel / PHP specific
+/vendor
+/node_modules
+/.idea
+/.vscode
+/.phpunit.cache
+/.phpactor.json
+/.zed
+/.nova
+/.fleet
+
+# Environment files
+.env
+.env.backup
+.env.production
+Homestead.json
+Homestead.yaml
+/auth.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+.phpunit.result.cache
+error_log
+
+# Public build and hot files
+/public/hot
+
+# Storage keys, pail folder
+/storage/*.key
+/storage/pail
+
+# Uploaded files (images, videos, etc.)
+/public/uploads/
+# OR ignore all uploads recursively
+#/public/uploads/**
+
+# Optional: keep empty folders tracked
+/public/uploads/.gitkeep
+
+/public/popups/
+/public/staging.enexaerp.com
+/storage/
+/public/storage
+*.apk

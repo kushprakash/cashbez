@@ -1,0 +1,470 @@
+﻿[
+    {
+        "id": 229,
+        "activeFlag": 1,
+        "bankName": "The Balasore Bhadrak Central Co-Op Bank Ltd",
+        "details": "The Balasore Bhadrak Central Co-Op Bank Ltd",
+        "remarks": null,
+        "timestamp": "15/05/2025 17:36:00",
+        "iinno": "508758"
+    },
+    {
+        "id": 230,
+        "activeFlag": 1,
+        "bankName": "The Bhawanipatna Central Co-Operative Bank Ltd",
+        "details": "The Bhawanipatna Central Co-Operative Bank Ltd",
+        "remarks": null,
+        "timestamp": "15/05/2025 17:36:00",
+        "iinno": "508778"
+    },
+    {
+        "id": 231,
+        "activeFlag": 1,
+        "bankName": "The Cosmos Co-Op Bank",
+        "details": "The Cosmos Co-Op Bank",
+        "remarks": null,
+        "timestamp": "15/05/2025 17:36:00",
+        "iinno": "608194"
+    },
+    {
+        "id": 232,
+        "activeFlag": 1,
+        "bankName": "The Sambalpur District Co-Operative Central Bank Ltd",
+        "details": "The Sambalpur District Co-Operative Central Bank Ltd",
+        "remarks": null,
+        "timestamp": "15/05/2025 17:36:00",
+        "iinno": "508777"
+    },
+    {
+        "id": 233,
+        "activeFlag": 1,
+        "bankName": "The Sundargarh District Central Co-Op Bank Ltd",
+        "details": "The Sundargarh District Central Co-Op Bank Ltd",
+        "remarks": null,
+        "timestamp": "15/05/2025 17:36:00",
+        "iinno": "508757"
+    },
+    {
+        "id": 234,
+        "activeFlag": 1,
+        "bankName": "The United Puri-Nimapara Central Co-Operative Bank Ltd",
+        "details": "The United Puri-Nimapara Central Co-Operative Bank Ltd",
+        "remarks": null,
+        "timestamp": "15/05/2025 17:36:00",
+        "iinno": "508782"
+    },
+    {
+        "id": 34,
+        "activeFlag": 1,
+        "bankName": "Andhra Pragathi Grameena Bank",
+        "details": "Andhra Pragathi Grameena Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607121"
+    },
+    {
+        "id": 110,
+        "activeFlag": 1,
+        "bankName": "AU Small Finance Bank",
+        "details": "AU Small Finance Bank",
+        "remarks": null,
+        "timestamp": "02/05/2019 12:00:00",
+        "iinno": "608087"
+    },
+    {
+        "id": 10,
+        "activeFlag": 1,
+        "bankName": "Axis Bank",
+        "details": "Axis Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607153"
+    },
+    {
+        "id": 19,
+        "activeFlag": 1,
+        "bankName": "Bank Of Baroda ertswhile Vijaya Bank erstwhile Dena Bank",
+        "details": "Bank Of Baroda",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "606985"
+    },
+    {
+        "id": 2,
+        "activeFlag": 1,
+        "bankName": "Bank of India",
+        "details": "Bank of India",
+        "remarks": "",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "508505"
+    },
+    {
+        "id": 11,
+        "activeFlag": 1,
+        "bankName": "Bank of Maharashtra",
+        "details": "Bank of Maharashtra",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607387"
+    },
+    {
+        "id": 69,
+        "activeFlag": 1,
+        "bankName": "Baroda Rajasthan Kshetriya Gramin Bank ErstwhileRajasthan Marudhara Gramin Bank ErstwhileRajasthan Gramin Bank",
+        "details": "Rajasthan Gramin Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607509"
+    },
+    {
+        "id": 4,
+        "activeFlag": 1,
+        "bankName": "Canara Bank erstwhile Syndicate Bank",
+        "details": "Canara Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607396"
+    },
+    {
+        "id": 9,
+        "activeFlag": 1,
+        "bankName": "Central Bank of India",
+        "details": "Central Bank of India",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607264"
+    },
+    {
+        "id": 43,
+        "activeFlag": 1,
+        "bankName": "Chaitanya Godavari Gramin Bank",
+        "details": "Chaitanya Godavari Gramin Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607080"
+    },
+    {
+        "id": 93,
+        "activeFlag": 1,
+        "bankName": "City Union Bank ",
+        "details": "City Union Bank ",
+        "remarks": "NULL",
+        "timestamp": "03/11/2017 03:49:00",
+        "iinno": "607324"
+    },
+    {
+        "id": 120,
+        "activeFlag": 1,
+        "bankName": "Ellaquai Dehati Bank Erstwhile Jammu and Kashmir Grameen Bank",
+        "details": "J\u0026 K Grameen Bank",
+        "remarks": null,
+        "timestamp": "15/07/2020 17:25:00",
+        "iinno": "607808"
+    },
+    {
+        "id": 102,
+        "activeFlag": 1,
+        "bankName": "Equitas Small Finance Bank",
+        "details": "Equitas Small Finance Bank",
+        "remarks": null,
+        "timestamp": "15/05/2018 11:25:00",
+        "iinno": "508998"
+    },
+    {
+        "id": 122,
+        "activeFlag": 1,
+        "bankName": "ESAF Small Finance Bank",
+        "details": "ESAF Small Finance Bank",
+        "remarks": null,
+        "timestamp": "24/09/2020 17:28:00",
+        "iinno": "652254"
+    },
+    {
+        "id": 15,
+        "activeFlag": 1,
+        "bankName": "Federal Bank",
+        "details": "Federal Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607363"
+    },
+    {
+        "id": 95,
+        "activeFlag": 1,
+        "bankName": "Fino Payments Bank",
+        "details": "Fino Payments Bank",
+        "remarks": "NULL",
+        "timestamp": "03/11/2017 03:49:00",
+        "iinno": "608001"
+    },
+    {
+        "id": 31,
+        "activeFlag": 1,
+        "bankName": "HDFC Bank",
+        "details": "HDFC Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607152"
+    },
+    {
+        "id": 14,
+        "activeFlag": 1,
+        "bankName": "IDBI Bank",
+        "details": "IDBI Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607095"
+    },
+    {
+        "id": 49,
+        "activeFlag": 1,
+        "bankName": "IDFC First Bank",
+        "details": "IDFC First Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "608117"
+    },
+    {
+        "id": 113,
+        "activeFlag": 1,
+        "bankName": "India Post Payment Bank",
+        "details": "India Post Payment Bank",
+        "remarks": null,
+        "timestamp": "13/09/2019 12:26:00",
+        "iinno": "608314"
+    },
+    {
+        "id": 18,
+        "activeFlag": 1,
+        "bankName": "Indian bank erstwhile Allahabad Bank",
+        "details": "Indian bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607105"
+    },
+    {
+        "id": 25,
+        "activeFlag": 1,
+        "bankName": "Indian Overseas Bank",
+        "details": "Indian Overseas Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607126"
+    },
+    {
+        "id": 32,
+        "activeFlag": 1,
+        "bankName": "IndusInd Bank",
+        "details": "IndusInd Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607189"
+    },
+    {
+        "id": 50,
+        "activeFlag": 1,
+        "bankName": "Jammu \u0026 Kashmir Bank ",
+        "details": "Jammu \u0026 Kashmir Bank ",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607440"
+    },
+    {
+        "id": 183,
+        "activeFlag": 1,
+        "bankName": "Jana Small Finance Bank Ltd.",
+        "details": "Jana Small Finance Bank Ltd.",
+        "remarks": null,
+        "timestamp": "04/09/2023 16:26:00",
+        "iinno": "508910"
+    },
+    {
+        "id": 178,
+        "activeFlag": 1,
+        "bankName": "Jio Payments Bank Limited",
+        "details": "Jio Payments Bank Limited",
+        "remarks": null,
+        "timestamp": "04/09/2023 16:26:00",
+        "iinno": "607884"
+    },
+    {
+        "id": 65,
+        "activeFlag": 1,
+        "bankName": "Karnataka Gramin Bank Erstwhile Pragathi Krishna Gramin Bank Erstwhile Karnataka Vikas Grameena Bank",
+        "details": "Karnataka Gramin Bank Erstwhile Pragathi Krishna Gramin Bank Erstwhile Karnataka Vikas Grameena Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607400"
+    },
+    {
+        "id": 53,
+        "activeFlag": 1,
+        "bankName": "Karur Vysya Bank",
+        "details": "Karur Vysya Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "508662"
+    },
+    {
+        "id": 54,
+        "activeFlag": 1,
+        "bankName": "Kerala Gramin Bank",
+        "details": "Kerala Gramin Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607399"
+    },
+    {
+        "id": 106,
+        "activeFlag": 1,
+        "bankName": "Lakshmi Vilas Bank",
+        "details": "Lakshmi Vilas Bank",
+        "remarks": null,
+        "timestamp": "07/09/2018 15:25:00",
+        "iinno": "607058"
+    },
+    {
+        "id": 189,
+        "activeFlag": 1,
+        "bankName": "Mayurbhanj Central Co-operative Bank Ltd",
+        "details": "Mayurbhanj Central Co-operative Bank Ltd",
+        "remarks": null,
+        "timestamp": "04/09/2023 16:26:00",
+        "iinno": "508756"
+    },
+    {
+        "id": 62,
+        "activeFlag": 1,
+        "bankName": "Odisha Gramya Bank  Erstwhile Utkal Gramin Bank Erstwhile Odisha Grameen Bank",
+        "details": "Odisha Gramya Bank  Erstwhile Utkal Gramin Bank Erstwhile Odisha Grameen Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607060"
+    },
+    {
+        "id": 88,
+        "activeFlag": 1,
+        "bankName": "Puduvai Bharathiar Grama Bank",
+        "details": "Puduvai Bharathiar Grama Bank",
+        "remarks": "NULL",
+        "timestamp": "03/11/2017 03:49:00",
+        "iinno": "607054"
+    },
+    {
+        "id": 28,
+        "activeFlag": 1,
+        "bankName": "Punjab \u0026 Sind Bank",
+        "details": "Punjab \u0026 Sind Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607087"
+    },
+    {
+        "id": 7,
+        "activeFlag": 1,
+        "bankName": "Punjab National Bank erstwhile Oriental Bank of Commerce",
+        "details": "Punjab National Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607027"
+    },
+    {
+        "id": 71,
+        "activeFlag": 1,
+        "bankName": "Saptagiri Grameena Bank",
+        "details": "Saptagiri Grameena Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607053"
+    },
+    {
+        "id": 74,
+        "activeFlag": 1,
+        "bankName": "Saurashtra Gramin Bank",
+        "details": "Saurashtra Gramin Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607200"
+    },
+    {
+        "id": 227,
+        "activeFlag": 1,
+        "bankName": "Solapur district co-operative Bank",
+        "details": "Solapur district co-operative Bank",
+        "remarks": null,
+        "timestamp": "04/02/2025 11:45:00",
+        "iinno": "607943"
+    },
+    {
+        "id": 63,
+        "activeFlag": 1,
+        "bankName": "TamilNadu Grama Bank erstwhile Pallavan Grama Bank",
+        "details": "TamilNadu Grama Bank erstwhile Pallavan Grama Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607052"
+    },
+    {
+        "id": 212,
+        "activeFlag": 1,
+        "bankName": "The Cuttack Central Co-operative bank Ltd",
+        "details": "The Cuttack Central Co-operative bank Ltd",
+        "remarks": null,
+        "timestamp": "14/12/2023 15:42:00",
+        "iinno": "508776"
+    },
+    {
+        "id": 109,
+        "activeFlag": 1,
+        "bankName": "Ujjivan Small Finance Bank Limited",
+        "details": "Ujjivan Small Finance Bank Limited",
+        "remarks": null,
+        "timestamp": "02/05/2019 12:00:00",
+        "iinno": "508991"
+    },
+    {
+        "id": 1,
+        "activeFlag": 1,
+        "bankName": "Union Bank of India erstwhile Corporation Bank erstwhile Andhra Bank",
+        "details": "Union Bank of India",
+        "remarks": "",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607161"
+    },
+    {
+        "id": 82,
+        "activeFlag": 1,
+        "bankName": "Uttarakhand Gramin Bank",
+        "details": "Uttarakhand Gramin Bank",
+        "remarks": "NULL",
+        "timestamp": "21/11/2016 16:00:00",
+        "iinno": "607197"
+    },
+    {
+        "id": 104,
+        "activeFlag": 1,
+        "bankName": "YES Bank",
+        "details": "YES Bank",
+        "remarks": null,
+        "timestamp": "15/05/2018 11:25:00",
+        "iinno": "607618"
+    },
+    {
+        "id": 115,
+        "activeFlag": 1,
+        "bankName": "YES Bank-2",
+        "details": "YES Bank",
+        "remarks": null,
+        "timestamp": "04/10/2019 11:01:04",
+        "iinno": "607223"
+    },
+    {
+        "id": 150,
+        "activeFlag": 1,
+        "bankName": "NSDL Payments Bank Limited ",
+        "details": "NSDL Payments Bank Limited ",
+        "remarks": null,
+        "timestamp": "30/06/2025 14:38:16",
+        "iinno": "607768"
+    }
+]
