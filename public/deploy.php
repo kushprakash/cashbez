@@ -34,7 +34,7 @@ $commands = [
     'Git Init & Remote Setup' => 'if [ ! -d .git ]; then git -c safe.directory="*" init && git -c safe.directory="*" remote add origin ' . $remote_repo . '; else git -c safe.directory="*" remote set-url origin ' . $remote_repo . '; fi',
     'Git Fetch & Force Reset' => 'rm -f .git/index.lock && (git -c safe.directory="*" fetch origin main || git -c safe.directory="*" fetch --all) && git -c safe.directory="*" reset --hard origin/main',
     'Composer Install' => 'composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist',
-    'NPM Build' => 'export PATH=$PATH:/usr/local/bin:/usr/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin; if command -v npm >/dev/null 2>&1; then npm run build; else echo "NPM command not available on server, using pre-built assets"; fi',
+    'NPM Build' => 'if [ -f node_modules/vite/bin/vite.js ] || [ -f node_modules/.bin/vite ]; then npm run build; else echo "Using pre-built assets from Git repository (public/build)"; fi',
     'Clear Caches' => 'php artisan cache:clear && php artisan config:clear && php artisan route:clear && php artisan view:clear',
     'Optimize Caches' => 'php artisan config:cache && php artisan route:cache && php artisan view:cache'
 ];
