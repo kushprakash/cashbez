@@ -1,6 +1,6 @@
 <?php
 // Secret Token to secure deployment url
-$secret_token = 'bharatpay_secure_token_9835';
+$secret_token = 'cashbez_secure_token_9835';
 
 if (!isset($_GET['token']) || $_GET['token'] !== $secret_token) {
     header('HTTP/1.1 403 Forbidden');
@@ -18,7 +18,7 @@ putenv("PATH=" . getenv("PATH") . ":/usr/local/sbin:/usr/local/bin:/usr/sbin:/us
 
 // Update remote URL with token if git_token is provided in URL
 if (!empty($git_token)) {
-    $remoteUrl = "https://{$git_token}@github.com/kushprakash/bharat-pay.git";
+    $remoteUrl = "https://{$git_token}@github.com/kushprakash/cashbez.git";
     exec("cd {$project_path} && git remote set-url origin {$remoteUrl} 2>&1");
 }
 
@@ -33,7 +33,7 @@ $commands = [
     'Optimize Caches' => 'php artisan config:cache && php artisan route:cache && php artisan view:cache'
 ];
 
-echo "<h2>Bharat-Pay Live Deployment System (Force Mode)</h2>";
+echo "<h2>Cashbez Live Deployment System (Force Mode)</h2>";
 echo "<hr>";
 
 $has_error = false;
