@@ -169,8 +169,8 @@ class MerchantController extends Controller
             // Prepare data for creation
            
             $draftData['mid'] = $nextMid;
-            $draftData['created_by'] = $existingUser1->id;
-            $draftData['admin_id'] = $existingUser1->id;
+            $draftData['created_by'] = $existingUser1->id ?? null;
+            $draftData['admin_id'] = $existingUser1->id ?? null;
 
             // remove user, admin, isAdmin, isSuper from $draftData
             $draftData = array_diff_key($draftData, array_flip(['user', 'admin','isAdmin','isSuper']));
@@ -199,11 +199,11 @@ class MerchantController extends Controller
                     "latitude"        => $draft->latitude,
                     "longitude"       => $draft->longitude,
                     "shop_name"       => $draft->shop_name,
-                    "shop_address"    => $draft->address,
-                    "shop_city"       => $draft->city,
-                    "shop_district"   => $draft->district,
-                    "state_id"        => $draft->state,
-                    "shop_pin_code"   => $draft->pin_code,
+                    "shop_address"    => $draft->shop_address,
+                    "shop_city"       => $draft->shop_city,
+                    "shop_district"   => $draft->shop_district,
+                    "state_id"        => $draft->state_id,
+                    "shop_pin_code"   => $draft->shop_pin_code,
                     "full_name"       => $draft->full_name,
                     "phone"           => $draft->phone,
                     "email"           => $draft->email,
@@ -238,15 +238,15 @@ class MerchantController extends Controller
                 $json_response = json_decode($response, true);
 
                 if(isset($json_response['status']) && $json_response['status']==1){
-                    $draft->bid = $json_response['data']['id'];
-                    $draft->bmid = $json_response['data']['mid`'];
+                    $draft->bid = $json_response['data']['id'] ?? null;
+                    $draft->bmid = $json_response['data']['mid'] ?? null;
                     $draft->save();
                 }
 
 
 
                 DB::table('logs')->insert([
-                    'mid'          => $existingDraft->mid,
+                    'mid'          => $draft->mid,
                     'type'         => 'DRAFT',
                     'platform'     => 'WEB',
                     'headers'      => json_encode([
@@ -273,7 +273,7 @@ class MerchantController extends Controller
 
             $credit_user_id='';
             $is_api_partner = false;
-            $adminData = User::where('id',$existingUser1->id)->first();
+            $adminData = $existingUser1 ? User::where('id',$existingUser1->id)->first() : null;
             if($adminData && $adminData->is_api_partner==true) {
                 $credit_user_id = $adminData->id;
                 $is_api_partner = true;
