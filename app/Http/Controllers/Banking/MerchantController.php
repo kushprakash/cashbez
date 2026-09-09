@@ -1219,138 +1219,62 @@ class MerchantController extends Controller
                 ], 200);
             }
 
-          
-          
-            $aadharData=json_decode($existingUser->aadharData, true);
-            
       
-            $url=self::BASE_URL."v2/aeps/draft";
-            $trnTimestamp = (string)time();
+            $url = self::BASE_URL."v2/aeps/onboard";
 
-            $requestData = [
-                "mid"           => self::SUPER_MERCHANT_ID,
-                "username"      => self::SUPER_MERCHANT_USERNAME,
-                "password"      => self::SUPER_MERCHANT_PASSWORD,
-                "gstin"         => self::SUPER_MERCHANT_GST_IN,
-                "ipAddress"     => self::IP_ADDRESS,
-                "deviceType"    => "WEB",
-                "mobileNo"      => (string)$existingUser->mobile,
-                "emailId"       => $existingUser->email,
-                "panNo"         => $existingUser->pan,
-                "name"          => $existingUser->name,
-                "shopName"      => $existingUser->shop_name,
-                "shopArea"      => $existingUser->shop_area,
-                "shopCity"      => $existingUser->city,
-                "cityId"        => $existingUser->city_id,
-                "stateId"       => $existingUser->state_id,
-                "shopPincode"   => $existingUser->pincode,
-                "shopAddress"   => $existingUser->address,
-                "latitude"      => $existingUser->latitude,
-                "longitude"     => $existingUser->longitude,
-                "bankIfscCode"  => $existingUser->ifsc_code,
-                "bankName"      => $existingUser->bank_name,
-                "bankBranchName"=> $existingUser->bank_branch,
-                "bankAccountNo" => $existingUser->account_no,
-                "trnTimestamp"  => $trnTimestamp,
+            $data = [
+                "aeps_draft_id" => $existingUser->bid,
+                "pan_no"        => $existingUser->pan_no,
             ];
 
-            // ✅ Compute hashes
-            $authString = self::SUPER_MERCHANT_ID.$trnTimestamp;
-            $hash       = $this->generateSha256Hash($authString);
-            $eskey      = $this->encryptSessionKey($authString);
+            $ch = curl_init($url);
 
-
-
-            // ✅ Log request BEFORE API call
-            DB::table('logs')->insert([
-                'mid'          => $existingUser->mid,
-                'type'         => 'Onboarding',
-                'platform'     => 'WEB',
-                'headers'      => json_encode([
-                    "Accept"        => "application/json",
-                    "Content-Type"  => "application/json",
-                    "trnTimestamp"  => $trnTimestamp,
-                    "hash"          => $hash,
-                    "eskey"         => $eskey
-                ]),
-                'request_data' => json_encode($requestData),
-                'url'          => $url,
-                'txnid'        => $txnId,
-                'status'       => 0,
-                'timestamp'    => now(),
-                'created_at'   => now()->format('Y-m-d H:i:s'),
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
-
-             $postData = [
-                "type" => "outletId",  // must be JSON string
-                "outletId" => $nextMid,
-                "pan"=>$request->pan_no      // must be JSON string
-            ];
-
-            // Initialize cURL
-            $ch = curl_init($setting->call_back_url);
-
-            // Encode POST data as JSON
-            $payload = json_encode($postData);
-
-            // Set cURL options
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Content-Length: ' . strlen($payload)
-            ]);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-
-            // Execute and get response
             $response = curl_exec($ch);
-            $responseJson = json_decode($response, true);   
 
-            // ✅ Update log with response AFTER API call
-            DB::table('logs')
-                ->where('txnid', $txnId)
-                ->update([
-                    'response_data' => json_encode($responseJson),
-                    'status'        => $responseJson['status'] ?? ($responseJson['data']['merchantStatus'] ?? false ? 1 : 0),
-                    'updated_at'    => now(),
-                ]);
 
-            if ($responseJson['status'] === 1) {
-              
-                AepsDraft::where('id', $existingUser->id)->update([
-                    'user_name'      => $existingUser->mid,
-                    'password'       => base64_encode($existingUser->phone),
-                    'ip_address'     => self::IP_ADDRESS,
-                    'generated_hash' => $hash,
-                    'aeps_status'    => 1,
-                    'request_data'   => json_encode($requestData),
-                    'response_data'  => json_encode($responseJson)
-                ]);
+            $json_response = json_decode($response, true);
+
+            if(isset($json_response['status']) && $json_response['status']==1){
+                $existingUser->request_data = json_encode($data);
+                $existingUser->response_data = json_encode($json_response);
+                $existingUser->aeps_status = 1;
+                $existingUser->primaryKeyId = $json_response['data']['primaryKeyId'];
+                $existingUser->encodeFPTxnId = $json_response['data']['encodeFPTxnId'];
+                $existingUser->save();
+
 
                 return response()->json([
                     'status'  => 1,
                     'message' => 'AEPS Onboarding successful',
-                    'data'    => ['mid'=>$responseJson['data']['merchantLoginId']],
+                    'data'    => ['mid'=>$existingUser->mid],
                 ], 200);
             }
 
             return response()->json([
                 'status'  => 0,
-                'message' => $responseJson['data']['remarks'] ?? 'AEPS Onboarding failed',
-                'data'    => $responseJson
+                'message' => 'AEPS Onboarding failed',
+                'data'    => NULL
             ], 200);
 
         } catch (\Exception $e) {
-            $refId = CatchLogService::logException($request, 'aepsOnboard', $e, [
-                'api' => 'https://fpuat.tapits.in/fpaepsv2/api/onboarding/merchant/v1/onboard',
-                'context' => 'Onboard Merchant Error',
-            ]);
-
+         
             return response()->json([
                 'status'  => 0,
-                'message' => 'Internal Server Error',
-                'ref_id'  => $refId,
+                'message' => 'Internal Server Error'
             ], 500);
         }
     }
@@ -1437,114 +1361,100 @@ class MerchantController extends Controller
                 ], 400);
             }
 
-            // Prepare payload
-            $payload = [
-                "merchantLoginId" => $existingUser->mid,
-                "superMerchantId" => self::SUPER_MERCHANT_ID,
-                "transactionType" => "EKY",
-                "mobileNumber"    => $mobileNumber,
-                "aadharNumber"    => $existingUser->aadhaar_number,
-                "panNumber"       => $existingUser->pan_no,
-                "latitude"        => floatval($existingUser->latitude),
-                "longitude"       => floatval($existingUser->longitude)
+
+
+
+            $urls = self::BASE_URL."v2/aeps/change-device";
+
+            $datas = [
+                "outletId"    => $existingUser->bmid,
+                "pan_no"    => $existingUser->pan_no,
+                "deviceIMEI"    => $request->deviceIMEI,
+                "deviceName"        => "Mantra MFS100",
+                "mposSerialNumber"        => "",
             ];
 
-            // Debug log the payload
-            \Log::info('doKyc Payload:', $payload);
+            $chs = curl_init($urls);
+
+            curl_setopt_array($chs, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($datas),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $responses = curl_exec($chs);
+
+
+
+            $url = self::BASE_URL."v2/aeps/get-otp";
 
             
+            $data = [
+                "latitude"      => $existingUser->latitude,
+                "longitude"     => $existingUser->longitude,
+                "deviceIMEI"    => $request->deviceIMEI,
+                "pan_no"        => $existingUser->pan_no,
+            ];
 
-            // ✅ Transaction timestamp
-            $trnTimestamp = now()->format('d/m/Y H:i:s');
+            $ch = curl_init($url);
 
-            // ✅ Hash generation for eKYC - different pattern than aepsOnboard
-            // For eKYC, hash = base64(sha256(payload + SECRET_KEY + timestamp))
-            $timestamp = now()->timestamp;
-            $concatenated = json_encode($payload) . self::SECRET_KEY . $timestamp;
-            $hash = base64_encode(hash('sha256', $concatenated, true));
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
 
-            // ✅ Generate AES session key - using same method as aepsOnboard
-            $sessionKey = random_bytes(16);
-            $eskey = $this->encryptSessionKey($sessionKey);
-
-            try {
-                $url = "https://fpekyc.tapits.in/fpekyc/api/ekyc/merchant/v1/sendotp";
-                $txnId = 'EKYC_OTP_' . $existingUser->mid . '_' . now()->timestamp;
-
-                // ✅ Log request BEFORE API call
-                DB::table('logs')->insert([
-                    'mid'          => $existingUser->mid,
-                    'type'         => 'EKYC-SendOTP',
-                    'platform'     => 'WEB',
-                    'headers'      => json_encode([
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json',
-                        'trnTimestamp'  => $timestamp,
-                        'hash'          => $hash,
-                        'deviceIMEI'    => $request->deviceIMEI,
-                        'eskey'         => $eskey,
-                    ]),
-                    'request_data' => json_encode($payload),
-                    'url'          => $url,
-                    'txnid'        => $txnId,
-                    'status'       => 0,
-                    'timestamp'    => now(),
-                    'created_at'   => now()->format('Y-m-d H:i:s'),
-                ]);
-
-                // Use Laravel HTTP client like aepsOnboard method
-                $response = Http::withHeaders([
-                    "Accept"        => "application/json",
-                    "Content-Type"  => "application/json",
-                    "trnTimestamp"  => $timestamp,
-                    "hash"          => $hash,
-                    "deviceIMEI"    => $request->deviceIMEI,
-                    "eskey"         => $eskey
-                ])->timeout(self::API_TIMEOUT)
-                  ->post($url, $payload);
-
-                $responseJson = $response->json();
-
-                // ✅ Update log with response AFTER API call
-                DB::table('logs')
-                    ->where('txnid', $txnId)
-                    ->update([
-                        'response_data' => json_encode($responseJson),
-                        'status'        => $responseJson['status'] === true ? 1 : 0,
-                        'updated_at'    => now(),
-                    ]);
-
-                if ($response->successful() && $responseJson['status'] === true) {
+            $response = curl_exec($ch);
 
 
-                    return response()->json([
-                        'status'  => 1,
-                        'message' => 'Success',
-                        'data'    => $responseJson
-                    ]);
+            $json_response = json_decode($response, true);
+
+            if(isset($json_response['status']) && $json_response['status']==1){
+
+                $existingUser->primaryKeyId = $json_response['data']['primaryKeyId'];
+                $existingUser->encodeFPTxnId = $json_response['data']['encodeFPTxnId'];
+                $existingUser->save();
 
 
-
-                } else {
-                    return response()->json([
-                        'status'  => 0,
-                        'message' => $responseJson['message'] ?? 'API request failed',
-                        'data'    => $responseJson
-                    ], $response->status());
-                }
-
-            } catch (\Exception $e) {
-                $refId = CatchLogService::logException($request, 'doKyc.api', $e, [
-                    'api' => 'https://fpekyc.tapits.in/fpekyc/api/ekyc/merchant/v1/sendotp',
-                    'context' => 'External API request failed',
-                ]);
-                
                 return response()->json([
+                    'status'  => 1,
+                    'message' => 'OTP sent successfully',
+                    'data'    => [
+                        'status'=>true,
+                        'message' => 'OTP sent successfully',
+                        'primaryKeyId'=>$json_response['data']['primaryKeyId'],
+                        'encodeFPTxnId'=>$json_response['data']['encodeFPTxnId']
+                    ]
+                ], 200);
+
+            } 
+
+             return response()->json([
                     'status'  => 0,
-                    'message' => 'External API request failed',
-                    'ref_id'  => $refId,
-                ], 500);
-            }
+                    'message' => 'EKYC OTP sent failed',
+                    'data'    => [
+                        'status'=>false,
+                        'message' => 'EKYC OTP sent failed',
+                        'primaryKeyId'=>"",
+                        'encodeFPTxnId'=>"",
+                    ]
+                ], 200);
 
         } catch (\Exception $e) {
             $refId = CatchLogService::logException($request, 'doKyc', $e, [
@@ -1595,126 +1505,66 @@ class MerchantController extends Controller
                 ], 200);
             }
 
-          
+         
+            $url = self::BASE_URL."v2/aeps/verify-otp";
 
-            // Prepare payload
-            $payload = [
-                "merchantLoginId" => $existingUser->mid,
-                "superMerchantId" => self::SUPER_MERCHANT_ID,
-                "otp"             => $request->otp,
+            $data = [
                 "primaryKeyId"    => $request->primaryKeyId,
                 "encodeFPTxnId"    => $request->encodeFPTxnId,
+                "deviceIMEI"    => $request->deviceIMEI,
+                "pan_no"        => $existingUser->pan_no,
+                "otp"           => $request->otp,
             ];
 
+            $ch = curl_init($url);
 
-
-            // ✅ Transaction timestamp
-            $trnTimestamp = now()->format('d/m/Y H:i:s');
-
-            // ✅ Hash generation for eKYC - different pattern than aepsOnboard
-            // For eKYC, hash = base64(sha256(payload + SECRET_KEY + timestamp))
-            $timestamp = now()->timestamp;
-            $concatenated = json_encode($payload) . self::SECRET_KEY . $timestamp;
-            $hash = base64_encode(hash('sha256', $concatenated, true));
-
-            // ✅ Generate AES session key - using same method as aepsOnboard
-            $sessionKey = random_bytes(16);
-            $eskey = $this->encryptSessionKey($sessionKey);
-
-            try {
-                $url = "https://fpekyc.tapits.in/fpekyc/api/ekyc/merchant/v1/validateotp";
-                $txnId = 'EKYC_VERIFY_' . $existingUser->mid . '_' . now()->timestamp;
-
-                // ✅ Log request BEFORE API call
-                DB::table('logs')->insert([
-                    'mid'          => $existingUser->mid,
-                    'type'         => 'Verify OTP',
-                    'platform'     => 'WEB',
-                    'headers'      => json_encode([
-                        'Accept'        => 'application/json',
-                        'Content-Type'  => 'application/json',
-                        'trnTimestamp'  => $timestamp,
-                        'hash'          => $hash,
-                        'deviceIMEI'    => $request->deviceIMEI,
-                        'eskey'         => $eskey,
-                    ]),
-                    'request_data' => json_encode($payload),
-                    'url'          => $url,
-                    'txnid'        => $txnId,
-                    'status'       => 0,
-                    'timestamp'    => now(),
-                    'created_at'   => now()->format('Y-m-d H:i:s'),
-                ]);
-
-                // Use Laravel HTTP client like aepsOnboard method
-                $response = Http::withHeaders([
-                    "Accept"        => "application/json",
-                    "Content-Type"  => "application/json",
-                    "trnTimestamp"  => $timestamp,
-                    "hash"          => $hash,
-                    "deviceIMEI"    => $request->deviceIMEI,
-                    "eskey"         => $eskey
-                ])->timeout(self::API_TIMEOUT)
-                  ->post($url, $payload);
-
-                $responseJson = $response->json();
-
-                // ✅ Update log with response AFTER API call
-                DB::table('logs')
-                    ->where('txnid', $txnId)
-                    ->update([
-                        'response_data' => json_encode($responseJson),
-                        'status'        => $responseJson['status'] === true ? 1 : 0,
-                        'updated_at'    => now(),
-                    ]);
-
-                if ($response->successful() && $responseJson['status'] === true) {
-
-
-                    AepsDraft::where('id', $existingUser->id)->update([
-                        'aeps_status'    => 2,
-                        'primaryKeyId'    => $request->primaryKeyId,
-                        'encodeFPTxnId'    => $request->encodeFPTxnId,
-                        'deviceIMEI'    => $request->deviceIMEI,
-                    ]);
-
-                    return response()->json([
-                        'status'  => 1,
-                        'message' => 'Success',
-                        'data'    => $responseJson
-                    ]);
-
-
-                } else {
-                    return response()->json([
-                        'status'  => 0,
-                        'message' => 'API request failed',
-                        'data'    => $responseJson
-                    ], $response->status());
-                }
-
-            } catch (\Exception $e) {
-                $refId = CatchLogService::logException($request, 'verifyOtp.api', $e, [
-                    'api' => 'https://fpekyc.tapits.in/fpekyc/api/ekyc/merchant/v1/validateotp',
-                    'context' => 'External API request failed',
-                ]);
-                return response()->json([
-                    'status'  => 0,
-                    'message' => 'External API request failed',
-                    'ref_id'  => $refId,
-                ], 500);
-            }
-
-        } catch (\Exception $e) {
-            $refId = CatchLogService::logException($request, 'verifyOtp', $e, [
-                'api' => 'https://fpekyc.tapits.in/fpekyc/api/ekyc/merchant/v1/validateotp',
-                'context' => 'Critical error in verifyOtp',
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
+            $response = curl_exec($ch);
+
+
+            $json_response = json_decode($response, true);
+
+            if(isset($json_response['status']) && $json_response['status']==1){
+
+                $existingUser->aeps_status = 2;
+                $existingUser->primaryKeyId = $json_response['data']['primaryKeyId'];
+                $existingUser->encodeFPTxnId = $json_response['data']['encodeFPTxnId'];
+                $existingUser->save();
+
+
+                return response()->json([
+                    'status'  => 1,
+                    'message' => 'E-KYC OTP Verify successfully'
+                ], 200);
+
+            } 
+
+            $existingUser->aeps_status = 1;
+            $existingUser->save();
+
+             return response()->json([
+                    'status'  => 0,
+                    'message' => 'E-KYC OTP Verify failed'
+                ], 200);
+
+        } catch (\Exception $e) {
+          
             return response()->json([
                 'status'  => 0,
-                'message' => 'Internal Server Error',
-                'ref_id'  => $refId,
+                'message' => 'Internal Server Error'
             ], 500);
         }
     }
@@ -1756,186 +1606,65 @@ class MerchantController extends Controller
                 ], 200);
             }
 
-            $merchantLoginId = $existingUser->mid;
-            $aadhaarNumber = $existingUser->aadhaar_number ?? '';
 
-            // -----------------------------
-            // ✅ Parse XML
-            // -----------------------------
-            $transformedResponse = $this->transformXmlResponse($request->xml);
+            $url = self::BASE_URL."v2/aeps/biometric-ekyc";
 
-            // -----------------------------
-            // ✅ Build payload
-            // -----------------------------
-            $payload = [
-                "merchantLoginId" => $merchantLoginId,
-                "superMerchantId" => self::SUPER_MERCHANT_ID,
-                "primaryKeyId"    => (int)$request->primaryKeyId,
-                "encodeFPTxnId"   => $request->encodeFPTxnId,
-                "requestRemarks"  => "Biometric eKYC Request",
-                "cardnumberORUID" => [
-                    "nationalBankIdentificationNumber" => null,
-                    "indicatorforUID" => 0,
-                    "adhaarNumber" => str_replace(' ', '', $aadhaarNumber)
-                ],
-                "captureResponse" => $transformedResponse
+            $data = [
+                "primaryKeyId"    => $request->primaryKeyId,
+                "encodeFPTxnId"    => $request->encodeFPTxnId,
+                "deviceIMEI"    => $request->deviceIMEI,
+                "pan_no"        => $existingUser->pan_no,
+                "xml"           => $request->xml,
             ];
 
-            // -----------------------------
-            // ✅ Validate critical fields
-            // -----------------------------
-            $missingFields = [];
-            if (empty($payload['merchantLoginId'])) $missingFields[] = 'merchantLoginId';
-            if (empty($payload['primaryKeyId'])) $missingFields[] = 'primaryKeyId';
-            if (empty($payload['encodeFPTxnId'])) $missingFields[] = 'encodeFPTxnId';
-            if (empty($payload['cardnumberORUID']['adhaarNumber'])) $missingFields[] = 'adhaarNumber';
-            if (empty($payload['captureResponse']['sessionKey'])) $missingFields[] = 'sessionKey';
-            if (empty($payload['captureResponse']['Piddata'])) $missingFields[] = 'Piddata';
+            $ch = curl_init($url);
 
-            if (!empty($missingFields)) {
-                \Log::warning('Missing critical fields', ['fields' => $missingFields, 'payload' => $payload]);
-                return response()->json([
-                    'status' => 0,
-                    'message' => 'Missing required fields: ' . implode(', ', $missingFields),
-                    'statusCode' => 10002
-                ], 200);
-            }
-
-            // -----------------------------
-            // ✅ Validate Aadhaar
-            // -----------------------------
-            $aadhaarNumber = $payload['cardnumberORUID']['adhaarNumber'];
-            if (!ctype_digit($aadhaarNumber) || strlen($aadhaarNumber) !== 12) {
-                \Log::error('Invalid Aadhaar format', ['aadhaar' => $aadhaarNumber]);
-                return response()->json([
-                    'status' => 0,
-                    'message' => 'Invalid Aadhaar number format. Must be 12 digits.',
-                    'statusCode' => 10002
-                ], 200);
-            }
-
-            // -----------------------------
-            // ✅ JSON payload validation
-            // -----------------------------
-            $jsonPayload = json_encode($payload);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                \Log::error('JSON Serialization Error', ['error' => json_last_error_msg(), 'payload' => $payload]);
-                return response()->json([
-                    'status' => 0,
-                    'message' => 'Invalid payload format: ' . json_last_error_msg(),
-                    'statusCode' => 10002
-                ], 200);
-            }
-
-            // -----------------------------
-            // ✅ Generate hash & session key
-            // -----------------------------
-            $timestamp = now()->timestamp;
-            $hash = base64_encode(hash('sha256', json_encode($payload) . self::SECRET_KEY . $timestamp, true));
-            $sessionKey = random_bytes(16);
-            $eskey = $this->encryptSessionKey($sessionKey);
-
-            // -----------------------------
-            // ✅ API call
-            // -----------------------------
-            $url = "https://fpekyc.tapits.in/fpekyc/api/ekyc/merchant/v1/biometric";
-            $headers = [
-                "Accept"        => "application/json",
-                "Content-Type"  => "application/json",
-                "trnTimestamp"  => $timestamp,
-                "hash"          => $hash,
-                "deviceIMEI"    => $request->deviceIMEI,
-                "eskey"         => $eskey
-            ];  
-
-            try {
-                $response = Http::withHeaders($headers)
-                    ->timeout(self::API_TIMEOUT)
-                    ->post($url, $payload);
-            } catch (\Throwable $httpEx) {
-                CatchLogService::logException($request, 'biometricEkyc.http', $httpEx, [
-                    'api' => $url,
-                    'context' => 'Failed to connect to eKYC API',
-                ]);
-                return response()->json([
-                    'status' => 0,
-                    'message' => 'Failed to connect to eKYC API',
-                    'error' => $httpEx->getMessage()
-                ], 500);
-            }
-
-            $responseJson = $response->json();
-
-            // -----------------------------
-            // ✅ Log request/response
-            // -----------------------------
-            DB::table('logs')->insert([
-                'mid'          => $existingUser->mid,
-                'type'         => 'Biometric eKYC',
-                'platform'     => 'WEB',
-                'headers'      => json_encode($headers),
-                'request_data'  => json_encode($payload),
-                'response_data' => json_encode($responseJson),
-                'url'           => $url,
-                'status'        => $responseJson['status'] ?? null,
-                'timestamp'    => now(),
-                'created_at'   => now()->format('Y-m-d H:i:s'),
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
-            // -----------------------------
-            // ✅ Handle API response
-            // -----------------------------
-            if ($response->successful() && ($responseJson['status'] ?? false) == 1) {
+            $response = curl_exec($ch);
 
 
-                AepsDraft::where('id', $existingUser->id)->update(['aeps_status' => 3]);
+            $json_response = json_decode($response, true);
 
+            if(isset($json_response['status']) && $json_response['status']==1){
 
-                // ✅ Check for FP097 kycResponseCode - Bank eKYC required
-                $kycResponseCode = $responseJson['data']['kycResponseCode'] ?? null;
-                
-                if ($kycResponseCode === 'FP097') {
-                    // FP097 means "Please complete Bank eKYC" - redirect back to eKYC OTP
-                    AepsDraft::where('id', $existingUser->id)->update(['aeps_status' => 1]);
-                    \Log::info('FP097: Bank eKYC required, resetting to eKYC OTP step', [
-                        'mid' => $existingUser->mid,
-                        'pan_no' => $existingUser->pan_no,
-                        'kycResponseCode' => $kycResponseCode
-                    ]);
-                    
-                    return response()->json([
-                        'status'  => 1,
-                        'message' => $responseJson['message'] ?? 'Bank eKYC required. Please complete Bank eKYC.',
-                        'data'    => $responseJson,
-                        'kycResponseCode' => 'FP097'
-                    ]);
-                }
+                $existingUser->aeps_status = 3;
+                $existingUser->save();
+
 
                 return response()->json([
                     'status'  => 1,
-                    'message' => 'Success',
-                    'data'    => $responseJson
-                ]);
-            } else {
-                AepsDraft::where('id', $existingUser->id)->update(['aeps_status' => 1]);
-                \Log::warning('eKYC API returned error', ['response' => $responseJson]);
-                return response()->json([
-                    'status'  => 0,
-                    'message' => $responseJson['message'] ?? 'API request failed',
-                    'data'    => $responseJson
-                ], $response->status() ?: 200);
-            }
+                    'message' => 'Biometric E-kyc successfully'
+                ], 200);
 
-        } catch (\Throwable $e) {
-            $refId = CatchLogService::logException($request, 'biometricEkyc', $e, [
-                'api' => 'https://fpekyc.tapits.in/fpekyc/api/ekyc/merchant/v1/biometricekyc',
-                'context' => 'Biometric eKYC Exception',
-            ]);
+            } 
+
+
 
             return response()->json([
                 'status'  => 0,
-                'message' => 'Internal Server Error',
-                'ref_id'  => $refId,
+                'message' => 'Biometric E-kyc failed'
+            ], 200);
+          
+
+        } catch (\Throwable $e) {
+          
+
+            return response()->json([
+                'status'  => 0,
+                'message' => 'Internal Server Error'
             ], 500);
         }
     }
@@ -1985,154 +1714,44 @@ class MerchantController extends Controller
             $isFacetan = $transformedResponse['fType'] == "0" ? true : false;
             $serviceType = isset($request->serviceType) ? $request->serviceType : "AEPS";
 
-     
-            // ✅ Final Payload with proper validation and formatting
-            $payload = [
-                "merchantLoginId" => $merchantLoginId,
-                "merchantUserName" => $merchantLoginId,
-                "superMerchantId" => self::SUPER_MERCHANT_ID,
-                "languageCode"    => "en",
-                "latitude"        => floatval($existingUser->latitude),
-                "longitude"       => floatval($existingUser->longitude),
-                "transactionType" => "AUO",
-                "requestRemarks"  => "2FA Request",
-                "merchantPin"     => md5(base64_decode($existingUser->password)),
-                "serviceType"     => $serviceType, // supports only AEPS or AP - for Aadhar Pay
-                "mobileNumber"    => $existingUser->phone,
-                "merchantTranId"  => "$time",
-                "isFacialTan"       => $isFacetan,
-                "cardnumberORUID" => [
-                    "nationalBankIdentificationNumber" => null,
-                    "indicatorforUID" => 0,
-                    "adhaarNumber" => $aadhaarNumber ?? ""
-                ],
-                "captureResponse" => $transformedResponse
-            ];
 
-            // ✅ Validate critical payload fields before sending
-            $missingFields = [];
-            if (empty($payload['merchantLoginId'])) $missingFields[] = 'merchantLoginId';
-            if (empty($payload['cardnumberORUID']['adhaarNumber'])) $missingFields[] = 'adhaarNumber';
-            if (empty($payload['captureResponse']['sessionKey'])) $missingFields[] = 'sessionKey';
-            if (empty($payload['captureResponse']['Piddata'])) $missingFields[] = 'Piddata';
+            $url = self::BASE_URL."v2/aeps/2fa";
 
-            // ✅ Additional validation for Aadhaar number format
-            $aadhaarNumber = $payload['cardnumberORUID']['adhaarNumber'];
-            if (!empty($aadhaarNumber)) {
-                // Remove spaces and validate length
-                $cleanAadhaar = str_replace(' ', '', $aadhaarNumber);
-                if (strlen($cleanAadhaar) !== 12 || !ctype_digit($cleanAadhaar)) {
-                    \Log::error('Invalid Aadhaar format:', ['aadhaar' => $aadhaarNumber]);
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Invalid Aadhaar number format. Must be 12 digits.',
-                        'statusCode' => 10002
-                    ], 400);
-                }
-                // Update payload with clean Aadhaar
-                $payload['cardnumberORUID']['adhaarNumber'] = $cleanAadhaar;
-            }
-
-            if (!empty($missingFields)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Missing required fields: ' . implode(', ', $missingFields),
-                    'statusCode' => 10002
-                ], 400);
-            }
-
-           
-
-            // ✅ Validate JSON serialization
-            $jsonPayload = json_encode($payload);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Invalid payload format: ' . json_last_error_msg(),
-                    'statusCode' => 10002
-                ], 400);
-            }
-
-            // ✅ Transaction timestamp & hash
-            $timestamp = now()->timestamp;
-            $concatenated = json_encode($payload) . self::SECRET_KEY . $timestamp;
-            $hash = base64_encode(hash('sha256', $concatenated, true));
-
-            // ✅ Generate AES session key
-            $sessionKey = random_bytes(16);
-            $eskey = $this->encryptSessionKey($sessionKey);
-
-            // ✅ Define API URL
-            $url = "https://fingpayap.tapits.in/fpaepsservice/auth/tfauth/merchant/simple/validate/aadhar";
-
-            // ✅ Prepare headers
-            $headers = [
-                "Accept"        => "application/json",
-                "Content-Type"  => "application/json",
-                "trnTimestamp"  => $timestamp,
-                "hash"          => $hash,
+            $data = [
+                "serviceType" => $serviceType,
                 "deviceIMEI"    => $request->deviceIMEI,
-                "eskey"         => $eskey
+                "pan_no"        => $existingUser->pan_no,
+                "xml"           => $transformedResponse,
+                "isFacialTan"       => $isFacetan,
             ];
 
+            $ch = curl_init($url);
 
-            // ✅ Log request BEFORE API call
-            DB::table('logs')->insert([
-                'mid'          => $existingUser->mid,
-                'type'         => '2FA Request',
-                'platform'     => 'WEB',
-                'headers'      => json_encode([
-                    'Accept'       => 'application/json',
-                    'Content-Type' => 'application/json',
-                    'trnTimestamp' => $timestamp,
-                    'hash'         => $hash,
-                    'deviceIMEI'   => $request->deviceIMEI,
-                    'eskey'        => $eskey,
-                ]),
-                'request_data'  => json_encode($payload),
-                'url'           => $url,
-                'txnid'         => $time.$merchantLoginId,
-                'status'        => 0,
-                'timestamp'     => now(),
-                'created_at'    => now()->format('Y-m-d H:i:s'),
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
-            // ✅ Call eKYC API
-            $response = Http::withHeaders($headers)
-                ->timeout(self::API_TIMEOUT)
-                ->post($url, $payload);
-
-            $responseJson = $response->json();
-
-            // ✅ Update log with response
-            DB::table('logs')
-                ->where('txnid', $time.$merchantLoginId)
-                ->update([
-                    'response_data' => json_encode($responseJson),
-                    'status'        => $responseJson['status'] ?? 0,
-                    'updated_at'    => now()->format('Y-m-d H:i:s'),
-                ]);
-
-            // ✅ Update user status
-            if ($response->successful() && ($responseJson['status'] ?? false) === true) {
-                
-                // 2fa type AP-Aadhar Pay or AEPS - for CW,MS & BE
-                if ($serviceType=="AP") {
-                    AepsDraft::where('id', $existingUser->id)->update([
-                        'ap_status' => 1
-                    ]);
-                } else {
-                    AepsDraft::where('id', $existingUser->id)->update([
-                        'aeps_status' => 4
-                    ]);
-                }
-                
+            $response = curl_exec($ch);
 
 
+            $json_response = json_decode($response, true);
 
-                $count = DB::table('logs')->where("mid", $existingUser->mid)->where("type", "2FA Request")->where("status", 1)->count();
-                
-                // deduct charge 1 rs of 2fa
+            if(isset($json_response['status']) && $json_response['status']==1){
+
+                $existingUser->aeps_status = 4;
+                $existingUser->save();
+
+
                 $is_api_partner = false;
                 $adminData = User::where('id',$existingUser->admin_id)->select("id","is_api_partner")->first();
                 if($adminData && $adminData->is_api_partner==true) {
@@ -2142,125 +1761,104 @@ class MerchantController extends Controller
                     $userData = User::where('mid',$existingUser->mid)->select("id")->first();
                     $credit_user_id = $userData->id;
                 }
-                
-               // if ($count >= 10 || $is_api_partner==true) {
-                if ($count >= 10) {
 
-                    $account = Account::where('user_id', $credit_user_id)->where('primary_status', true)->first();
-                    if ($account) {
 
-                        // Resolve category_id from category_code if provided
-                        $categoryId = null;
-                        $category = TxnCategory::where('code', strtoupper('AEPS'))->first();
-                        $categoryId = $category ? $category->id : null;
+                $account = Account::where('user_id', $credit_user_id)->where('primary_status', true)->first();
+                if ($account) {
 
-                        // Create passbook entry
-                        $passbookData = [
-                            'account_id' => $account->id,
-                            'transaction_id' => '2FA' . rand(111111, 999999),
-                            'type' => 'DR',
-                            'pre_balance' => $account->balance,
-                            'amount' => 1,
-                            'balance' => $account->balance - 1,
-                            'description' => '2FA Charge - ' . $existingUser->phone,
-                            'category_id' => $categoryId,
-                            'created_by' => $credit_user_id,
-                            'admin_id' => $existingUser->admin_id,
-                            'user_id' => $credit_user_id,
-                            'created_at' => now(),
-                            'updated_at' => now()
-                        ];
-                        
-                        // Create the passbook entry
-                        $passbook = Passbook::create($passbookData);
-                        
-                        
-                        
-                        // Send callback to partner URL
-                        if($is_api_partner == true) {
-                            $setting = Setting::where('user_id', $credit_user_id)->first();
-                            if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
-                                try {
-                                    $postData = [
-                                        "type" => "2fa",
-                                        "data" => [
-                                            "outletId" => $existingUser->mid,
-                                            "charge" => 1,
-                                            "timestamp" => date('Y-m-d H:i:s'),
-                                            "message" => 'AEPS 2FA Charge - ' . $existingUser->mobile,
-                                        ]
-                                    ];
+                    // Resolve category_id from category_code if provided
+                    $categoryId = null;
+                    $category = TxnCategory::where('code', strtoupper('AEPS'))->first();
+                    $categoryId = $category ? $category->id : null;
 
-                                    // Initialize cURL
-                                    $ch = curl_init($setting->call_back_url);
+                    // Create passbook entry
+                    $passbookData = [
+                        'account_id' => $account->id,
+                        'transaction_id' => '2FA' . rand(111111, 999999),
+                        'type' => 'DR',
+                        'pre_balance' => $account->balance,
+                        'amount' => 1,
+                        'balance' => $account->balance - 1,
+                        'description' => '2FA Charge - ' . $existingUser->phone,
+                        'category_id' => $categoryId,
+                        'created_by' => $credit_user_id,
+                        'admin_id' => $existingUser->admin_id,
+                        'user_id' => $credit_user_id,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ];
+                    
+                    // Create the passbook entry
+                    $passbook = Passbook::create($passbookData);
+                    
+                    
+                    
+                    // Send callback to partner URL
+                    if($is_api_partner == true) {
+                        $setting = Setting::where('user_id', $credit_user_id)->first();
+                        if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
+                            try {
+                                $postData = [
+                                    "type" => "2fa",
+                                    "data" => [
+                                        "outletId" => $existingUser->mid,
+                                        "charge" => 1,
+                                        "timestamp" => date('Y-m-d H:i:s'),
+                                        "message" => 'AEPS 2FA Charge - ' . $existingUser->mobile,
+                                    ]
+                                ];
 
-                                    // Encode POST data as JSON
-                                    $payload = json_encode($postData);
+                                // Initialize cURL
+                                $ch = curl_init($setting->call_back_url);
 
-                                    // Set cURL options
-                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                    curl_setopt($ch, CURLOPT_POST, true);
-                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                        'Content-Type: application/json',
-                                        'Content-Length: ' . strlen($payload)
-                                    ]);
-                                    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                                // Encode POST data as JSON
+                                $payload = json_encode($postData);
 
-                                    // Execute and get response
-                                    $response = curl_exec($ch);
-                                    
-                                } catch (\Exception $e) {
-                                    \Log::error('Callback to API partner failed: ' . $e->getMessage());
-                                }   
+                                // Set cURL options
+                                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                curl_setopt($ch, CURLOPT_POST, true);
+                                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                    'Content-Type: application/json',
+                                    'Content-Length: ' . strlen($payload)
+                                ]);
+                                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
 
-                            }
+                                // Execute and get response
+                                $response = curl_exec($ch);
+                                
+                            } catch (\Exception $e) {
+                                \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                            }   
+
                         }
-                        
                     }
-
+                    
                 }
+
 
 
                 return response()->json([
                     'status'  => 1,
-                    'message' => 'Success',
-                    'data'    => $responseJson
-                ]);
-            } else {
-              
-                // ✅ Enhanced error logging for specific error codes
-                $statusCode = $responseJson['statusCode'] ?? null;
-                $errorMessage = $responseJson['message'] ?? 'API request failed';
-                $responseCode = $responseJson['data']['responseCode'] ?? null;
+                    'message' => 'TwoFA Completed'
+                ], 200);
 
-                // ✅ Handle FP097 - KYC is required, reset aeps_status to 2
-                if ($responseCode === 'FP097') {
-                    AepsDraft::where('id', $existingUser->id)->update([
-                        'aeps_status' => 1
-                    ]);
-                    \Log::warning('FP097: KYC required, resetting aeps_status to 1', [
-                        'mid' => $existingUser->mid,
-                        'pan_no' => $existingUser->pan_no
-                    ]);
-                }
-                
-                return response()->json([
-                    'status'  => 0,
-                    'message' => $errorMessage,
-                    'data'    => $responseJson
-                ], $response->status());
-            }
+            } 
+
+
+
+            return response()->json([
+                'status'  => 0,
+                'message' => 'TwoFA Failed'
+            ], 200);
+
+           
 
         } catch (\Exception $e) {
-            $refId = CatchLogService::logException($request, 'twoFA', $e, [
-                'api' => 'https://fpuat.tapits.in/fpaepsv2/api/onboarding/merchant/v1/twoFactorRegistration',
-                'context' => 'Two Factor Registration Error',
-            ]);
+          
           
             return response()->json([
                 'status'  => 0,
-                'message' => 'Internal Server Error',
-                'ref_id'  => $refId,
+                'message' => 'Internal Server Error'
             ], 500);
         }
     }
@@ -2344,141 +1942,46 @@ class MerchantController extends Controller
             }
 
             $aepsType = $request->aepsType; // CW or M
-            $transactionType = ($aepsType === 'M') ? 'MO' : 'CO'; // CO for CW, MO for Aadhaar Pay
-            $serviceType     = ($aepsType === 'M') ? 'AP' : 'CW'; // CW for CW, AP for Aadhaar Pay
-            $merchantLoginId = $existingUser->mid;
-            $timestamp       = date('YmdHis');
-            $randomNumber    = rand(11, 99);
-            $merchantTranId  = $merchantLoginId . $timestamp . $randomNumber;
+          
+            $url = self::BASE_URL."v2/aeps/send-aeps-otp";
 
-            // Prioritize request location over draft location if provided
-            $latitude  = !empty($request->latitude) ? floatval($request->latitude) : floatval($existingUser->latitude ?? 0);
-            $longitude = !empty($request->longitude) ? floatval($request->longitude) : floatval($existingUser->longitude ?? 0);
-
-            $payload = [
-                "transactionType" => $transactionType,
-                "serviceType"     => $serviceType,
-                "mobileNumber"    => (string) $request->customerMobile,
-                "latitude"        => $latitude,
-                "longitude"       => $longitude,
-                "requestRemarks"  => ($aepsType === 'M') ? "AP OTP" : "CW OTP",
-                "paymentType"     => "AEPS",
-                "merchantTransactionId" => $merchantTranId,
-                "superMerchantId" => (int) self::SUPER_MERCHANT_ID,
-                "merchantUserName" => $merchantLoginId,
-                "merchantPin"     => md5(base64_decode($existingUser->password)),
-                "transactionAmount" => floatval($request->amount),
-                "cardnumberORUID" => [
-                    "nationalBankIdentificationNumber" => (string) $request->bankID,
-                    "indicatorforUID" => "0",
-                    "adhaarNumber" => $cleanAadhaar,
-                    "virtualId"    => (string) ($request->virtualId ?? "")
-                ]
+            $data = [
+                "outletId" => $existingUser->bmid,
+                "customerMobile"    => (string) $request->customerMobile,
+                "aadhaarNumber"        => (string) $request->aadhaarNumber,
+                "bankID"           => (string) $request->bankID,
+                "aepsType"       => $aepsType,
+                "amount"    => floatval($request->amount)
             ];
 
+            $ch = curl_init($url);
 
-        
-
-            // Validate JSON serialization
-            $jsonPayload = json_encode($payload);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Invalid payload format: ' . json_last_error_msg(),
-                    'statusCode' => 10002
-                ], 400);
-            }
-
-            // 1. Generate 16-byte random session key for encryption
-            $key = '';
-            $mt_rand = array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-            foreach ($mt_rand as $chr) {
-                $key .= chr($chr);
-            }
-
-            // 2. Fixed IV for AES-128-CBC encryption
-            $iv = '06f2f04cc530364f';
-
-            // 3. Encrypt JSON payload using AES-128-CBC and base64-encode
-            $ciphertext_raw = openssl_encrypt($jsonPayload, 'AES-128-CBC', $key, OPENSSL_RAW_DATA, $iv);
-            $encryptedRequestPayload = base64_encode($ciphertext_raw);
-
-            // 4. Encrypt session key with RSA public key for eskey header
-            $eskey = $this->encryptSessionKey($key);
-
-            // 5. Generate SHA-256 base64 hash of JSON payload
-            $hash = base64_encode(hash('sha256', $jsonPayload, true));
-
-            $url = "https://fingpayap.tapits.in/fpaepsservice/api/auth/merchant/php/send/otp";
-            $deviceIMEI = $request->deviceIMEI ?? ($existingUser->deviceIMEI ?? 'WEB');
-            $trnTimestamp = date('d/m/Y H:i:s');
-
-            $headers = [
-                "Accept"        => "application/json",
-                "Content-Type"  => "text/xml",
-                "trnTimestamp"  => $trnTimestamp,
-                "hash"          => $hash,
-                "deviceIMEI"    => (string) $deviceIMEI,
-                "eskey"         => $eskey
-            ];
-
-            // Log request
-            DB::table('logs')->insert([
-                'mid'          => $existingUser->mid,
-                'type'         => 'Send OTP - ' . $aepsType,
-                'platform'     => 'WEB',
-                'headers'      => json_encode($headers),
-                'request_data' => $jsonPayload,
-                'url'          => $url,
-                'txnid'        => $merchantTranId,
-                'status'       => 0,
-                'timestamp'    => now(),
-                'created_at'   => now()->format('Y-m-d H:i:s'),
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
-            $response = Http::withHeaders($headers)
-                ->timeout(self::AEPS_API_TIMEOUT)
-                ->connectTimeout(30)
-                ->withBody($encryptedRequestPayload, 'text/xml')
-                ->post($url);
+            $response = curl_exec($ch);
 
-            $responseJson = $response->json() ?? [];
 
-            DB::table('logs')
-                ->where('txnid', $merchantTranId)
-                ->update([
-                    'response_data' => json_encode($responseJson),
-                    'status'        => $responseJson['status'] ?? 0,
-                    'updated_at'    => now(),
-                ]);
+            $response_data = json_decode($response, true);
 
-            if (isset($responseJson['status']) && $responseJson['status'] === true) {
-                $fpTxnId = $responseJson['data']['fpTransactionId'] ?? ($responseJson['fpTransactionId'] ?? null);
-                return response()->json([
-                    'status'          => 1,
-                    'message'         => $responseJson['message'] ?? 'OTP sent successfully',
-                    'data'            => $responseJson,
-                    'fpTransactionId' => $fpTxnId,
-                    'txnOtpRequestId' => $fpTxnId
-                ]);
-            } else {
-                return response()->json([
-                    'status'  => 0,
-                    'message' => $responseJson['message'] ?? 'Failed to send OTP',
-                    'data'    => $responseJson
-                ]);
-            }
+            return response()->json($response_data);
 
         } catch (\Exception $e) {
-            $refId = CatchLogService::logException($request, 'sendAepsOtp', $e, [
-                'api' => 'https://fingpayap.tapits.in/fpaepsservice/api/auth/merchant/php/send/otp',
-                'context' => 'Send AEPS OTP Error',
-            ]);
-
+           
             return response()->json([
                 'status'  => 0,
-                'message' => 'Internal Server Error',
-                'ref_id'  => $refId,
+                'message' => 'Internal Server Error'
             ], 500);
         }
     }
@@ -2614,180 +2117,23 @@ class MerchantController extends Controller
                 'merchant_txn_id' => $merchantTranId,
             ]);
 
-           $xml = $request->xml;
 
-            if (!empty($request->otp)) {
-                $cleanOtp = trim((string) $request->otp);
 
-                // 1. Handle <Opts> tag - update existing otp attribute or add tag/attribute
-                if (preg_match('/<Opts\s+[^>]*>/i', $xml, $matches)) {
-                    $optsTag = $matches[0];
+            $url = self::BASE_URL."v2/aeps/biometric-ekyc";
 
-                    if (preg_match('/otp=["\'][^"\']*["\']/i', $optsTag)) {
-                        // OTP already exists, update it
-                        $newOptsTag = preg_replace(
-                            '/otp=["\'][^"\']*["\']/i',
-                            'otp="' . htmlspecialchars($cleanOtp, ENT_QUOTES, 'UTF-8') . '"',
-                            $optsTag
-                        );
-                    } else {
-                        // OTP doesn't exist, add it
-                        $newOptsTag = str_replace(
-                            '<Opts ',
-                            '<Opts otp="' . htmlspecialchars($cleanOtp, ENT_QUOTES, 'UTF-8') . '" ',
-                            $optsTag
-                        );
-                    }
-
-                    $xml = str_replace($optsTag, $newOptsTag, $xml);
-                } else {
-                    $optsXml = '<Opts env="P" fCount="1" fType="2" iCount="0" format="0" pidVer="2.0" timeout="15000" otp="' . htmlspecialchars($cleanOtp, ENT_QUOTES, 'UTF-8') . '" posh="UNKNOWN"/>';
-                    if (strpos($xml, '</PidData>') !== false) {
-                        $xml = str_replace('</PidData>', $optsXml . '</PidData>', $xml);
-                    } else {
-                        $xml .= $optsXml;
-                    }
-                }
-
-                // 2. Remove <Uses .../> tag completely if present, as RD Service XML does not require Uses tag for OTP in Opts
-                $xml = preg_replace('/<Uses\s+[^>]*\/?>/i', '', $xml);
-            }
-
-            // ✅ Parse XML to structured array
-            $transformedResponse = $this->transformXmlResponseFace($xml);
-
-            if (!empty($request->otp)) {
-                $cleanOtp = trim((string) $request->otp);
-                $transformedResponse['otp'] = $cleanOtp;
-                if (!isset($transformedResponse['opts']) || !is_array($transformedResponse['opts'])) {
-                    $transformedResponse['opts'] = [];
-                }
-                $transformedResponse['opts']['otp'] = $cleanOtp;
-                unset($transformedResponse['uses']);
-            }
-
-           
-            $isFacialTan = ($transformedResponse['fType'] ?? null) == "0" ? true : false;
-
-            $latitude  = !empty($request->latitude) ? floatval($request->latitude) : floatval($existingUser->latitude ?? 0);
-            $longitude = !empty($request->longitude) ? floatval($request->longitude) : floatval($existingUser->longitude ?? 0);
-
-            $payload = [
-                "isFacialTan" => $isFacialTan, // needed for face txns
-                "captureResponse" => $transformedResponse,
-                "cardnumberORUID" => [
-                    "nationalBankIdentificationNumber" => (string) $request->bankID,
-                    "indicatorforUID" => "0",
-                    "adhaarNumber" => $request->aadhaarNumber,
-                ],
-                "languageCode" => "en",
-                "latitude" => $latitude,
-                "longitude" => $longitude,
-                "mobileNumber" => (string) $request->customerMobile,
-                "paymentType" => "B",
-                "timestamp" => $timestamp,
-                "merchantUserName" => $merchantLoginId,
-                "merchantPin" => md5(base64_decode($existingUser->password)),
-                "superMerchantId" => self::SUPER_MERCHANT_ID,
+   
+               
+            $data = [
+                "outletId"         => $existingUser->bmid,
+                "customerMobile"   => $existingUser->phone,
+                "aadhaarNumber"    => $request->aadhaarNumber,
+                "bankID"           => (string) $request->bankID,
+                "bankName"         => $request->bankName,
+                "deviceType"       => $request->deviceType,
+                "aepsType"         => $request->aepsType,
+                "amount"           => $request->amount,   
+                "xml" => $request->xml,
             ];
-
-         
-            if (!empty($request->otp)) {
-                $payload["txnOtpRequestId"] = (string) $request->txnOtpRequestId;
-            }
-
-            switch ($aepsType) {
-                case "BE":
-                    $payload["requestRemarks"] = "Balance Enquiry";
-                    $payload["transactionType"] = "BE";
-                    $payload["merchantTransactionId"] = "$merchantTranId";
-                    break;
-                case "CW":
-                    $payload["requestRemarks"] = "Cash Withdrawal";
-                    $payload["transactionAmount"] = $amount;
-                    $payload["transactionType"] = "CW";
-                    $payload["merchantTranId"] = "$merchantTranId";
-                    break;
-                case "MS":
-                    $payload["requestRemarks"] = "Mini Statement";
-                    $payload["transactionType"] = "MS";
-                    $payload["merchantTranId"] = "$merchantTranId";
-                    break;
-                case "M":
-                    $payload["requestRemarks"] = "Cash Withdrawal";
-                    $payload["transactionAmount"] = $amount;
-                    $payload["transactionType"] = "M";
-                    $payload["merchantTranId" ]= "$merchantTranId";
-                    break;
-            }
-
-
-
-            // ✅ Additional validation for Aadhaar number format
-            $aadhaarNumber = $payload['cardnumberORUID']['adhaarNumber'];
-            if (!empty($aadhaarNumber)) {
-                // Remove spaces and validate length
-                $cleanAadhaar = str_replace(' ', '', $aadhaarNumber);
-                if (strlen($cleanAadhaar) !== 12 || !ctype_digit($cleanAadhaar)) {
-                    \Log::error('Invalid Aadhaar format:', ['aadhaar' => $aadhaarNumber]);
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Invalid Aadhaar number format. Must be 12 digits.',
-                        'statusCode' => 10002
-                    ], 400);
-                }
-                // Update payload with clean Aadhaar
-                $payload['cardnumberORUID']['adhaarNumber'] = $cleanAadhaar;
-            }
-
-            if (!empty($missingFields)) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Missing required fields: ' . implode(', ', $missingFields),
-                    'statusCode' => 10002
-                ], 400);
-            }
-
-           
-
-            // ✅ Validate JSON serialization
-            $jsonPayload = json_encode($payload);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Invalid payload format: ' . json_last_error_msg(),
-                    'statusCode' => 10002
-                ], 400);
-            }
-
-            $concatenated = json_encode($payload) . self::SECRET_KEY . $merchantTranId;
-            $hash = base64_encode(hash('sha256', $concatenated, true));
-
-            // ✅ Generate AES session key
-            $sessionKey = random_bytes(16);
-            $eskey = $this->encryptSessionKey($sessionKey);
-
-          
-            $url = match ($aepsType) {
-                "CW" => "https://fingpayap.tapits.in/fpaepsservice/api/cashWithdrawal/merchant/v2/withdrawal",
-                "BE" => "https://fingpayap.tapits.in/fpaepsservice/api/balanceInquiry/merchant/v2/getBalance",
-                "MS" => "https://fingpayap.tapits.in/fpaepsservice/api/miniStatement/merchant/v2/statement",
-                "M"  => "https://fingpayap.tapits.in/fpaepsservice/api/aadhaarPay/merchant/v2/pay",
-                default => "https://fingpayap.tapits.in/fpaepsservice/api/balanceInquiry/merchant/v2/getBalance"
-            };
-
-            // ✅ Prepare headers
-            $headers = [
-                "Accept"        => "application/json",
-                "Content-Type"  => "application/json",
-                "trnTimestamp"  => $merchantTranId,
-                "hash"          => $hash,
-                "deviceIMEI"    => $existingUser->deviceIMEI,
-                "eskey"         => $eskey
-            ];
-
-
-
             
             // ✅ Log request/response
             DB::table('logs')->insert([
@@ -2797,12 +2143,10 @@ class MerchantController extends Controller
                 'headers'      => json_encode([
                     'Accept'       => 'application/json',
                     'Content-Type' => 'application/json',
-                    'trnTimestamp' => $merchantTranId,
-                    'hash'         => $hash,
-                    'deviceIMEI'   => $existingUser->deviceIMEI,
-                    'eskey'        => $eskey,
+                    'mid' => self::MID,
+                    'mkey' => self::MKEY,
                 ]),
-                'request_data'  => json_encode($payload),
+                'request_data'  => json_encode($data),
                 'url'           => $url,
                 'txnid'         => $merchantTranId,
                 'status'        => 0,
@@ -2810,67 +2154,50 @@ class MerchantController extends Controller
                 'created_at'   => now()->format('Y-m-d H:i:s'),
             ]);
 
-
-
             
+         
+
+            $ch = curl_init($url);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $response = curl_exec($ch);
 
 
-            // ✅ Call All Do Aeps API
-            $response = Http::withHeaders($headers)
-                ->timeout(self::AEPS_API_TIMEOUT)
-                ->connectTimeout(30)
-                ->post($url, $payload);
-
-            
-            $responseJson = $response->json() ?? [];
-
-            $responseJson['shop_name'] = $existingUser->shop_name;
-            $responseJson['shop_phone'] = $existingUser->phone;
-
-            // ✅ Guard against null/invalid API response
-            if (!is_array($responseJson)) {
-                CatchLogService::logException($request, 'doAeps', new \Exception('AEPS API returned non-JSON response'), [
-                    'context' => 'AEPS Non-JSON Response',
-                    'mid' => $existingUser->mid,
-                    'aepsType' => $aepsType,
-                    'http_status' => $response->status(),
-                    'raw_body' => substr($response->body(), 0, 500),
-                ]);
-
-                if (isset($history)) {
-                    $history->update([
-                        "response" => $response->body(),
-                        "response_status" => false,
-                        "response_message" => 'Invalid API response (non-JSON)',
-                    ]);
-                }
-
-                return response()->json([
-                    'status'  => 0,
-                    'message' => 'AEPS service returned an invalid response. Please try again.',
-                    'data'    => null,
-                    'logo'    => $this->getCompanyLogo($existingUser->admin_id)
-                ], 200);
-            }
+            $json_response = json_decode($response, true);
 
             DB::table('logs')
             ->where('txnid', $merchantTranId)
             ->update([
-                'response_data' => json_encode($responseJson),
-                'status'        => $responseJson['status'] ?? 0,
+                'response_data' => json_encode($json_response),
+                'status'        => $json_response['status'] ?? 0,
                 'updated_at'    => now(),
             ]);
 
 
+      
 
             $history->update([
-                "request" => json_encode($payload),
-                "response" => json_encode($responseJson),
-                "response_status" => $responseJson['status'] ?? null,
-                "response_status_code" => $responseJson['statusCode'] ?? null,
-                "response_message" => $responseJson['message'] ?? null,
+                "request" => json_encode($data),
+                "response" => json_encode($json_response),
+                "response_status" => $json_response['status'] ?? null,
+                "response_status_code" => $json_response['statusCode'] ?? null,
+                "response_message" => $json_response['message'] ?? null,
                 "auth3way" => 0
             ]);
+
 
 
             if($is_api_partner == true){
@@ -2934,7 +2261,16 @@ class MerchantController extends Controller
            
 
             // ✅ Update user status
-            if ($responseJson['status'] === true && $responseJson['statusCode'] === 10000) {
+            if ($json_response['status'] == 1) {
+
+                $fpTransactionId=$json_response['data']['fpTransactionId'];
+                $bankRRN=$json_response['data']['bankRRN'];
+
+                $history->update([
+                    "merchant_txn_id" => $fpTransactionId,
+                    "bank_id" => $bankRRN
+                ]);
+
                 
                 if ($aepsType == 'CW') {
 
@@ -3029,21 +2365,20 @@ class MerchantController extends Controller
                 return response()->json([
                     'status'  => 1,
                     'message' => 'Transaction successful',
-                    'data'    => $responseJson,
+                    'data'    => $json_response['data'],
                     'logo'    => $this->getCompanyLogo($existingUser->admin_id)
                 ]);
 
             } else {
               
-                // ✅ Enhanced error logging for specific error codes
-                $statusCode = $responseJson['statusCode'] ?? null;
+                // ✅ Enhanced error logging for specific error code
                 $errorMessage = $responseJson['message'] ?? 'API request failed';
        
                 
                 return response()->json([
                     'status'  => 0,
                     'message' => $errorMessage,
-                    'data'    => $responseJson,
+                    'data'    => $json_response['data'],
                     'shop_name' => $existingUser->shop_name,
                     'shop_phone' => $existingUser->phone,
                     'logo'    => $this->getCompanyLogo($existingUser->admin_id)
@@ -3055,21 +2390,11 @@ class MerchantController extends Controller
 
 
         } catch (\Exception $e) {
-            $refId = CatchLogService::logException($request, 'doAeps', $e, [
-                'api' => 'https://fpuat.tapits.in/fpaepsv2/api/aeps2fa/merchant/v2/balanceenquiry',
-                'context' => 'AEPS Transaction Error',
-            ]);
-
-             if (isset($history)) {
-                $history->update([
-                    "response" => $e->getMessage()
-                ]);
-            }
           
             return response()->json([
                 'status'  => 0,
                 'message' => 'Internal Server Error',
-                'ref_id'  => $refId,
+                'ref_id'  => 56465,
                 'logo'    => $this->getCompanyLogo(1)
             ], 500);
         }

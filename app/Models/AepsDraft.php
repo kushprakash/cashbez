@@ -11,6 +11,8 @@ class AepsDraft extends Model
 
     protected $fillable = [
         'mid',
+        'bid',
+        'bmid',
         'latitude',
         'longitude',
         'shop_city',
