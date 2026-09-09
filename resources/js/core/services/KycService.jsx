@@ -17,7 +17,7 @@ class KycService {
         }
 
         // Check cache first
-        if (this.kycStatusCache && this.cacheTime && 
+        if (this.kycStatusCache && this.cacheTime &&
             (Date.now() - this.cacheTime) < this.CACHE_DURATION) {
             return this.kycStatusCache;
         }
@@ -25,24 +25,24 @@ class KycService {
         try {
             this.kycCheckInProgress = true;
             const apiService = ApiService();
-            
+
             const response = await apiService.vGet('/api/kyc/status');
-            
+
             if (response.data.status === 1) {
                 const { kyc, user_role, is_corporate } = response.data;
-                
+
                 let kycCompleted = false;
-                
+
                 // Check KYC completion based on user role
                 if (is_corporate) {
                     // Corporate user - need complete corporate KYC
-                    kycCompleted = kyc.aadhar_verified && 
-                                  kyc.pan_verified && 
-                                  kyc.account_verified && 
-                                  kyc.kyc_completed;
+                    kycCompleted = kyc.aadhar_verified &&
+                        kyc.pan_verified &&
+                        kyc.account_verified &&
+                        kyc.kyc_completed;
                 } else {
                     // Individual user - need basic KYC (Aadhaar + PAN)
-                    kycCompleted = kyc.aadhar_verified && kyc.pan_verified;
+                    kycCompleted = kyc.aadhar_verified && kyc.pan_verified && kyc.account_verified;
                 }
 
                 const result = {
