@@ -221,7 +221,7 @@ class KycController extends Controller
 
             if (isset($rj['status']) && $rj['status'] == 1) {
                 $aadhaarInfo = $rj['data'];
-
+                
                 // Update or create KYC record
                 $kyc = UserKyc::updateOrCreate(
                     ['user_id' => $user->id],
@@ -240,7 +240,7 @@ class KycController extends Controller
                         'dob' => isset($aadhaarInfo['dob']) ? \Carbon\Carbon::createFromFormat('d-m-Y', $aadhaarInfo['dob'])->format('Y-m-d') : null,
                         'gender' => $aadhaarInfo['gender'] ?? null,
                         'name' => $aadhaarInfo['name'] ?? null,
-                        'photo' => isset($aadhaarInfo['photo']) && strpos($aadhaarInfo['photo'], 'data:image') === false ? 'data:image/png;base64,' . $aadhaarInfo['photo'] : ($aadhaarInfo['photo'] ?? null),
+                        'photo' => isset($aadhaarInfo['photo_link']) && strpos($aadhaarInfo['photo_link'], 'data:image') === false ? 'data:image/png;base64,' . $aadhaarInfo['photo_link'] : ($aadhaarInfo['photo_link'] ?? null),
                         'response_aadhar' => json_encode([
                             'status' => 1,
                             'message' => 'Success',

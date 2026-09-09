@@ -685,6 +685,8 @@ class VerificationController extends Controller
           $keysToRemove = ['Fees', 'Bal', 'bal'];
           $rj = array_diff_key($rj, array_flip($keysToRemove));
 
+          $rj['bank_name'] = $ifsc_data['BANK'];
+
           DB::table('verifications')->where('number', $request->accountno)->update(['status' => 1]);
 
           if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
