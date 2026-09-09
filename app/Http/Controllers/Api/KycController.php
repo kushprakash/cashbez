@@ -120,13 +120,13 @@ class KycController extends Controller
             curl_close($curl);
             
             $rj = json_decode($response, true);
-            
+
             if (isset($rj['status']) && $rj['status'] == 1) {
 
                 return response()->json([
                     'status' => 1,
                     'message' => 'OTP sent successfully',
-                    'txnid' => $rj['data']['request_id'] ?? '',
+                    'txnid' => $rj['data']['refid'] ?? '',
                     'otp_sent' => true
                 ]);
             } else {
