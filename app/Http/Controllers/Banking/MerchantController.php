@@ -181,10 +181,6 @@ class MerchantController extends Controller
                 $draft = AepsDraft::where('pan_no', $request->pan_no)->first();
             } else {
                 $draft = AepsDraft::create($draftData);
-            }
-
-
-            if(empty($existingDraft->bid)){
 
 
                 $kycData=[
@@ -247,8 +243,30 @@ class MerchantController extends Controller
                     $draft->save();
                 }
 
+
+
+                DB::table('logs')->insert([
+                    'mid'          => $existingDraft->mid,
+                    'type'         => 'DRAFT',
+                    'platform'     => 'WEB',
+                    'headers'      => json_encode([
+                        'Accept'       => 'application/json',
+                        'Content-Type' => 'application/json',
+                        'mid' => self::MID,
+                        'mkey' => self::MKEY,
+                    ]),
+                    'request_data'  => json_encode($data),
+                    'response_data'  => json_encode($json_response),
+                    'url'           => $url,
+                    'txnid'         => 0,
+                    'status'        => 0,
+                    'timestamp'    => now(),
+                    'created_at'   => now()->format('Y-m-d H:i:s'),
+                ]);
             }
 
+
+          
       
 
             $draft->outletId = $draft->mid;
