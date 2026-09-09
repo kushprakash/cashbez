@@ -178,14 +178,14 @@ class MerchantController extends Controller
 
             $existingDraft = AepsDraft::where('pan_no', $request->pan_no)->first();
             if($existingDraft){
-               return response()->json([
-                    'status' => 0,
-                    'message' => 'AEPS draft already exist',
-                    'data' => $draft
-                ], 200);
+              
             } else {
                 $draft = AepsDraft::create($draftData);
+            }
+                
+            $draft = AepsDraft::where('pan_no', $request->pan_no)->first();
 
+            if(empty($draft->bid)){
 
                 $kycData=[
                     'phone_verified_at'=>$draft->phone_verified_at,
@@ -268,10 +268,6 @@ class MerchantController extends Controller
                     'created_at'   => now()->format('Y-m-d H:i:s'),
                 ]);
             }
-
-
-          
-      
 
             $draft->outletId = $draft->mid;
 
