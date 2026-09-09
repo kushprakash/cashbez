@@ -34,7 +34,7 @@ class MerchantController extends Controller
    
     // Constants
     private const AEPS_API_TIMEOUT = 120;
-
+    private const BASE_URL = 'https://icchhamatidataservice.com/api/';
     private const SUPER_MERCHANT_ID       = '1262';
     private const SUPER_MERCHANT_USERNAME = 'bharatpaysd';
     private const SUPER_MERCHANT_PASSWORD = '1234d';
@@ -42,114 +42,10 @@ class MerchantController extends Controller
     private const IP_ADDRESS              = '194.164.148.127';
     private const API_TIMEOUT             = 30;
     private const SECRET_KEY = "6149c45503d6d3a60c5b775b56adc52b533fa428b060109c4d59e935e6d1524";
+    private const MID = "AGENT1475";
+    private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
 
 
-
-    private const PUBLIC_RSA_KEY =  '-----BEGIN CERTIFICATE-----
-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
------END CERTIFICATE-----';
-
-    private function encryptMD5($password)
-    {
-        return md5($password);
-    }
-
-    private function generateSha256Hash($data)
-    {
-        return base64_encode(hash('sha256', $data, true));
-    }
-
-    private function encryptSessionKey($sessionKey)
-    {
-        $publicKey = openssl_pkey_get_public(self::PUBLIC_RSA_KEY);
-        if (!$publicKey) {
-            throw new \Exception("Invalid RSA Public Key");
-        }
-        if (!openssl_public_encrypt($sessionKey, $encrypted, $publicKey, OPENSSL_PKCS1_PADDING)) {
-            throw new \Exception("RSA Encryption failed");
-        }
-        return base64_encode($encrypted);
-    }
-
-    private function extractXmlContent($xmlData)
-    {
-        if (is_string($xmlData)) {
-            return trim($xmlData);
-        }
-        if (is_array($xmlData)) {
-            // Try different possible content keys
-            if (isset($xmlData['content'])) {
-                return trim($xmlData['content']);
-            }
-            if (isset($xmlData['@content'])) {
-                return trim($xmlData['@content']);
-            }
-            if (isset($xmlData['0'])) {
-                return trim($xmlData['0']);
-            }
-            // Handle nested content
-            if (isset($xmlData['@attributes']) && count($xmlData) > 1) {
-                // Skip attributes and get the actual content
-                foreach ($xmlData as $key => $value) {
-                    if ($key !== '@attributes' && is_string($value)) {
-                        return trim($value);
-                    }
-                }
-            }
-            // If it's a simple array with just content, return it as string
-            if (count($xmlData) === 1 && !isset($xmlData['@attributes'])) {
-                $value = reset($xmlData);
-                return is_string($value) ? trim($value) : (string)$value;
-            }
-            // If all else fails, try to convert to string
-            return trim((string)$xmlData);
-        }
-        return "";
-    }
-
-    private function safeGetArrayValue($array, $keys, $default = "")
-    {
-        $current = $array;
-        foreach ($keys as $key) {
-            if (!is_array($current) || !isset($current[$key])) {
-                return $default;
-            }
-            $current = $current[$key];
-        }
-        return $current;
-    }
 
 
     public function aepsDraft(Request $request) {
@@ -286,7 +182,74 @@ IqLI220tUFpA8SJepQQKahs0ZG2S2PqyrrH0nM0++2sm3ETfxZKDFOylBPmrrbSW
             } else {
                 $draft = AepsDraft::create($draftData);
             }
-            
+
+
+            if(empty($draft->bid)){
+
+
+                $kycData=[
+                    'phone_verified_at'=>$draft->phone_verified_at,
+                    'aadhaar_verified_at'=>$draft->aadhaar_verified_at,
+                    'pan_verified_at'=>$draft->pan_verified_at,
+                    'bank_verified_at'=>$draft->bank_verified_at,
+                    "panData"=>$draft->panData,
+                    "aadharData"=>$draft->aadharData,
+                    "accountData"=>$draft->accountData
+                ];
+
+                $url = self::BASE_URL."v2/aeps/draft";
+
+                $data = [
+                    "latitude"        => $draft->latitude,
+                    "longitude"       => $draft->longitude,
+                    "shop_name"       => $draft->shop_name,
+                    "shop_address"    => $draft->address,
+                    "shop_city"       => $draft->city,
+                    "shop_district"   => $draft->district,
+                    "state_id"        => $draft->state,
+                    "shop_pin_code"   => $draft->pin_code,
+                    "full_name"       => $draft->full_name,
+                    "phone"           => $draft->phone,
+                    "email"           => $draft->email,
+                    "pan_no"           => $draft->pan_no,
+                    "aadhaar_number"  => $draft->aadhaar_number,
+                    "account_number"  => $draft->account_number,
+                    "ifsc_code"       => $draft->ifsc_code,
+                    "bank_name"       => $draft->bank_name,
+                    "bank_branch"     => $draft->bank_branch,
+                    "kycData"         => $kycData
+                ];
+
+                $ch = curl_init($url);
+
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => json_encode($data),
+                    CURLOPT_HTTPHEADER     => [
+                        "Content-Type: application/json",
+                        "Accept: application/json",
+                        "mid: ".self::MID,
+                        "mkey: ".self::MKEY
+                    ],
+                    CURLOPT_TIMEOUT        => 60,
+                    CURLOPT_CONNECTTIMEOUT => 20
+                ]);
+
+                $response = curl_exec($ch);
+
+
+                $json_response = json_decode($response, true);
+
+                if(isset($json_response['status']) && $json_response['status']==1){
+                    $draft->bid = $json_response['data']['id'];
+                    $draft->bmid = $json_response['data']['mid`'];
+                    $draft->save();
+                }
+
+            }
+
+      
 
             $draft->outletId = $draft->mid;
 
@@ -1256,87 +1219,47 @@ IqLI220tUFpA8SJepQQKahs0ZG2S2PqyrrH0nM0++2sm3ETfxZKDFOylBPmrrbSW
                 ], 200);
             }
 
-            // blocking any transaction if video kyc is not completed
-            if($existingUser->video_kyc_status==0){
-                return response()->json([
-                    'status'  => 0,
-                    'pending_status'  => 7,
-                    'message' => 'Video KYC is not completed. Please contact your distributor.',
-                ], 200);
-            }
-
-            // Credentials
-            $superMerchantPasswordMD5 = md5(self::SUPER_MERCHANT_PASSWORD);
-            $credential = self::SUPER_MERCHANT_USERNAME . '@' . $superMerchantPasswordMD5;
-            $hash = $this->generateSha256Hash($credential);
-
-
+          
+          
             $aadharData=json_decode($existingUser->aadharData, true);
             
-            // Merchant data
-            $merchantsData = [
-                "merchantLoginId"       => $existingUser->mid,
-                "merchantLoginPin"      => $existingUser->phone,
-                "firstName"             => $existingUser->full_name,
-                "merchantPhoneNumber"   => $existingUser->phone,
-                "companyLegalName"      => $existingUser->shop_name,
-                "companyMarketingName"  => $existingUser->shop_name,
-                "userType"              => $existingUser->mid,
-                "companyType"           => 4900,
-                "emailId"               => $existingUser->email,
-                "merchantAddress" => [
-                    "merchantAddress1"    => $aadharData['data']['address'] ?? $existingUser->shop_address,
-                    "merchantState"       => $existingUser->state_id,
-                    "merchantCityName"    => $aadharData['data']['split_address']['dist'],
-                    "merchantDistrictName"=> $aadharData['data']['split_address']['dist'],
-                    "merchantPinCode"     => $aadharData['data']['split_address']['pincode'],
-                ],
-                "kyc" => [
-                    "userPan"             => $existingUser->pan_no,
-                    "aadhaarNumber"       => $existingUser->aadhaar_number,
-                    "shopAndPanImage"     => "False",
-                    "gstinNumber"         => self::SUPER_MERCHANT_GST_IN
-                ],
-                "settlementV1" => [
-                    "companyBankAccountNumber" => preg_replace('/\s+/', '', $existingUser->account_number),
-                    "bankIfscCode"             => $existingUser->ifsc_code,
-                    "companyBankName"          => $existingUser->bank_name,
-                    "bankBranchName"           => $existingUser->bank_branch,
-                    "bankAccountName"          => $existingUser->name,
-                ],
-                "termsConditionCheck"     => "True",
-                "physicalVerification"    => "True",
-                "tradeBusinessProof"      => "True",
-                "cancelledChequeImages"   => "False",
-                "videoKycWithLatLongData" => "True",
-                "merchantKycAddressData" => [
-                    "shopAddress"   => $existingUser->shop_address,
-                    "shopCity"      => $existingUser->shop_city,
-                    "shopDistrict"  => $existingUser->shop_district,
-                    "shopState"     => $existingUser->state_id,
-                    "shopPincode"   => $existingUser->shop_pin_code,
-                    "shopLatitude"  => $existingUser->latitude,
-                    "shopLongitude" => $existingUser->longitude,
-                ]
-            ];
+      
+            $url=self::BASE_URL."v2/aeps/draft";
+            $trnTimestamp = (string)time();
 
-            // Full request data
             $requestData = [
-                "username"        => self::SUPER_MERCHANT_USERNAME,
-                "password"        => $superMerchantPasswordMD5,
-                "supermerchantId" => self::SUPER_MERCHANT_ID,
-                "ipAddress"       => self::IP_ADDRESS,
-                "latitude"        => $existingUser->latitude,
-                "longitude"       => $existingUser->longitude,
-                "merchant"        => $merchantsData
+                "mid"           => self::SUPER_MERCHANT_ID,
+                "username"      => self::SUPER_MERCHANT_USERNAME,
+                "password"      => self::SUPER_MERCHANT_PASSWORD,
+                "gstin"         => self::SUPER_MERCHANT_GST_IN,
+                "ipAddress"     => self::IP_ADDRESS,
+                "deviceType"    => "WEB",
+                "mobileNo"      => (string)$existingUser->mobile,
+                "emailId"       => $existingUser->email,
+                "panNo"         => $existingUser->pan,
+                "name"          => $existingUser->name,
+                "shopName"      => $existingUser->shop_name,
+                "shopArea"      => $existingUser->shop_area,
+                "shopCity"      => $existingUser->city,
+                "cityId"        => $existingUser->city_id,
+                "stateId"       => $existingUser->state_id,
+                "shopPincode"   => $existingUser->pincode,
+                "shopAddress"   => $existingUser->address,
+                "latitude"      => $existingUser->latitude,
+                "longitude"     => $existingUser->longitude,
+                "bankIfscCode"  => $existingUser->ifsc_code,
+                "bankName"      => $existingUser->bank_name,
+                "bankBranchName"=> $existingUser->bank_branch,
+                "bankAccountNo" => $existingUser->account_no,
+                "trnTimestamp"  => $trnTimestamp,
             ];
 
-            // Generate AES key
-            $sessionKey = random_bytes(16);
-            $eskey = $this->encryptSessionKey($sessionKey);
-            $trnTimestamp = now()->format("d/m/Y H:i:s");
-            $url = "https://fingpayap.tapits.in/fpaepsweb/api/onboarding/merchant/simple/creation/v2";
-            $txnId = 'ONB_' . $existingUser->mid . '_' . now()->timestamp;
+            // ✅ Compute hashes
+            $authString = self::SUPER_MERCHANT_ID.$trnTimestamp;
+            $hash       = $this->generateSha256Hash($authString);
+            $eskey      = $this->encryptSessionKey($authString);
+
+
 
             // ✅ Log request BEFORE API call
             DB::table('logs')->insert([
@@ -1358,17 +1281,31 @@ IqLI220tUFpA8SJepQQKahs0ZG2S2PqyrrH0nM0++2sm3ETfxZKDFOylBPmrrbSW
                 'created_at'   => now()->format('Y-m-d H:i:s'),
             ]);
 
-            // External API call
-            $response = Http::withHeaders([
-                "Accept"        => "application/json",
-                "Content-Type"  => "application/json",
-                "trnTimestamp"  => $trnTimestamp,
-                "hash"          => $hash,
-                "eskey"         => $eskey
-            ])->timeout(self::API_TIMEOUT)
-              ->post($url, $requestData);
 
-            $responseJson = $response->json();
+             $postData = [
+                "type" => "outletId",  // must be JSON string
+                "outletId" => $nextMid,
+                "pan"=>$request->pan_no      // must be JSON string
+            ];
+
+            // Initialize cURL
+            $ch = curl_init($setting->call_back_url);
+
+            // Encode POST data as JSON
+            $payload = json_encode($postData);
+
+            // Set cURL options
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($payload)
+            ]);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+            // Execute and get response
+            $response = curl_exec($ch);
+            $responseJson = json_decode($response, true);   
 
             // ✅ Update log with response AFTER API call
             DB::table('logs')
@@ -1379,7 +1316,7 @@ IqLI220tUFpA8SJepQQKahs0ZG2S2PqyrrH0nM0++2sm3ETfxZKDFOylBPmrrbSW
                     'updated_at'    => now(),
                 ]);
 
-            if ($response->successful() && ($responseJson['data']['merchantStatus'] ?? false) === true) {
+            if ($responseJson['status'] === 1) {
               
                 AepsDraft::where('id', $existingUser->id)->update([
                     'user_name'      => $existingUser->mid,
