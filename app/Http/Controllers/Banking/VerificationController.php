@@ -210,11 +210,8 @@ class VerificationController extends Controller
 
 
 
-      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', true)->first();
-
-      if($user->is_api_partner==1){
-        $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
-      }
+      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+   
 
       if(!$account) {
         return response()->json(['status' => 0, 'message' => 'Primary account not found', 'data' => NULL], 200);
@@ -244,7 +241,6 @@ class VerificationController extends Controller
         $refid = $request->refid;
         $otp = $request->otp;
         $url = "https://goterpay.in/api/verification/aadhaarverify?mid=$mid&mkey=$mkey&refid=$refid&otp=$otp&txnid=$txnid";
-        //$url = "https://dashboard.goterpay.com/api/v3/verification/aadhaarverify?mid=$mid&mkey=$mkey&subwallet=$wallet&txnid=$txnid&refid=$refid&otp=$otp";
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $response = curl_exec($ch);
@@ -385,11 +381,7 @@ class VerificationController extends Controller
 
       }
 
-      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', true)->first();
-
-      if($user->is_api_partner==1){
-        $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
-      }
+      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
 
       if(!$account) {
         return response()->json(['status' => 0, 'message' => 'Primary account not found', 'data' => NULL], 200);
@@ -593,11 +585,7 @@ class VerificationController extends Controller
       }
 
 
-      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', true)->first();
-
-      if($user->is_api_partner==1){
-        $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
-      }
+      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
 
       if(!$account) {
         return response()->json(['status' => 0, 'message' => 'Primary account not found', 'data' => NULL], 200);
@@ -657,7 +645,6 @@ class VerificationController extends Controller
         $ifsccode = $request->ifsccode;
 
         $url = "https://goterpay.in/api/verification/bankvalidate?mid=$mid&mkey=$mkey&accountno=$accountno&ifsccode=$ifsccode&txnid=$txnid";
-        // $url = "https://dashboard.goterpay.com/api/v3/verification/bankvalidate?mid=$mid&mkey=$mkey&ifsccode=$ifsccode&subwallet=$wallet&txnid=$txnid&accountno=$accountno";
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $response = curl_exec($ch);
@@ -770,11 +757,7 @@ class VerificationController extends Controller
 
     try {
 
-      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', true)->first();
-
-      if($user->is_api_partner==1){
-        $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
-      }
+      $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
 
       if(!$account) {
         return response()->json(['status' => 0, 'message' => 'Primary account not found', 'data' => NULL], 200);
