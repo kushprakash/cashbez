@@ -184,7 +184,7 @@ class MerchantController extends Controller
             }
 
 
-            if(empty($draft->bid)){
+            if(empty($existingDraft->bid)){
 
 
                 $kycData=[
