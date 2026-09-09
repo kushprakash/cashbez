@@ -172,13 +172,17 @@ class MerchantController extends Controller
             $draftData['created_by'] = $existingUser1->id ?? null;
             $draftData['admin_id'] = $existingUser1->id ?? null;
 
-            // remove user, admin, isAdmin, isSuper from $draftData
-            $draftData = array_diff_key($draftData, array_flip(['user', 'admin','isAdmin','isSuper']));
+            // Filter $draftData to only include valid fillable attributes of AepsDraft
+            $fillable = (new AepsDraft())->getFillable();
+            $draftData = array_intersect_key($draftData, array_flip($fillable));
 
             $existingDraft = AepsDraft::where('pan_no', $request->pan_no)->first();
             if($existingDraft){
-                AepsDraft::where('pan_no', $request->pan_no)->update($draftData);
-                $draft = AepsDraft::where('pan_no', $request->pan_no)->first();
+               return response()->json([
+                    'status' => 0,
+                    'message' => 'AEPS draft already exist',
+                    'data' => $draft
+                ], 200);
             } else {
                 $draft = AepsDraft::create($draftData);
 
