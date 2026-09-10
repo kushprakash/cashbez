@@ -274,7 +274,7 @@ print(response.json())`;
                 'content-type': 'application/json; charset=utf-8',
                 'mid': mid,
                 'mkey': mkey,
-                'server': 'BharatPay-UAT-Gateway/2.0'
+                'server': 'Enexa-UAT-Gateway/2.0'
             });
         } finally {
             setLoading(false);

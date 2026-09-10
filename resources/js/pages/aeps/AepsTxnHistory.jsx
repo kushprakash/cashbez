@@ -1,4 +1,4 @@
-import React, { useContext,useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import ApiService from '../../core/services/ApiService';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../components/DataTable';
@@ -28,7 +28,7 @@ const AepsHistory = () => {
     try {
       const apiService = ApiService();
       const response = await apiService.vPost('/api/v2/aeps/aeps-history-all', { page: page, per_page: perPage });
-      
+
       if (response.data.status !== 1) {
         throw new Error(response.data.message || 'Failed to fetch transaction history');
       }
@@ -115,7 +115,7 @@ const AepsHistory = () => {
         customerMobile: transaction.customer_mobile,
         agentName: transaction.shop_name || transaction.full_name || user?.name || 'Retailer Store',
         agentMobile: transaction.shop_phone || user?.mobile || 'N/A',
-        merchantName: 'BharatPay Banking Services',
+        merchantName: 'Banking Services',
         retailerLocation: transaction.location || transaction.city || transaction.address || user?.address || 'India',
         commission: transaction.commission || transaction.retailer_commission || 0,
         charges: transaction.charge || transaction.charges || 0,
@@ -126,16 +126,16 @@ const AepsHistory = () => {
         logo: logo || '',
       }
     };
-    
+
     navigate('/aeps-receipt', receiptData);
   };
 
   return (
     <>
-      <Pageheader 
-        mainheading="AEPS Transaction History" 
-        parentfolder="AEPS" 
-        activepage="Transaction History" 
+      <Pageheader
+        mainheading="AEPS Transaction History"
+        parentfolder="AEPS"
+        activepage="Transaction History"
       />
       <div className="page-content-box">
         <div className="page-content-box-inner">
@@ -145,9 +145,9 @@ const AepsHistory = () => {
                 <div className='card-header d-flex justify-content-between align-items-center rounded-top'>
                   <h3 className="mb-0 fw-bold">AEPS Transaction History</h3>
                   <div className="d-flex align-items-center gap-2">
-                    <select 
-                      className="form-select form-select-sm" 
-                      value={pagination.per_page} 
+                    <select
+                      className="form-select form-select-sm"
+                      value={pagination.per_page}
                       onChange={(e) => handlePerPageChange(parseInt(e.target.value))}
                       style={{ width: 'auto' }}
                     >
@@ -158,10 +158,10 @@ const AepsHistory = () => {
                     </select>
                   </div>
                 </div>
-                
+
                 {loading && <TableShimmerLoader />}
                 {error && <div className="alert alert-danger m-3">{error}</div>}
-                
+
                 {!loading && !error && (
                   <div className="card border-0">
                     <div className="card-body p-0">
@@ -282,19 +282,19 @@ const AepsHistory = () => {
                       Showing {pagination.from} to {pagination.to} of {pagination.total} entries
                     </div>
                     <div className="d-flex align-items-center gap-2">
-                      <button 
+                      <button
                         className="btn btn-outline-primary btn-sm"
                         disabled={pagination.current_page === 1}
                         onClick={() => handlePageChange(pagination.current_page - 1)}
                       >
                         <i className="fa fa-chevron-left"></i> Previous
                       </button>
-                      
+
                       <span className="mx-2">
                         Page {pagination.current_page} of {pagination.last_page}
                       </span>
-                      
-                      <button 
+
+                      <button
                         className="btn btn-outline-primary btn-sm"
                         disabled={pagination.current_page === pagination.last_page}
                         onClick={() => handlePageChange(pagination.current_page + 1)}

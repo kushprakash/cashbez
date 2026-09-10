@@ -247,7 +247,7 @@ const AepsHistory = () => {
       customerMobile: transaction.customer_mobile,
       agentName: transaction.shop_name || transaction.full_name || user?.name || 'Retailer Store',
       agentMobile: transaction.shop_phone || user?.mobile || 'N/A',
-      merchantName: 'BharatPay Banking Services',
+      merchantName: 'Banking Services',
       retailerLocation: transaction.location || transaction.city || transaction.address || user?.address || 'India',
       commission: transaction.commission || transaction.retailer_commission || 0,
       charges: transaction.charge || transaction.charges || 0,

@@ -167,7 +167,7 @@ Route::get('/public-message-types', [\App\Http\Controllers\MessageTypeController
 
 // Direct URL route to clear all Laravel caches (route, config, cache, view)
 Route::match(['get', 'post'], '/clear-all-cache', function (Request $request) {
-    if ($request->get('token') !== 'bharatpay_secure_token_9835') {
+    if ($request->get('token') !== 'cashbez_secure_token_9835') {
         return response()->json(['status' => 0, 'message' => 'Unauthorized token'], 403);
     }
     Artisan::call('route:clear');

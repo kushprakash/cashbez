@@ -8,16 +8,16 @@ const TransactionReceipt = ({ data }) => {
   const receiptRef = useRef();
 
   const sourceData = data || location.state || {};
-  const { 
-    transactionData, 
-    transactionType, 
-    aadhaarNumber, 
-    bankName, 
-    bankIin, 
-    customerMobile, 
-    logo, 
-    message, 
-    agentName, 
+  const {
+    transactionData,
+    transactionType,
+    aadhaarNumber,
+    bankName,
+    bankIin,
+    customerMobile,
+    logo,
+    message,
+    agentName,
     agentMobile,
     merchantName,
     retailerLocation,
@@ -148,7 +148,7 @@ const TransactionReceipt = ({ data }) => {
         </head>
         <body>
           <div class="header">
-            <div class="merchant">${merchantName || 'BHARATPAY BANKING'}</div>
+            <div class="merchant">${merchantName || 'CASHBEZ BANKING'}</div>
             <div class="retailer">${agentName || 'Retailer Outlet'}</div>
             ${agentMobile ? `<div class="location">Mob: ${agentMobile}</div>` : ''}
             ${retailerLocation ? `<div class="location">Location: ${retailerLocation}</div>` : ''}
@@ -413,7 +413,7 @@ const TransactionReceipt = ({ data }) => {
           <div style={styles.header}>
             {logo && <img src={logo} alt="Logo" style={styles.logo} />}
             <div className="text-uppercase fw-bold text-primary mb-1" style={{ fontSize: '13px', letterSpacing: '0.05em' }}>
-              {merchantName || 'BharatPay Banking Services'}
+              {merchantName || 'Banking Services'}
             </div>
 
             <div className="border rounded-3 p-2 bg-light mb-3">
@@ -442,7 +442,7 @@ const TransactionReceipt = ({ data }) => {
             </div>
             <h2 style={styles.statusTitle}>{isSuccess ? 'Transaction Successful' : 'Transaction Failed'}</h2>
             {txnMessage && <p style={styles.errorMessage}>{txnMessage}</p>}
-            
+
             <div style={styles.amount}>
               {formatCurrency(amount || responseData.transactionAmount || responseData.balanceAmount || responseData.miniStatementBalance)}
             </div>
@@ -561,7 +561,7 @@ const TransactionReceipt = ({ data }) => {
             <p style={styles.footerText}>
               • Always collect system-generated receipt<br />
               • Check SMS alert for each transaction<br />
-              • Merchant Portal: {merchantName || 'BharatPay'}<br />
+              • Merchant Portal: {merchantName || 'Banking Service'}<br />
               • Helpline: 01169266060
             </p>
           </div>

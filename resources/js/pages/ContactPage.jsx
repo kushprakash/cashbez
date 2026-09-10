@@ -261,7 +261,7 @@ const ContactPage = () => {
                                 <div>
                                     <div className={styles.infoContentTitle}>Official Email</div>
                                     <div className={styles.infoContentValue}>
-                                        <a href="mailto:ads@bharatpays.in">ads@bharatpays.in</a>
+                                        <a href="mailto:contact@enexa.in">contact@enexa.in</a>
                                     </div>
                                 </div>
                             </div>
@@ -407,7 +407,7 @@ const ContactPage = () => {
                                 <strong>Office Address:-</strong> Netajinagar, Bongaon, Ghatbaor, Ramchandrapur Bazar, North 24 Parganas, Kolkata, West Bengal, Pin-743235
                             </div>
                             <div className={styles.contactInfoText}>
-                                <strong>Email Id :-</strong> <a href="mailto:ads@bharatpays.in" className="text-white text-decoration-none">ads@bharatpays.in</a>
+                                <strong>Email Id :-</strong> <a href="mailto:contact@enexa.in" className="text-white text-decoration-none">contact@enexa.in</a>
                             </div>
                             <div className={styles.contactInfoText}>
                                 <strong>Office Support No-</strong><br />

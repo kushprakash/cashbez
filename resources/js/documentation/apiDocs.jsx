@@ -919,7 +919,7 @@ const apiDocs = {
                 message: "Payment order created successfully",
                 data: {
                     order_id: "ORD_PG_998172",
-                    payment_url: "https://pg.bharatpay.com/checkout/ORD_PG_998172",
+                    payment_url: "https://example.com/checkout/ORD_PG_998172",
                     amount: 5000,
                     status: "PENDING"
                 }
@@ -954,7 +954,7 @@ const apiDocs = {
                 }
             },
             fieldDocs: [
-                { field: "txnid", type: "string", required: true, description: "BharatPay Payment Gateway Order ID" }
+                { field: "txnid", type: "string", required: true, description: "Payment Gateway Order ID" }
             ]
         },
     ],

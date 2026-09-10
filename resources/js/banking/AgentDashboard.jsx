@@ -648,7 +648,7 @@ const AgentDashboard = ({ dashboardData, user }) => {
                             <div className="card border-0 h-100 rounded-4 overflow-hidden shadow-sm" style={{ background: 'linear-gradient(90deg, #1A2980 0%, #26D0CE 100%)' }}>
                                 <div className="card-body p-3 d-flex align-items-center position-relative">
                                     <div className="position-relative z-index-1 w-65">
-                                        <h4 className="text-white fw-bold mb-1" style={{ fontSize: '1.25rem' }}>Grow Your Business with BharatPay!</h4>
+                                        <h4 className="text-white fw-bold mb-1" style={{ fontSize: '1.25rem' }}>Grow Your Business with us!</h4>
                                         <p className="text-white-50 mb-2" style={{ fontSize: '12px' }}>Offer trusted digital services &amp; earn high commissions.</p>
                                         <button className="btn btn-light btn-sm rounded-pill px-4 fw-bold shadow-sm" style={{ color: '#1A2980', fontSize: '12px' }}>View Offers</button>
                                     </div>

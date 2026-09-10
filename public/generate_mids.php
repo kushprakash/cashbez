@@ -1,6 +1,6 @@
 <?php
 // Secret Token to secure mid generation url
-$secret_token = 'bharatpay_secure_token_9835';
+$secret_token = 'cashbez_secure_token_9835';
 
 if (php_sapi_name() !== 'cli' && (!isset($_GET['token']) || $_GET['token'] !== $secret_token)) {
     header('HTTP/1.1 403 Forbidden');

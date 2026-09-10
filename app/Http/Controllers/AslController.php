@@ -105,7 +105,7 @@ class AslController extends Controller
         if ($mid && $mkey) {
             $user = $this->getUserByCredentials($mid, $mkey);
 
-            // Check if BharatPay AEPS is enabled for this user
+            // Check if Cashbez AEPS is enabled for this user
             $settings = $user->settings->first();
             if (!$settings || !$settings->aeps) {
                  return response()->json([
@@ -297,7 +297,7 @@ class AslController extends Controller
         if ($mid && $mkey) {
             $user = $this->getUserByCredentials($mid, $mkey);
 
-            // Check if BharatPay AEPS is enabled for this user
+            // Check if Cashbez AEPS is enabled for this user
             $settings = $user->settings->first();
             if (!$settings || !$settings->aeps) {
                  return response()->json([
@@ -378,7 +378,7 @@ class AslController extends Controller
         if ($mid && $mkey) {
             $user = $this->getUserByCredentials($mid, $mkey);
 
-            // Check if BharatPay AEPS is enabled for this user
+            // Check if Cashbez AEPS is enabled for this user
             $settings = $user->settings->first();
             if (!$settings || !$settings->aeps) {
                  return response()->json([
@@ -502,7 +502,7 @@ class AslController extends Controller
         if ($mid && $mkey) {
             $user = $this->getUserByCredentials($mid, $mkey);
 
-            // Check if BharatPay AEPS is enabled for this user
+            // Check if Cashbez AEPS is enabled for this user
             $settings = $user->settings->first();
             if (!$settings || !$settings->aeps) {
                  return response()->json([
@@ -607,7 +607,7 @@ class AslController extends Controller
         if ($mid && $mkey) {
             $user = $this->getUserByCredentials($mid, $mkey);
 
-            // Check if BharatPay AEPS is enabled for this user
+            // Check if Cashbez AEPS is enabled for this user
             $settings = $user->settings->first();
             if (!$settings || !$settings->aeps) {
                  return response()->json([
@@ -678,7 +678,7 @@ class AslController extends Controller
         if ($mid && $mkey) {
             $user = $this->getUserByCredentials($mid, $mkey);
 
-            // Check if BharatPay AEPS is enabled for this user
+            // Check if Cashbez AEPS is enabled for this user
             $settings = $user->settings->first();
             if (!$settings || !$settings->aeps) {
                  return response()->json([
@@ -771,7 +771,7 @@ class AslController extends Controller
         if ($mid && $mkey) {
             $user = $this->getUserByCredentials($mid, $mkey);
 
-            // Check if BharatPay AEPS is enabled for this user
+            // Check if Cashbez AEPS is enabled for this user
             $settings = $user->settings->first();
             if (!$settings || !$settings->aeps) {
                  return response()->json([

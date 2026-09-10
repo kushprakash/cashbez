@@ -1456,8 +1456,8 @@ const ApiSettingForm = () => {
                                     </div>
                                     <div className="col-md-7">
                                         <small className="text-secondary fw-semibold d-block">Final Callback URL</small>
-                                        <a href="https://bbps.bharatpays.in/callback/recharge/" target="_blank" rel="noreferrer" className="text-primary fw-medium small" style={{ wordBreak: 'break-all' }}>
-                                            https://bbps.bharatpays.in/callback/recharge/
+                                        <a href="https://example.com/callback/recharge/" target="_blank" rel="noreferrer" className="text-primary fw-medium small" style={{ wordBreak: 'break-all' }}>
+                                            https://example.com/callback/recharge/
                                         </a>
                                     </div>
                                 </div>
