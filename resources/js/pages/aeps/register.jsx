@@ -4,6 +4,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../core/hooks/context';
+import GpsCameraModal from './components/GpsCameraModal';
 
 const AepsRegister = () => {
 
@@ -56,6 +57,9 @@ const AepsRegister = () => {
         state_id: '',
         shop_pin_code: '',
         bank_branch: '',
+        shop_inner: '',
+        shop_outer: '',
+        video_url: '',
         retailerAadhaarFrontImage: null,
         retailerAadhaarBackImage: null,
         retailerPanFrontImage: null,
@@ -88,6 +92,40 @@ const AepsRegister = () => {
         retailerPanBackImage: null,
         retailerShopImage: null
     });
+
+    // Camera Modal state & handlers
+    const [cameraModal, setCameraModal] = useState({
+        show: false,
+        type: null, // 'shop_inner' | 'shop_outer' | 'video_url'
+        title: ''
+    });
+
+    const openCamera = (type, title) => {
+        setCameraModal({
+            show: true,
+            type,
+            title
+        });
+    };
+
+    const closeCamera = () => {
+        setCameraModal({
+            show: false,
+            type: null,
+            title: ''
+        });
+    };
+
+    const handleCaptureSuccess = (type, url) => {
+        setFormData(prev => ({
+            ...prev,
+            [type]: url
+        }));
+        setErrors(prev => ({
+            ...prev,
+            [type]: null
+        }));
+    };
 
 
 
@@ -135,6 +173,9 @@ const AepsRegister = () => {
         if (!formData.account_number) newErrors.account_number = 'Bank account number is required';
         if (!formData.ifsc_code) newErrors.ifsc_code = 'IFSC code is required';
         if (!formData.shop_name) newErrors.shop_name = 'Shop name is required';
+        if (!formData.shop_inner) newErrors.shop_inner = 'Shop Inner photo is required';
+        if (!formData.shop_outer) newErrors.shop_outer = 'Shop Outer photo is required';
+        if (!formData.video_url) newErrors.video_url = 'Selfie Video with Aadhaar is required';
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -767,6 +808,128 @@ const AepsRegister = () => {
                                     </div>
                                 </div>
 
+                                {/* Shop & Video KYC Section (Above Location Details) */}
+                                <div className="col-12">
+                                    <div style={{
+                                        backgroundColor: '#fff5f5',
+                                        padding: '24px',
+                                        borderRadius: '12px',
+                                        border: '1px solid #fed7d7',
+                                        marginBottom: '20px'
+                                    }}>
+                                        <h5 style={{
+                                            color: '#e53e3e',
+                                            fontSize: '18px',
+                                            fontWeight: '600',
+                                            marginBottom: '6px',
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}>
+                                            <i className="bi bi-camera-reels-fill me-2"></i>
+                                            Shop & Video KYC Verification
+                                        </h5>
+                                        <p className="text-muted small mb-4">
+                                            Capture geotagged photos of shop inner, shop outer, and 10-second selfie video with Aadhaar verification.
+                                        </p>
+
+                                        <div className="row g-4">
+                                            {/* 1. Take Shop Inner Photo */}
+                                            <div className="col-md-4">
+                                                <div className="card h-100 border-0 shadow-sm rounded-3 p-3 text-center" style={{ backgroundColor: '#ffffff' }}>
+                                                    <div className="fw-bold mb-2 text-dark" style={{ fontSize: '15px' }}>
+                                                        1. Take Shop Inner Photo*
+                                                    </div>
+                                                    {formData.shop_inner ? (
+                                                        <div className="mb-3">
+                                                            <img src={formData.shop_inner} alt="Shop Inner" className="img-thumbnail rounded-3" style={{ height: '140px', objectFit: 'cover', width: '100%' }} />
+                                                            <div className="mt-2 text-success small fw-semibold">
+                                                                <i className="bi bi-check-circle-fill me-1"></i> Uploaded to Bunny CDN
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mb-3 py-4 border rounded-3 text-muted bg-light">
+                                                            <i className="bi bi-shop display-5 text-secondary"></i>
+                                                            <div className="small mt-2">GPS Geotagged Photo Required</div>
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className={`btn ${formData.shop_inner ? 'btn-outline-primary' : 'btn-primary'} btn-sm w-100 rounded-pill fw-semibold`}
+                                                        onClick={() => openCamera('shop_inner', 'Take Shop Inner Photo')}
+                                                    >
+                                                        <i className="bi bi-camera-fill me-1"></i> {formData.shop_inner ? 'Retake Photo' : 'Open Camera'}
+                                                    </button>
+                                                    {errors.shop_inner && <div className="text-danger small mt-1">{errors.shop_inner}</div>}
+                                                </div>
+                                            </div>
+
+                                            {/* 2. Take Shop Outer Photo */}
+                                            <div className="col-md-4">
+                                                <div className="card h-100 border-0 shadow-sm rounded-3 p-3 text-center" style={{ backgroundColor: '#ffffff' }}>
+                                                    <div className="fw-bold mb-2 text-dark" style={{ fontSize: '15px' }}>
+                                                        2. Take Shop Outer Photo*
+                                                    </div>
+                                                    {formData.shop_outer ? (
+                                                        <div className="mb-3">
+                                                            <img src={formData.shop_outer} alt="Shop Outer" className="img-thumbnail rounded-3" style={{ height: '140px', objectFit: 'cover', width: '100%' }} />
+                                                            <div className="mt-2 text-success small fw-semibold">
+                                                                <i className="bi bi-check-circle-fill me-1"></i> Uploaded to Bunny CDN
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mb-3 py-4 border rounded-3 text-muted bg-light">
+                                                            <i className="bi bi-building display-5 text-secondary"></i>
+                                                            <div className="small mt-2">GPS Geotagged Photo Required</div>
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className={`btn ${formData.shop_outer ? 'btn-outline-primary' : 'btn-primary'} btn-sm w-100 rounded-pill fw-semibold`}
+                                                        onClick={() => openCamera('shop_outer', 'Take Shop Outer Photo')}
+                                                    >
+                                                        <i className="bi bi-camera-fill me-1"></i> {formData.shop_outer ? 'Retake Photo' : 'Open Camera'}
+                                                    </button>
+                                                    {errors.shop_outer && <div className="text-danger small mt-1">{errors.shop_outer}</div>}
+                                                </div>
+                                            </div>
+
+                                            {/* 3. Take Selfie with Aadhar */}
+                                            <div className="col-md-4">
+                                                <div className="card h-100 border-0 shadow-sm rounded-3 p-3 text-center" style={{ backgroundColor: '#ffffff' }}>
+                                                    <div className="fw-bold mb-1 text-dark" style={{ fontSize: '15px' }}>
+                                                        3. Take Selfie with Aadhar*
+                                                    </div>
+                                                    <div className="badge bg-warning text-dark mb-2 text-wrap p-2 fw-normal" style={{ fontSize: '11px', lineHeight: '1.4' }}>
+                                                        Note - 10 Second Video with sound your name and aadhar last 4 digit number
+                                                    </div>
+
+                                                    {formData.video_url ? (
+                                                        <div className="mb-3">
+                                                            <video src={formData.video_url} controls className="w-100 rounded-3" style={{ height: '130px', objectFit: 'cover' }} />
+                                                            <div className="mt-2 text-success small fw-semibold">
+                                                                <i className="bi bi-check-circle-fill me-1"></i> Uploaded to Bunny CDN
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mb-3 py-3 border rounded-3 text-muted bg-light">
+                                                            <i className="bi bi-person-video display-5 text-secondary"></i>
+                                                            <div className="small mt-2">10s Video Required</div>
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className={`btn ${formData.video_url ? 'btn-outline-danger' : 'btn-danger'} btn-sm w-100 rounded-pill fw-semibold`}
+                                                        onClick={() => openCamera('video_url', 'Take Selfie with Aadhar (10s Video)')}
+                                                    >
+                                                        <i className="bi bi-camera-reels-fill me-1"></i> {formData.video_url ? 'Re-record Video' : 'Record 10s Video'}
+                                                    </button>
+                                                    {errors.video_url && <div className="text-danger small mt-1">{errors.video_url}</div>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Location Section */}
                                 <div className="col-12">
                                     <div style={{
@@ -1010,6 +1173,19 @@ const AepsRegister = () => {
             </div>
             {/* Modal Backdrop */}
             {showOtpModal && <div className="modal-backdrop fade show"></div>}
+
+            {/* GPS Camera Modal */}
+            <GpsCameraModal
+                show={cameraModal.show}
+                onClose={closeCamera}
+                onCaptureSuccess={handleCaptureSuccess}
+                type={cameraModal.type}
+                title={cameraModal.title}
+                location={{
+                    latitude: formData.latitude,
+                    longitude: formData.longitude
+                }}
+            />
         </div>
     );
 };

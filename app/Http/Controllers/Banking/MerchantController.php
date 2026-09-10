@@ -75,6 +75,9 @@ class MerchantController extends Controller
                 'ifsc_code'      => ['required', 'string', 'regex:/^[A-Z]{4}0[A-Z0-9]{6}$/'],
                 'bank_name'      => 'required|string|min:2|max:255',
                 'bank_branch'    => 'required|string|min:2|max:255',
+                'video_url'      => 'required|string|max:255',
+                'shop_inner'     => 'required|string|max:255',
+                'shop_outer'     => 'required|string|max:255',
             ], [
                 'latitude.required'        => 'Location latitude is required',
                 'latitude.numeric'         => 'Latitude must be a valid number',
@@ -111,6 +114,9 @@ class MerchantController extends Controller
                 'bank_name.min'            => 'Bank name must be at least 2 characters',
                 'bank_branch.required'     => 'Bank branch is required',
                 'bank_branch.min'          => 'Bank branch must be at least 2 characters',
+                'video_url.required'       => 'Selfie with pan is required',
+                'shop_inner.required'      => 'Shop inner image is required',
+                'shop_outer.required'      => 'Shop outer image is required',
             ]);
 
             $validator->stopOnFirstFailure();
@@ -127,6 +133,7 @@ class MerchantController extends Controller
 
             $existingUser = User::where('mobile', $request->phone)->first();
             if ($existingUser) {
+                
                 $nextMid = $existingUser->mid;
                 $mid = $existingUser->admin_mid;
 
@@ -164,110 +171,143 @@ class MerchantController extends Controller
                 $lastUser->markAsUsed();
                 $mid = $request->header('mid');
             }
-            
-            $existingUser1 = User::where('mid', $mid)->first();
-            // Prepare data for creation
-           
-            $draftData['mid'] = $nextMid;
-            $draftData['created_by'] = $existingUser1->id ?? null;
-            $draftData['admin_id'] = $existingUser1->id ?? null;
 
-            // Filter $draftData to only include valid fillable attributes of AepsDraft
-            $fillable = (new AepsDraft())->getFillable();
-            $draftData = array_intersect_key($draftData, array_flip($fillable));
 
             $existingDraft = AepsDraft::where('pan_no', $request->pan_no)->first();
             if($existingDraft){
-              
-            } else {
+                return response()->json([
+                    'status'  => 0,
+                    'message' => 'AEPS already registered',
+                ], 200);
+            }
+
+
+
+             $kycData=[
+                'phone_verified_at'=>$draftData['phone_verified_at'] ?? null,
+                'aadhaar_verified_at'=>$draftData['aadhaar_verified_at'] ?? null,
+                'pan_verified_at'=>$draftData['pan_verified_at'] ?? null,
+                'bank_verified_at'=>$draftData['bank_verified_at'] ?? null,
+                "panData"=>$draftData['panData'] ?? null,
+                "aadharData"=>$draftData['aadharData'] ?? null,
+                "accountData"=>$draftData['accountData'] ?? null
+            ];
+
+
+            $vkycData=[
+                'video_url'=>$request->video_url,
+                'shop_inner'=>$request->shop_inner,
+                'shop_outer'=>$request->shop_outer,
+                'video_kyc_status'=>1
+            ];
+
+
+            $url = self::BASE_URL."v2/aeps/draft";
+
+            $data = [
+                "latitude"        => $draft->latitude,
+                "longitude"       => $draft->longitude,
+                "shop_name"       => $draft->shop_name,
+                "shop_address"    => $draft->shop_address,
+                "shop_city"       => $draft->shop_city,
+                "shop_district"   => $draft->shop_district,
+                "state_id"        => $draft->state_id,
+                "shop_pin_code"   => $draft->shop_pin_code,
+                "full_name"       => $draft->full_name,
+                "phone"           => $draft->phone,
+                "email"           => $draft->email,
+                "pan_no"           => $draft->pan_no,
+                "aadhaar_number"  => $draft->aadhaar_number,
+                "account_number"  => $draft->account_number,
+                "ifsc_code"       => $draft->ifsc_code,
+                "bank_name"       => $draft->bank_name,
+                "bank_branch"     => $draft->bank_branch,
+                "kycData"         => $kycData,
+                "vkyc"            => $vkycData
+            ];
+
+            $ch = curl_init($url);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $response = curl_exec($ch);
+
+
+            $json_response = json_decode($response, true);
+
+            if(isset($json_response['status']) && $json_response['status']==1){
+
+
+                $existingUser1 = User::where('mid', $mid)->first();
+                // Prepare data for creation
+
+                $draftData['video_kyc_status'] = 1;
+            
+                $draftData['mid'] = $nextMid;
+                $draftData['created_by'] = $existingUser1->id ?? null;
+                $draftData['admin_id'] = $existingUser1->id ?? null;
+
+                // Filter $draftData to only include valid fillable attributes of AepsDraft
+                $fillable = (new AepsDraft())->getFillable();
+                $draftData = array_intersect_key($draftData, array_flip($fillable));
+
                 $draft = AepsDraft::create($draftData);
+
+
+
+
+                $draft->bid = $json_response['data']['id'] ?? null;
+                $draft->bmid = $json_response['data']['mid'] ?? null;
+                $draft->save();
             }
-                
-            $draft = AepsDraft::where('pan_no', $request->pan_no)->first();
-
-            if(empty($draft->bid)){
-
-                $kycData=[
-                    'phone_verified_at'=>$draft->phone_verified_at,
-                    'aadhaar_verified_at'=>$draft->aadhaar_verified_at,
-                    'pan_verified_at'=>$draft->pan_verified_at,
-                    'bank_verified_at'=>$draft->bank_verified_at,
-                    "panData"=>$draft->panData,
-                    "aadharData"=>$draft->aadharData,
-                    "accountData"=>$draft->accountData
-                ];
-
-                $url = self::BASE_URL."v2/aeps/draft";
-
-                $data = [
-                    "latitude"        => $draft->latitude,
-                    "longitude"       => $draft->longitude,
-                    "shop_name"       => $draft->shop_name,
-                    "shop_address"    => $draft->shop_address,
-                    "shop_city"       => $draft->shop_city,
-                    "shop_district"   => $draft->shop_district,
-                    "state_id"        => $draft->state_id,
-                    "shop_pin_code"   => $draft->shop_pin_code,
-                    "full_name"       => $draft->full_name,
-                    "phone"           => $draft->phone,
-                    "email"           => $draft->email,
-                    "pan_no"           => $draft->pan_no,
-                    "aadhaar_number"  => $draft->aadhaar_number,
-                    "account_number"  => $draft->account_number,
-                    "ifsc_code"       => $draft->ifsc_code,
-                    "bank_name"       => $draft->bank_name,
-                    "bank_branch"     => $draft->bank_branch,
-                    "kycData"         => $kycData
-                ];
-
-                $ch = curl_init($url);
-
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_POST           => true,
-                    CURLOPT_POSTFIELDS     => json_encode($data),
-                    CURLOPT_HTTPHEADER     => [
-                        "Content-Type: application/json",
-                        "Accept: application/json",
-                        "mid: ".self::MID,
-                        "mkey: ".self::MKEY
-                    ],
-                    CURLOPT_TIMEOUT        => 60,
-                    CURLOPT_CONNECTTIMEOUT => 20
-                ]);
-
-                $response = curl_exec($ch);
-
-
-                $json_response = json_decode($response, true);
-
-                if(isset($json_response['status']) && $json_response['status']==1){
-                    $draft->bid = $json_response['data']['id'] ?? null;
-                    $draft->bmid = $json_response['data']['mid'] ?? null;
-                    $draft->save();
-                }
 
 
 
-                DB::table('logs')->insert([
-                    'mid'          => $draft->mid,
-                    'type'         => 'DRAFT',
-                    'platform'     => 'WEB',
-                    'headers'      => json_encode([
-                        'Accept'       => 'application/json',
-                        'Content-Type' => 'application/json',
-                        'mid' => self::MID,
-                        'mkey' => self::MKEY,
-                    ]),
-                    'request_data'  => json_encode($data),
-                    'response_data'  => json_encode($json_response),
-                    'url'           => $url,
-                    'txnid'         => 0,
-                    'status'        => 0,
-                    'timestamp'    => now(),
-                    'created_at'   => now()->format('Y-m-d H:i:s'),
-                ]);
-            }
+            DB::table('logs')->insert([
+                'mid'          => $draft->mid ?? '',
+                'type'         => 'DRAFT',
+                'platform'     => 'WEB',
+                'headers'      => json_encode([
+                    'Accept'       => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'mid' => self::MID,
+                    'mkey' => self::MKEY,
+                ]),
+                'request_data'  => json_encode($data),
+                'response_data'  => json_encode($json_response),
+                'url'           => $url,
+                'txnid'         => 0,
+                'status'        => 0,
+                'timestamp'    => now(),
+                'created_at'   => now()->format('Y-m-d H:i:s'),
+            ]);
+    
+
+
+
+
+
+
+
+
+
+
+
+        if(isset($json_response['status']) && $json_response['status']==1){
+         
+          
 
             $draft->outletId = $draft->mid;
 
@@ -325,6 +365,14 @@ class MerchantController extends Controller
                 'message' => 'AEPS draft created successfully',
                 'data' => $draft
             ], 200);
+
+        } else {
+            return response()->json([
+                'status' => 0,
+                'message' => $json_response['message'] ?? 'Something went wrong',
+                'data' => $json_response
+            ], 200);
+        }
 
         } catch (\Exception $e) {
             $refId = CatchLogService::logException($request, 'aepsDraft', $e, [
@@ -1284,15 +1332,20 @@ class MerchantController extends Controller
 
             return response()->json([
                 'status'  => 0,
-                'message' => 'AEPS Onboarding failed',
-                'data'    => NULL
+                'message' => $json_response['message'] ?? 'AEPS Onboarding failed',
+                'data'    => $json_response
             ], 200);
 
         } catch (\Exception $e) {
          
+            $refId = CatchLogService::logException($request, 'aepsOnboardingFinal', $e, [
+                'context' => 'AEPS Onboarding Final Error',
+            ]);
+
             return response()->json([
-                'status'  => 0,
-                'message' => 'Internal Server Error'
+                'status' => 0,
+                'message' => 'Internal Server Error',
+                'ref_id' => $refId,
             ], 500);
         }
     }
