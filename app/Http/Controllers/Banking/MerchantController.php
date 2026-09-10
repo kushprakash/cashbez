@@ -1354,8 +1354,6 @@ class MerchantController extends Controller
                 $existingUser->request_data = json_encode($data);
                 $existingUser->response_data = json_encode($json_response);
                 $existingUser->aeps_status = 1;
-                $existingUser->primaryKeyId = $json_response['data']['primaryKeyId'];
-                $existingUser->encodeFPTxnId = $json_response['data']['encodeFPTxnId'];
                 $existingUser->save();
 
 
