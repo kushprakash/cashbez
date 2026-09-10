@@ -2597,10 +2597,15 @@ class MerchantController extends Controller
 
         } catch (\Exception $e) {
           
+
+            $refId = CatchLogService::logException($request, 'doAeps', $e, [
+                'context' => 'doAeps Error',
+            ]);
+
             return response()->json([
-                'status'  => 0,
+                'status' => 0,
                 'message' => 'Internal Server Error',
-                'ref_id'  => 56465,
+                'ref_id' => $refId,
                 'logo'    => $this->getCompanyLogo(1)
             ], 500);
         }
