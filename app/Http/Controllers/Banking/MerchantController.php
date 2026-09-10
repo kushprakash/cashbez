@@ -205,27 +205,29 @@ class MerchantController extends Controller
             $url = self::BASE_URL."v2/aeps/draft";
 
             $data = [
-                "latitude"        => $draft->latitude,
-                "longitude"       => $draft->longitude,
-                "shop_name"       => $draft->shop_name,
-                "shop_address"    => $draft->shop_address,
-                "shop_city"       => $draft->shop_city,
-                "shop_district"   => $draft->shop_district,
-                "state_id"        => $draft->state_id,
-                "shop_pin_code"   => $draft->shop_pin_code,
-                "full_name"       => $draft->full_name,
-                "phone"           => $draft->phone,
-                "email"           => $draft->email,
-                "pan_no"           => $draft->pan_no,
-                "aadhaar_number"  => $draft->aadhaar_number,
-                "account_number"  => $draft->account_number,
-                "ifsc_code"       => $draft->ifsc_code,
-                "bank_name"       => $draft->bank_name,
-                "bank_branch"     => $draft->bank_branch,
+                "latitude"        => $request->latitude,
+                "longitude"       => $request->longitude,
+                "shop_name"       => $request->shop_name,
+                "shop_address"    => $request->shop_address,
+                "shop_city"       => $request->shop_city,
+                "shop_district"   => $request->shop_district,
+                "state_id"        => $request->state_id,
+                "shop_pin_code"   => $request->shop_pin_code,
+                "full_name"       => $request->full_name,
+                "phone"           => $request->phone,
+                "email"           => $request->email,
+                "pan_no"           => $request->pan_no,
+                "aadhaar_number"  => $request->aadhaar_number,
+                "account_number"  => $request->account_number,
+                "ifsc_code"       => $request->ifsc_code,
+                "bank_name"       => $request->bank_name,
+                "bank_branch"     => $request->bank_branch,
                 "kycData"         => $kycData,
                 "vkyc"            => $vkycData
             ];
 
+
+          
             $ch = curl_init($url);
 
             curl_setopt_array($ch, [
