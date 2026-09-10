@@ -1932,6 +1932,26 @@ class MerchantController extends Controller
             $response = curl_exec($ch);
 
 
+             DB::table('logs')->insert([
+                'mid'          => $existingUser->mid ?? '',
+                'type'         => '2FA',
+                'platform'     => 'WEB',
+                'headers'      => json_encode([
+                    'Accept'       => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'mid' => self::MID,
+                    'mkey' => self::MKEY,
+                ]),
+                'request_data'  => json_encode($data),
+                'response_data'  => $response,
+                'url'           => $url,
+                'txnid'         => 0,
+                'status'        => 0,
+                'timestamp'    => now(),
+                'created_at'   => now()->format('Y-m-d H:i:s'),
+            ]);
+
+
             $json_response = json_decode($response, true);
 
             if(isset($json_response['status']) && $json_response['status']==1){
@@ -2044,9 +2064,15 @@ class MerchantController extends Controller
         } catch (\Exception $e) {
           
           
+            
+            $refId = CatchLogService::logException($request, 'twofa', $e, [
+                'context' => '2FA Final Error',
+            ]);
+
             return response()->json([
-                'status'  => 0,
-                'message' => 'Internal Server Error'
+                'status' => 0,
+                'message' => 'Internal Server Error',
+                'ref_id' => $refId,
             ], 500);
         }
     }
