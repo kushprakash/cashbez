@@ -20,8 +20,8 @@ const AuthData = () => {
                 if (res && res?.status) {
                     const { user } = res;
 
-                    const token = user?.remember_token;
-                    if (!isLoginned) login(token, user);
+                    const token = user?.remember_token || accessToken;
+                    login(token, user);
                     setProfile(user);
                     // Dynamic role-based redirects
                 } else {
