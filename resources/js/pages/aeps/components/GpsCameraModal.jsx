@@ -66,26 +66,70 @@ const GpsCameraModal = ({
         setErrorMsg('');
         stopCamera();
 
-        try {
-            const constraints = {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setErrorMsg('Camera access requires HTTPS or is restricted by your mobile browser settings. You can use the Native Camera button below.');
+            setCameraActive(false);
+            return;
+        }
+
+        const constraintLevels = [
+            // 1. Precise facingMode + ideal resolution
+            {
                 video: {
                     facingMode: facingMode,
                     width: { ideal: 1280 },
                     height: { ideal: 720 }
                 },
                 audio: isVideoMode
-            };
+            },
+            // 2. Simple facingMode
+            {
+                video: { facingMode: facingMode },
+                audio: isVideoMode
+            },
+            // 3. Simple video with audio
+            {
+                video: true,
+                audio: isVideoMode
+            },
+            // 4. Video only without audio (if microphone permission failed)
+            {
+                video: true,
+                audio: false
+            }
+        ];
 
-            const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        let mediaStream = null;
+        let lastError = null;
+
+        for (const constraints of constraintLevels) {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (mediaStream) break;
+            } catch (err) {
+                console.warn('Camera constraint level failed:', constraints, err);
+                lastError = err;
+            }
+        }
+
+        if (mediaStream) {
             streamRef.current = mediaStream;
             if (videoRef.current) {
-                videoRef.current.srcObject = mediaStream;
-                videoRef.current.play();
+                const videoEl = videoRef.current;
+                videoEl.setAttribute('playsinline', 'true');
+                videoEl.setAttribute('webkit-playsinline', 'true');
+                videoEl.muted = true;
+                videoEl.srcObject = mediaStream;
+                try {
+                    await videoEl.play();
+                } catch (e) {
+                    console.warn('Video play error:', e);
+                }
             }
             setCameraActive(true);
-        } catch (err) {
-            console.error('Camera access error:', err);
-            setErrorMsg('Unable to access camera or microphone. Please check permissions.');
+        } else {
+            console.error('All camera constraint levels failed:', lastError);
+            setErrorMsg('Camera stream inactive. Use the Native Phone Camera button below.');
             setCameraActive(false);
         }
     };
@@ -321,10 +365,42 @@ const GpsCameraModal = ({
         }
     };
 
-    // Fallback Manual File Pick
+    // Fallback Manual File Pick with Automatic GPS Watermarking for Photos
     const handleFilePick = async (e) => {
         const file = e.target.files[0];
-        if (file) {
+        if (!file) return;
+
+        if (file.type.startsWith('image/')) {
+            try {
+                toast.info('Applying GPS Map Watermark...');
+                const img = new Image();
+                img.src = URL.createObjectURL(file);
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                });
+
+                const canvas = canvasRef.current || document.createElement('canvas');
+                canvas.width = img.naturalWidth || 1280;
+                canvas.height = img.naturalHeight || 720;
+                const ctx = canvas.getContext('2d');
+
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                drawWatermark(ctx, canvas.width, canvas.height);
+
+                canvas.toBlob(async (blob) => {
+                    if (!blob) {
+                        await uploadFileToBunny(file);
+                        return;
+                    }
+                    const stampedFile = new File([blob], `${type}_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                    await uploadFileToBunny(stampedFile);
+                }, 'image/jpeg', 0.88);
+            } catch (err) {
+                console.warn('Watermark on file pick failed, uploading original:', err);
+                await uploadFileToBunny(file);
+            }
+        } else {
             await uploadFileToBunny(file);
         }
     };
@@ -404,12 +480,23 @@ const GpsCameraModal = ({
                                 )}
                             </div>
                         ) : (
-                            <div className="d-flex flex-column align-items-center justify-content-center h-100 py-5 text-slate-400">
+                            <div className="d-flex flex-column align-items-center justify-content-center h-100 py-5 px-3 text-slate-400">
                                 <i className="bi bi-camera-video-off display-3 text-secondary mb-3"></i>
-                                <p className="mb-2 text-white">{errorMsg || 'Camera is currently inactive'}</p>
-                                <button className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={startCamera}>
-                                    <i className="bi bi-arrow-clockwise me-1"></i> Retry Camera
-                                </button>
+                                <p className="mb-3 text-white px-3" style={{ fontSize: '14px', maxWidth: '480px' }}>
+                                    {errorMsg || 'Camera stream is currently inactive.'}
+                                </p>
+                                <div className="d-flex flex-wrap gap-2 justify-content-center">
+                                    <button type="button" className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={startCamera}>
+                                        <i className="bi bi-arrow-clockwise me-1"></i> Retry Live Stream
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm btn-primary rounded-pill px-3 fw-semibold"
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        <i className="bi bi-camera-fill me-1"></i> Open Phone Camera
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -448,13 +535,14 @@ const GpsCameraModal = ({
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={uploading || isRecording}
                             >
-                                <i className="bi bi-upload me-1"></i> Upload File
+                                <i className="bi bi-camera-fill me-1"></i> Take Photo / File
                             </button>
                             <input
                                 type="file"
                                 ref={fileInputRef}
                                 className="d-none"
                                 accept={isVideoMode ? "video/*" : "image/*"}
+                                capture={facingMode === 'user' ? 'user' : 'environment'}
                                 onChange={handleFilePick}
                             />
                         </div>
