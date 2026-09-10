@@ -1895,22 +1895,15 @@ class MerchantController extends Controller
             $aadhaarNumber = $existingUser->aadhaar_number;
             $time=now()->timestamp;
 
-            // ✅ Parse XML to structured array
-            $transformedResponse = $this->transformXmlResponseFace($request->xml);
-
-            $isFacetan = $transformedResponse['fType'] == "0" ? true : false;
-            $serviceType = isset($request->serviceType) ? $request->serviceType : "AEPS";
-
+       
 
             $url = self::BASE_URL."v2/aeps/2fa";
 
             $data = [
                 "outletId"      => $existingUser->bmid,
-                "serviceType" => $serviceType,
                 "deviceIMEI"    => $request->deviceIMEI,
                 "pan_no"        => $existingUser->pan_no,
-                "xml"           => $transformedResponse,
-                "isFacialTan"       => $isFacetan,
+                "xml"           => $request->xml
             ];
 
             $ch = curl_init($url);
