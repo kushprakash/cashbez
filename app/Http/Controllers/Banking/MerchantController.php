@@ -1503,6 +1503,7 @@ class MerchantController extends Controller
 
             
             $data = [
+                "outletId"      => $existingUser->bmid,
                 "latitude"      => $existingUser->latitude,
                 "longitude"     => $existingUser->longitude,
                 "deviceIMEI"    => $request->deviceIMEI,
@@ -1636,6 +1637,7 @@ class MerchantController extends Controller
             $url = self::BASE_URL."v2/aeps/verify-otp";
 
             $data = [
+                "outletId"      => $existingUser->bmid,
                 "primaryKeyId"    => $request->primaryKeyId,
                 "encodeFPTxnId"    => $request->encodeFPTxnId,
                 "deviceIMEI"    => $request->deviceIMEI,
@@ -1737,6 +1739,7 @@ class MerchantController extends Controller
             $url = self::BASE_URL."v2/aeps/biometric-ekyc";
 
             $data = [
+                "outletId"      => $existingUser->bmid,
                 "primaryKeyId"    => $request->primaryKeyId,
                 "encodeFPTxnId"    => $request->encodeFPTxnId,
                 "deviceIMEI"    => $request->deviceIMEI,
@@ -1845,6 +1848,7 @@ class MerchantController extends Controller
             $url = self::BASE_URL."v2/aeps/2fa";
 
             $data = [
+                "outletId"      => $existingUser->bmid,
                 "serviceType" => $serviceType,
                 "deviceIMEI"    => $request->deviceIMEI,
                 "pan_no"        => $existingUser->pan_no,
