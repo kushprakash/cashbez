@@ -2218,6 +2218,7 @@ class MerchantController extends Controller
                 ], 200);
             }
 
+            $aadhaarNumber=$request->aadhaarNumber;
             $request->outletId = $request->outletId ?? $request->mid;
 
             if(empty($request->outletId)){
