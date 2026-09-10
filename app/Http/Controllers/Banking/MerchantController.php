@@ -2397,7 +2397,7 @@ class MerchantController extends Controller
 
             $history->update([
                 "request" => json_encode($data),
-                "response" => json_encode($json_response),
+                "response" => json_encode($json_response['data']??[]),
                 "response_status" => $json_response['status'] ?? null,
                 "response_status_code" => $json_response['statusCode'] ?? null,
                 "response_message" => $json_response['message'] ?? null,
@@ -2469,8 +2469,8 @@ class MerchantController extends Controller
             // ✅ Update user status
             if ($json_response['status'] == 1) {
 
-                $fpTransactionId=$json_response['data']['fpTransactionId'];
-                $bankRRN=$json_response['data']['bankRRN'];
+                $fpTransactionId=$json_response['data']['data']['fpTransactionId'];
+                $bankRRN=$json_response['data']['data']['bankRRN'];
 
                 $history->update([
                     "merchant_txn_id" => $fpTransactionId,
