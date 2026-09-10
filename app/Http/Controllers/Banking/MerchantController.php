@@ -4560,6 +4560,37 @@ class MerchantController extends Controller
             }
             $existingUser->save();
 
+
+
+            $urls = self::BASE_URL."v2/aeps/change-device";
+
+            $datas = [
+                "outletId"    => $existingUser->bmid,
+                "pan_no"    => $existingUser->pan_no,
+                "deviceIMEI"    => $deviceIMEI,
+                "deviceName"        => $deviceName,
+                "mposSerialNumber"        => $mposSerialNumber??"",
+            ];
+
+            $chs = curl_init($urls);
+
+            curl_setopt_array($chs, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($datas),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $responses = curl_exec($chs);
+
+
             return response()->json([
                 'status' => 1,
                 'message' => 'Device information updated successfully',
