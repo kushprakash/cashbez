@@ -1816,6 +1816,23 @@ class MerchantController extends Controller
 
             } 
 
+             if(isset($json_response['status']) && $json_response['status']==0){
+
+
+                
+
+                if(isset($json_response['data']['statusCode']) &&  $json_response['data']['statusCode'] == "10005"){
+                    
+                    $existingUser->aeps_status = 1;
+                    $existingUser->save();
+                }
+
+                return response()->json([
+                    'status'  => 0,
+                    'message' => $json_response['data']['message'] ?? 'Biometric E-kyc failed'
+                ], 200);
+             }
+
 
 
             return response()->json([
