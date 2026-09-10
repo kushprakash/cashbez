@@ -260,6 +260,8 @@ class MerchantController extends Controller
                 $draftData['mid'] = $nextMid;
                 $draftData['created_by'] = $existingUser1->id ?? null;
                 $draftData['admin_id'] = $existingUser1->id ?? null;
+                $draftData['bid'] = $json_response['data']['id'] ?? null;
+                $draftData['bmid'] = $json_response['data']['mid'] ?? null;
 
                 // Filter $draftData to only include valid fillable attributes of AepsDraft
                 $fillable = (new AepsDraft())->getFillable();
@@ -267,12 +269,6 @@ class MerchantController extends Controller
 
                 $draft = AepsDraft::create($draftData);
 
-
-
-
-                $draft->bid = $json_response['data']['id'] ?? null;
-                $draft->bmid = $json_response['data']['mid'] ?? null;
-                $draft->save();
             }
 
 
