@@ -1678,9 +1678,15 @@ class MerchantController extends Controller
 
         } catch (\Exception $e) {
           
+            
+            $refId = CatchLogService::logException($request, 'verifyOtp', $e, [
+                'context' => 'AEPS E-KYC verify OTP Final Error',
+            ]);
+
             return response()->json([
-                'status'  => 0,
-                'message' => 'Internal Server Error'
+                'status' => 0,
+                'message' => 'Internal Server Error',
+                'ref_id' => $refId,
             ], 500);
         }
     }
