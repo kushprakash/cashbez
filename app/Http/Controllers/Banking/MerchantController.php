@@ -1328,6 +1328,27 @@ class MerchantController extends Controller
 
             $json_response = json_decode($response, true);
 
+
+
+             DB::table('logs')->insert([
+                'mid'          => $existingUser->mid ?? '',
+                'type'         => 'AEPS Onboarding',
+                'platform'     => 'WEB',
+                'headers'      => json_encode([
+                    'Accept'       => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'mid' => self::MID,
+                    'mkey' => self::MKEY,
+                ]),
+                'request_data'  => json_encode($data),
+                'response_data'  => json_encode($json_response),
+                'url'           => $url,
+                'txnid'         => 0,
+                'status'        => 0,
+                'timestamp'    => now(),
+                'created_at'   => now()->format('Y-m-d H:i:s'),
+            ]);
+
             if(isset($json_response['status']) && $json_response['status']==1){
                 $existingUser->request_data = json_encode($data);
                 $existingUser->response_data = json_encode($json_response);
