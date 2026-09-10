@@ -1844,9 +1844,14 @@ class MerchantController extends Controller
         } catch (\Throwable $e) {
           
 
+            $refId = CatchLogService::logException($request, 'biometricEkyc', $e, [
+                'context' => 'Biometric E-kyc Final Error',
+            ]);
+
             return response()->json([
-                'status'  => 0,
-                'message' => 'Internal Server Error'
+                'status' => 0,
+                'message' => 'Internal Server Error',
+                'ref_id' => $refId,
             ], 500);
         }
     }
