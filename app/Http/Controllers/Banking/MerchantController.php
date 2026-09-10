@@ -2326,10 +2326,9 @@ class MerchantController extends Controller
 
 
 
-            $url = self::BASE_URL."v2/aeps/biometric-ekyc";
+            $url = self::BASE_URL."v2/aeps/doAeps";
 
-   
-               
+         
             $data = [
                 "outletId"         => $existingUser->bmid,
                 "customerMobile"   => $existingUser->phone,
