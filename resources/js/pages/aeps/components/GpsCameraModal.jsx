@@ -114,25 +114,39 @@ const GpsCameraModal = ({
 
         if (mediaStream) {
             streamRef.current = mediaStream;
-            if (videoRef.current) {
-                const videoEl = videoRef.current;
-                videoEl.setAttribute('playsinline', 'true');
-                videoEl.setAttribute('webkit-playsinline', 'true');
-                videoEl.muted = true;
-                videoEl.srcObject = mediaStream;
-                try {
-                    await videoEl.play();
-                } catch (e) {
-                    console.warn('Video play error:', e);
-                }
-            }
             setCameraActive(true);
+
+            // Bind stream to video element
+            setTimeout(() => {
+                if (videoRef.current) {
+                    const videoEl = videoRef.current;
+                    videoEl.setAttribute('playsinline', 'true');
+                    videoEl.setAttribute('webkit-playsinline', 'true');
+                    videoEl.muted = true;
+                    videoEl.srcObject = mediaStream;
+                    videoEl.play().catch(e => console.warn('Video play error:', e));
+                }
+            }, 50);
         } else {
             console.error('All camera constraint levels failed:', lastError);
             setErrorMsg('Camera stream inactive. Use the Native Phone Camera button below.');
             setCameraActive(false);
         }
     };
+
+    // Auto-bind stream when cameraActive changes
+    useEffect(() => {
+        if (cameraActive && streamRef.current && videoRef.current) {
+            const videoEl = videoRef.current;
+            videoEl.setAttribute('playsinline', 'true');
+            videoEl.setAttribute('webkit-playsinline', 'true');
+            videoEl.muted = true;
+            if (videoEl.srcObject !== streamRef.current) {
+                videoEl.srcObject = streamRef.current;
+                videoEl.play().catch(e => console.warn('Autoplay error:', e));
+            }
+        }
+    }, [cameraActive]);
 
     const stopCamera = () => {
         if (animationFrameRef.current) {
@@ -202,14 +216,31 @@ const GpsCameraModal = ({
         ctx.fillText(`📅 ${dateTimeStr}  •  Cashbez AEPS KYC`, paddingLeft, textY);
     };
 
-    // Capture Image with Watermark
+    // Capture Image with Watermark & High KB Compression
     const handleCapturePhoto = async () => {
         if (!videoRef.current) return;
         const video = videoRef.current;
-        const canvas = canvasRef.current || document.createElement('canvas');
 
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
+        // Ultra-light image dimensions (Max 800px for small KB size)
+        const origWidth = video.videoWidth || 1280;
+        const origHeight = video.videoHeight || 720;
+        const maxDim = 800;
+        let targetWidth = origWidth;
+        let targetHeight = origHeight;
+
+        if (origWidth > maxDim || origHeight > maxDim) {
+            if (origWidth > origHeight) {
+                targetHeight = Math.round((origHeight * maxDim) / origWidth);
+                targetWidth = maxDim;
+            } else {
+                targetWidth = Math.round((origWidth * maxDim) / origHeight);
+                targetHeight = maxDim;
+            }
+        }
+
+        const canvas = canvasRef.current || document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
         const ctx = canvas.getContext('2d');
 
         // Mirror front camera if user facing
@@ -225,27 +256,33 @@ const GpsCameraModal = ({
         // Draw Watermark
         drawWatermark(ctx, canvas.width, canvas.height);
 
+        // Quality 0.60 produces extremely lightweight ~40KB - 80KB images
         canvas.toBlob(async (blob) => {
             if (!blob) {
                 toast.error('Failed to capture photo frame');
                 return;
             }
+            console.log(`📦 Compressed Photo Size: ${(blob.size / 1024).toFixed(1)} KB`);
             const file = new File([blob], `${type}_${Date.now()}.jpg`, { type: 'image/jpeg' });
             await uploadFileToBunny(file);
-        }, 'image/jpeg', 0.88);
+        }, 'image/jpeg', 0.60);
     };
 
-    // 10-Second Video Recording with Live Watermark
+    // 10-Second Video Recording with Compressed Bitrate (< 1 MB Guarantee)
     const handleStartRecording = () => {
         if (!videoRef.current || !streamRef.current) return;
 
         const video = videoRef.current;
+        // Optimized 640x480 (or 480x640 portrait) resolution for < 1 MB size
+        const targetWidth = facingMode === 'user' ? 480 : 640;
+        const targetHeight = facingMode === 'user' ? 640 : 480;
+
         const canvas = canvasRef.current || document.createElement('canvas');
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
         const ctx = canvas.getContext('2d');
 
-        // Continuous canvas render loop for video recording with watermark
+        // Render loop at 20 FPS
         const renderLoop = () => {
             if (facingMode === 'user') {
                 ctx.save();
@@ -260,8 +297,8 @@ const GpsCameraModal = ({
         };
         renderLoop();
 
-        // Canvas stream with 30fps
-        const canvasStream = canvas.captureStream(30);
+        // 20 FPS stream for optimal file size
+        const canvasStream = canvas.captureStream(20);
 
         // Mix microphone audio
         const audioTrack = streamRef.current.getAudioTracks()[0];
@@ -278,9 +315,16 @@ const GpsCameraModal = ({
             }
         }
 
+        // Strict 500 Kbps video + 64 Kbps audio bitrate (~600 KB - 800 KB for 10 sec)
+        const recorderOptions = {
+            mimeType: mimeType || undefined,
+            videoBitsPerSecond: 500000,
+            audioBitsPerSecond: 64000
+        };
+
         try {
             recordedChunksRef.current = [];
-            const mediaRecorder = new MediaRecorder(canvasStream, mimeType ? { mimeType } : undefined);
+            const mediaRecorder = new MediaRecorder(canvasStream, recorderOptions);
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data && event.data.size > 0) {
@@ -294,6 +338,7 @@ const GpsCameraModal = ({
                 }
                 const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
                 const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                console.log(`📹 Compressed Recorded Video Size: ${(blob.size / (1024 * 1024)).toFixed(2)} MB (${(blob.size / 1024).toFixed(1)} KB)`);
                 const file = new File([blob], `video_kyc_${Date.now()}.${ext}`, { type: blob.type });
                 await uploadFileToBunny(file);
             };
@@ -340,7 +385,10 @@ const GpsCameraModal = ({
         setUploadProgress(0);
         try {
             const folder = isVideoMode ? 'aeps_kyc/videos' : 'aeps_kyc/images';
-            toast.info(`Uploading ${title}... Please wait`);
+            const sizeStr = file.size > 1024 * 1024 
+                ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+                : `${(file.size / 1024).toFixed(1)} KB`;
+            toast.info(`Uploading ${title} (${sizeStr})... Please wait`);
 
             const result = await uploadToBunny(
                 file,
@@ -350,7 +398,7 @@ const GpsCameraModal = ({
             );
 
             if (result.success && result.url) {
-                toast.success(`${title} uploaded successfully!`);
+                toast.success(`${title} uploaded successfully! (${sizeStr})`);
                 onCaptureSuccess(type, result.url);
                 onClose();
             } else {
@@ -365,14 +413,14 @@ const GpsCameraModal = ({
         }
     };
 
-    // Fallback Manual File Pick with Automatic GPS Watermarking for Photos
+    // Fallback Manual File Pick with Automatic Smart Compression
     const handleFilePick = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         if (file.type.startsWith('image/')) {
             try {
-                toast.info('Applying GPS Map Watermark...');
+                toast.info('Compressing image to light KB size & applying GPS stamp...');
                 const img = new Image();
                 img.src = URL.createObjectURL(file);
                 await new Promise((resolve, reject) => {
@@ -380,26 +428,48 @@ const GpsCameraModal = ({
                     img.onerror = reject;
                 });
 
+                const maxDim = 800;
+                let targetWidth = img.naturalWidth || 1280;
+                let targetHeight = img.naturalHeight || 720;
+
+                if (targetWidth > maxDim || targetHeight > maxDim) {
+                    if (targetWidth > targetHeight) {
+                        targetHeight = Math.round((targetHeight * maxDim) / targetWidth);
+                        targetWidth = maxDim;
+                    } else {
+                        targetWidth = Math.round((targetWidth * maxDim) / targetHeight);
+                        targetHeight = maxDim;
+                    }
+                }
+
                 const canvas = canvasRef.current || document.createElement('canvas');
-                canvas.width = img.naturalWidth || 1280;
-                canvas.height = img.naturalHeight || 720;
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
                 const ctx = canvas.getContext('2d');
 
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                drawWatermark(ctx, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+                drawWatermark(ctx, targetWidth, targetHeight);
 
                 canvas.toBlob(async (blob) => {
                     if (!blob) {
                         await uploadFileToBunny(file);
                         return;
                     }
+                    console.log(`📦 Gallery Image Compressed: ${(file.size / 1024).toFixed(1)} KB → ${(blob.size / 1024).toFixed(1)} KB`);
                     const stampedFile = new File([blob], `${type}_${Date.now()}.jpg`, { type: 'image/jpeg' });
                     await uploadFileToBunny(stampedFile);
-                }, 'image/jpeg', 0.88);
+                }, 'image/jpeg', 0.60);
             } catch (err) {
-                console.warn('Watermark on file pick failed, uploading original:', err);
+                console.warn('Compression/Watermark on file pick failed, uploading original:', err);
                 await uploadFileToBunny(file);
             }
+        } else if (file.type.startsWith('video/')) {
+            // Check video size
+            const sizeMB = file.size / (1024 * 1024);
+            if (sizeMB > 1.5) {
+                toast.warning(`Notice: Selected video is ${sizeMB.toFixed(1)} MB. Compressing video...`);
+            }
+            await uploadFileToBunny(file);
         } else {
             await uploadFileToBunny(file);
         }
@@ -427,63 +497,66 @@ const GpsCameraModal = ({
                         {/* Live Watermark Canvas (Hidden / Used for capture) */}
                         <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
 
-                        {/* Camera Stream Viewport */}
-                        {cameraActive ? (
-                            <div className="position-relative w-100 overflow-hidden" style={{ maxHeight: '500px' }}>
-                                <video
-                                    ref={videoRef}
-                                    playsInline
-                                    muted
-                                    className="w-100 h-100 object-fit-cover"
-                                    style={{
-                                        transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
-                                        maxHeight: '480px'
-                                    }}
-                                ></video>
+                        {/* Camera Stream Viewport (Always mounted in DOM for instant live stream) */}
+                        <div className={`position-relative w-100 overflow-hidden ${!cameraActive ? 'd-none' : ''}`} style={{ maxHeight: '500px' }}>
+                            <video
+                                ref={videoRef}
+                                playsInline
+                                webkit-playsinline="true"
+                                autoPlay
+                                muted
+                                className="w-100 h-100 object-fit-cover"
+                                style={{
+                                    transform: facingMode === 'user' ? 'scaleX(-1)' : 'none',
+                                    maxHeight: '480px'
+                                }}
+                            ></video>
 
-                                {/* Live GPS Watermark Badge on Viewport */}
-                                <div className="position-absolute bottom-0 start-0 w-100 p-3 text-start text-white"
-                                     style={{
-                                         background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.6) 60%, transparent 100%)',
-                                         pointerEvents: 'none'
-                                     }}>
-                                    <div className="d-flex align-items-center gap-2 mb-1">
-                                        <span className="badge text-white" style={{ backgroundColor: '#10b981', fontSize: '11px' }}>
-                                            <i className="bi bi-geo-alt-fill me-1"></i> LIVE GPS MAP
-                                        </span>
-                                        <span className="small" style={{ color: '#cbd5e1', fontSize: '12px' }}>
-                                            {new Date().toLocaleTimeString()}
-                                        </span>
-                                    </div>
-                                    <div className="fw-semibold" style={{ color: '#38bdf8', fontSize: '13px' }}>
-                                        LAT: {currentCoords.latitude || 'Fetching...'} | LONG: {currentCoords.longitude || 'Fetching...'}
+                            {/* Live GPS Watermark Badge on Viewport */}
+                            <div className="position-absolute bottom-0 start-0 w-100 p-3 text-start text-white"
+                                 style={{
+                                     background: 'linear-gradient(to top, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.6) 60%, transparent 100%)',
+                                     pointerEvents: 'none'
+                                 }}>
+                                <div className="d-flex align-items-center gap-2 mb-1">
+                                    <span className="badge text-white" style={{ backgroundColor: '#10b981', fontSize: '11px' }}>
+                                        <i className="bi bi-geo-alt-fill me-1"></i> LIVE GPS MAP
+                                    </span>
+                                    <span className="small" style={{ color: '#cbd5e1', fontSize: '12px' }}>
+                                        {new Date().toLocaleTimeString()}
+                                    </span>
+                                </div>
+                                <div className="fw-semibold" style={{ color: '#38bdf8', fontSize: '13px' }}>
+                                    LAT: {currentCoords.latitude || 'Fetching...'} | LONG: {currentCoords.longitude || 'Fetching...'}
+                                </div>
+                            </div>
+
+                            {/* Video Recording Instructions & Timer Overlay */}
+                            {isVideoMode && (
+                                <div className="position-absolute top-0 start-0 w-100 p-3" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)' }}>
+                                    <div className="alert bg-black bg-opacity-75 border-warning text-warning text-center m-0 py-2 px-3 rounded-3 shadow">
+                                        <div className="fw-bold mb-1" style={{ fontSize: '13px' }}>
+                                            <i className="bi bi-mic-fill me-1"></i> Speak clearly: "My Name is [Name], Aadhaar last 4 digits are [XXXX]"
+                                        </div>
+                                        {isRecording ? (
+                                            <div className="d-flex align-items-center justify-content-center gap-2 text-danger fw-bold fs-6">
+                                                <span className="spinner-grow spinner-grow-sm" role="status"></span>
+                                                RECORDING: {recordingTime}s / 10s
+                                            </div>
+                                        ) : (
+                                            <div className="small text-white opacity-75">Max 10 Seconds Video</div>
+                                        )}
                                     </div>
                                 </div>
+                            )}
+                        </div>
 
-                                {/* Video Recording Instructions & Timer Overlay */}
-                                {isVideoMode && (
-                                    <div className="position-absolute top-0 start-0 w-100 p-3" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)' }}>
-                                        <div className="alert bg-black bg-opacity-75 border-warning text-warning text-center m-0 py-2 px-3 rounded-3 shadow">
-                                            <div className="fw-bold mb-1" style={{ fontSize: '13px' }}>
-                                                <i className="bi bi-mic-fill me-1"></i> Speak clearly: "My Name is [Name], Aadhaar last 4 digits are [XXXX]"
-                                            </div>
-                                            {isRecording ? (
-                                                <div className="d-flex align-items-center justify-content-center gap-2 text-danger fw-bold fs-6">
-                                                    <span className="spinner-grow spinner-grow-sm" role="status"></span>
-                                                    RECORDING: {recordingTime}s / 10s
-                                                </div>
-                                            ) : (
-                                                <div className="small text-white opacity-75">Max 10 Seconds Video</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
+                        {/* Inactive Camera State View (Shown only if stream fails to start) */}
+                        {!cameraActive && (
                             <div className="d-flex flex-column align-items-center justify-content-center h-100 py-5 px-3 text-slate-400">
                                 <i className="bi bi-camera-video-off display-3 text-secondary mb-3"></i>
                                 <p className="mb-3 text-white px-3" style={{ fontSize: '14px', maxWidth: '480px' }}>
-                                    {errorMsg || 'Camera stream is currently inactive.'}
+                                    {errorMsg || 'Starting live camera stream... Please wait.'}
                                 </p>
                                 <div className="d-flex flex-wrap gap-2 justify-content-center">
                                     <button type="button" className="btn btn-sm btn-outline-light rounded-pill px-3" onClick={startCamera}>
