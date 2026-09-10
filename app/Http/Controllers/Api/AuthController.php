@@ -1946,7 +1946,7 @@ class AuthController extends Controller
 
             // Get admin setting for branding & SMTP
             $setting = Setting::first();
-            $companyName = $setting->company_name ?? 'Bharat Pay';
+            $companyName = $setting->company_name ?? 'Banking Service';
             $adminId = $setting->user_id ?? 1;
 
             // 1. Send notification email to support team (ads@bharatpays.in)

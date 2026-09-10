@@ -29,7 +29,7 @@ const ContactPage = () => {
     // Dynamic settings from API
     const [logo, setLogo] = useState('');
     const [footerLogo, setFooterLogo] = useState('');
-    const [companyName, setCompanyName] = useState('Bharat Pay');
+    const [companyName, setCompanyName] = useState('Banking Service');
     const [playstoreQr, setPlaystoreQr] = useState('');
     const [playstoreUrl, setPlaystoreUrl] = useState('');
     const [themeColors, setThemeColors] = useState({ primary: '#10b981', secondary: '#06b6d4' });
