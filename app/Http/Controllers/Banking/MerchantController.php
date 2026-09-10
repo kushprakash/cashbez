@@ -129,7 +129,23 @@ class MerchantController extends Controller
                 ], 200);
             }
 
-            $draftData = $input;
+            $draftData['latitude'] = $input['latitude'];
+            $draftData['longitude'] = $input['longitude'];
+            $draftData['shop_city'] = $input['shop_city'];
+            $draftData['shop_address'] = $input['shop_address'];
+            $draftData['state_id'] = $input['state_id'];
+            $draftData['shop_district'] = $input['shop_district'];
+            $draftData['shop_pin_code'] = $input['shop_pin_code'];
+            $draftData['shop_name'] = $input['shop_name'];
+            $draftData['pan_no'] = $input['pan_no'];
+            $draftData['aadhaar_number'] = $input['aadhaar_number'];
+            $draftData['full_name'] = $input['full_name'];
+            $draftData['phone'] = $input['phone'];
+            $draftData['email'] = $input['email'];
+            $draftData['account_number'] = $input['account_number'];
+            $draftData['ifsc_code'] = $input['ifsc_code'];
+            $draftData['bank_name'] = $input['bank_name'];
+            $draftData['bank_branch'] = $input['bank_branch'];
 
             $existingUser = User::where('mobile', $request->phone)->first();
             if ($existingUser) {
