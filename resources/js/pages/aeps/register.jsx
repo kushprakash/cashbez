@@ -843,7 +843,7 @@ const AepsRegister = () => {
                                                         <div className="mb-3">
                                                             <img src={formData.shop_inner} alt="Shop Inner" className="img-thumbnail rounded-3" style={{ height: '140px', objectFit: 'cover', width: '100%' }} />
                                                             <div className="mt-2 text-success small fw-semibold">
-                                                                <i className="bi bi-check-circle-fill me-1"></i> Uploaded to Bunny CDN
+                                                                <i className="bi bi-check-circle-fill me-1"></i> Image Uploaded Successfully
                                                             </div>
                                                         </div>
                                                     ) : (
@@ -873,7 +873,7 @@ const AepsRegister = () => {
                                                         <div className="mb-3">
                                                             <img src={formData.shop_outer} alt="Shop Outer" className="img-thumbnail rounded-3" style={{ height: '140px', objectFit: 'cover', width: '100%' }} />
                                                             <div className="mt-2 text-success small fw-semibold">
-                                                                <i className="bi bi-check-circle-fill me-1"></i> Uploaded to Bunny CDN
+                                                                <i className="bi bi-check-circle-fill me-1"></i> Image Uploaded Successfully
                                                             </div>
                                                         </div>
                                                     ) : (
@@ -907,7 +907,7 @@ const AepsRegister = () => {
                                                         <div className="mb-3">
                                                             <video src={formData.video_url} controls className="w-100 rounded-3" style={{ height: '130px', objectFit: 'cover' }} />
                                                             <div className="mt-2 text-success small fw-semibold">
-                                                                <i className="bi bi-check-circle-fill me-1"></i> Uploaded to Bunny CDN
+                                                                <i className="bi bi-check-circle-fill me-1"></i> Video Uploaded Successfully
                                                             </div>
                                                         </div>
                                                     ) : (

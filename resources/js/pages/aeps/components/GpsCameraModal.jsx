@@ -67,36 +67,18 @@ const GpsCameraModal = ({
         stopCamera();
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setErrorMsg('Camera access requires HTTPS or is restricted by your mobile browser settings. You can use the Native Camera button below.');
+            setErrorMsg('Camera access requires HTTPS or is restricted by your browser settings.');
             setCameraActive(false);
             return;
         }
 
         const constraintLevels = [
-            // 1. Precise facingMode + ideal resolution
-            {
-                video: {
-                    facingMode: facingMode,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                },
-                audio: isVideoMode
-            },
+            // 1. facingMode + resolution
+            { video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } },
             // 2. Simple facingMode
-            {
-                video: { facingMode: facingMode },
-                audio: isVideoMode
-            },
-            // 3. Simple video with audio
-            {
-                video: true,
-                audio: isVideoMode
-            },
-            // 4. Video only without audio (if microphone permission failed)
-            {
-                video: true,
-                audio: false
-            }
+            { video: { facingMode: facingMode } },
+            // 3. Basic video true
+            { video: true }
         ];
 
         let mediaStream = null;
@@ -107,7 +89,7 @@ const GpsCameraModal = ({
                 mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 if (mediaStream) break;
             } catch (err) {
-                console.warn('Camera constraint level failed:', constraints, err);
+                console.warn('Camera constraint failed:', constraints, err);
                 lastError = err;
             }
         }
@@ -116,8 +98,8 @@ const GpsCameraModal = ({
             streamRef.current = mediaStream;
             setCameraActive(true);
 
-            // Bind stream to video element
-            setTimeout(() => {
+            // Bind stream immediately to video element
+            const bindVideo = () => {
                 if (videoRef.current) {
                     const videoEl = videoRef.current;
                     videoEl.setAttribute('playsinline', 'true');
@@ -126,10 +108,14 @@ const GpsCameraModal = ({
                     videoEl.srcObject = mediaStream;
                     videoEl.play().catch(e => console.warn('Video play error:', e));
                 }
-            }, 50);
+            };
+
+            bindVideo();
+            setTimeout(bindVideo, 100);
+            setTimeout(bindVideo, 300);
         } else {
             console.error('All camera constraint levels failed:', lastError);
-            setErrorMsg('Camera stream inactive. Use the Native Phone Camera button below.');
+            setErrorMsg('Camera stream inactive. Please check camera permissions.');
             setCameraActive(false);
         }
     };
@@ -379,16 +365,13 @@ const GpsCameraModal = ({
         setIsRecording(false);
     };
 
-    // Upload to Bunny CDN helper
+    // Upload helper
     const uploadFileToBunny = async (file) => {
         setUploading(true);
         setUploadProgress(0);
         try {
             const folder = isVideoMode ? 'aeps_kyc/videos' : 'aeps_kyc/images';
-            const sizeStr = file.size > 1024 * 1024 
-                ? `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-                : `${(file.size / 1024).toFixed(1)} KB`;
-            toast.info(`Uploading ${title} (${sizeStr})... Please wait`);
+            toast.info(`Uploading... Please wait`);
 
             const result = await uploadToBunny(
                 file,
@@ -398,7 +381,7 @@ const GpsCameraModal = ({
             );
 
             if (result.success && result.url) {
-                toast.success(`${title} uploaded successfully! (${sizeStr})`);
+                toast.success(isVideoMode ? 'Video Uploaded Successfully!' : 'Image Uploaded Successfully!');
                 onCaptureSuccess(type, result.url);
                 onClose();
             } else {
@@ -406,7 +389,7 @@ const GpsCameraModal = ({
             }
         } catch (err) {
             console.error('Upload Error:', err);
-            toast.error(err.message || 'Failed to upload to CDN');
+            toast.error(err.message || 'Failed to upload. Please try again.');
         } finally {
             setUploading(false);
             setUploadProgress(0);
@@ -577,7 +560,7 @@ const GpsCameraModal = ({
                         {uploading && (
                             <div className="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center bg-black bg-opacity-85 text-white" style={{ zIndex: 10 }}>
                                 <div className="spinner-border text-primary mb-3" style={{ width: '3rem', height: '3rem' }} role="status"></div>
-                                <h6 className="fw-bold text-white mb-2">Uploading to Bunny CDN...</h6>
+                                <h6 className="fw-bold text-white mb-2">Uploading... Please wait</h6>
                                 <div className="progress w-50 bg-secondary" style={{ height: '10px', borderRadius: '5px' }}>
                                     <div className="progress-bar progress-bar-striped progress-bar-animated bg-success" style={{ width: `${uploadProgress}%` }}></div>
                                 </div>
