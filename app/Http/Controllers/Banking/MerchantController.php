@@ -1304,6 +1304,7 @@ class MerchantController extends Controller
 
             $data = [
                 "aeps_draft_id" => $existingUser->bid,
+                "outletId"      => $existingUser->bmid,
                 "pan_no"        => $existingUser->pan_no,
             ];
 
