@@ -1555,21 +1555,8 @@ class MerchantController extends Controller
 
             if(isset($json_response['status']) && $json_response['status']==1){
 
-                $existingUser->primaryKeyId = $json_response['data']['primaryKeyId'];
-                $existingUser->encodeFPTxnId = $json_response['data']['encodeFPTxnId'];
-                $existingUser->save();
-
-
-                return response()->json([
-                    'status'  => 1,
-                    'message' => 'OTP sent successfully',
-                    'data'    => [
-                        'status'=>true,
-                        'message' => 'OTP sent successfully',
-                        'primaryKeyId'=>$json_response['data']['primaryKeyId'],
-                        'encodeFPTxnId'=>$json_response['data']['encodeFPTxnId']
-                    ]
-                ], 200);
+     
+                return response()->json($json_response, 200);
 
             } 
 
