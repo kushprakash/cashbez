@@ -297,17 +297,7 @@ class AuthController extends Controller
             $lastUser->markAsUsed();
 
             $reffralby=$request->refer_by ?? null;
-            $isApiPartner=0;
-            $roleInput = $request->roleType ?? $request->role_type ?? $request->type ?? 'user';
-           
-
-            if ($newRole == 2) {
-                $admin_id = $nextMid; // Default admin ID if refer_by is invalid
-                $root = '';
-                $referUsers = User::where('id', 1)->first();
-                $reffralby=$referUsers->mid;
-            }
-
+        
 
 
             $user1 = User::create([
