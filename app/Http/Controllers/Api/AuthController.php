@@ -299,15 +299,7 @@ class AuthController extends Controller
             $reffralby=$request->refer_by ?? null;
             $isApiPartner=0;
             $roleInput = $request->roleType ?? $request->role_type ?? $request->type ?? 'user';
-            
-            if($roleInput != 'white_label') {
-                $newRole = 2;
-            } 
-
-            if($roleInput == 'api_partner') {
-                $isApiPartner=1;
-                $newRole = 2;
-            } 
+           
 
             if ($newRole == 2) {
                 $admin_id = $nextMid; // Default admin ID if refer_by is invalid
@@ -337,7 +329,7 @@ class AuthController extends Controller
                 'user_id' => $user1->id,
                 'name' => 'Utility Wallet',
                 'number' => $request->mobile . date('ym') . rand(11, 99), // Example account number
-                'upi' => $request->mobile . '-1@bp', // Example UPI ID
+                'upi' => $request->mobile . '-1@cbz', // Example UPI ID
                 'mpin' => 1234, // Default MPIN
                 'hold_amount' => 0,
                 'created_by' => $user1->id,
@@ -350,7 +342,7 @@ class AuthController extends Controller
                 'user_id' => $user1->id,
                 'name' => 'Trade Wallet',
                 'number' => $request->mobile . date('ym') . rand(11, 99), // Example account number
-                'upi' => $request->mobile . '@bp', // Example UPI ID
+                'upi' => $request->mobile . '@cbz', // Example UPI ID
                 'mpin' => 1234, // Default MPIN
                 'hold_amount' => 0,
                 'created_by' => $user1->id,
@@ -360,72 +352,6 @@ class AuthController extends Controller
             ]);
 
 
-            if($roleInput == 'api_partner' || $roleInput == 'white_label') {
-
-               
-                $settingData = DB::table('settings')->where('user_id', 1)->first();
-
-                Setting::insert([
-                    'user_id' => $user1->id,
-                    'company_name'=>$settingData->company_name,
-                    'logo'=>$settingData->logo,
-                    'footer_logo'=>$settingData->footer_logo,
-                    'favicon'=>$settingData->favicon,
-                    'playstore_qr_img'=>$settingData->playstore_qr_img,
-                    'playstore_url'=>$settingData->playstore_url,
-                    'sign'=>$settingData->sign,
-                    'about'=>$settingData->about,
-                    'copy_right'=>$settingData->copy_right,
-                    'address'=>$settingData->address,
-                    'email'=>$settingData->email,
-                    'website'=>$settingData->website,
-                    'whatsapp_no'=>$settingData->whatsapp_no,
-                    'mobile_no'=>$settingData->mobile_no,
-                    'landline_no'=>$settingData->landline_no,
-                    'map_url'=>$settingData->map_url,
-                    'meta_title'=>$settingData->meta_title,
-                    'meta_keyword'=>$settingData->meta_keyword,
-                    'meta_description'=>$settingData->meta_description,
-                    'theme_color_primary'=>$settingData->theme_color_primary,
-                    'theme_color_secondary'=>$settingData->theme_color_secondary,
-                    'currency_code'=>$settingData->currency_code,
-                    'paytm_upi_id'=>$settingData->paytm_upi_id,
-                    'paytm_mid'=>$settingData->paytm_mid,
-                    'paytm_sign'=>$settingData->paytm_sign,
-                    'call_back_url'=>$settingData->call_back_url,
-                    'smtp_host'=>$settingData->smtp_host,
-                    'smtp_port'=>$settingData->smtp_port,
-                    'smtp_user'=>$settingData->smtp_user,
-                    'smtp_password'=>$settingData->smtp_password,
-                    'sender_id'=>$settingData->sender_id,
-                    'apikey'=>$settingData->apikey,
-                    'utility_chanel'=>$settingData->utility_chanel,
-                    'min_balance'=>$settingData->min_balance,
-                    'va_create_charge'=>$settingData->va_create_charge,
-                    'va_receive_charge'=>$settingData->va_receive_charge,
-                    'api_vpa_receive_charge'=>$settingData->api_vpa_receive_charge,
-                    'status'=>$settingData->status,
-                ]);
-
-             
-                $settingDatas = DB::table('messages')->where('user_id', 1)->get();
-
-                if ($settingDatas->count() > 0) {
-                    foreach ($settingDatas as $settingData) {
-
-                        DB::table('message')->insert([
-                            'user_id' => $user1->id,
-                            'name' => $settingData->name,
-                            'message' => $settingData->message,
-                            'template_id' => $settingData->template_id,
-                        ]);
-                    }
-                }
-
-            }
-
-
-           
 
             // Assign permissions and commissions from role template
             $this->assignRolePermissionsAndCommissions($user1->id, $user1->role);
