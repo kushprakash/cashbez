@@ -226,7 +226,7 @@ class BeneficiaryController extends Controller
                 "account"    => $request->account,
                 "confirmAccount"    => $request->confirmAccount,
                 "ifsc"        => $request->ifsc,
-                "type"  =>1,
+                "type"  =>5,
                 "otp"=> $request->otp
             ];
 

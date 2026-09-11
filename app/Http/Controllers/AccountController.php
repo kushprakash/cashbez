@@ -780,47 +780,6 @@ class AccountController extends Controller
         }
 
 
-        if(isset($request->type)){
-
-            $url = self::BASE_URL."banking-send-otp";
-
-
-            $data = [];
-
-            $ch = curl_init($url);
-
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => json_encode($data),
-                CURLOPT_HTTPHEADER     => [
-                    "Content-Type: application/json",
-                    "Accept: application/json",
-                    "mid: ".self::MID,
-                    "mkey: ".self::MKEY
-                ],
-                CURLOPT_TIMEOUT        => 60,
-                CURLOPT_CONNECTTIMEOUT => 20
-            ]);
-
-            $response = curl_exec($ch);
-
-
-            $json_response = json_decode($response, true);
-
-            if(isset($json_response['status']) && $json_response['status']==1){
-
-                return response()->json([
-                    'status' => 1,
-                    'message' => 'OTP sent successfully',
-                    'is_registered' => true
-                ]);
-
-            }
-
-
-        }
-
         
         $messageTemplate = $messageRow->message;
         eval ("\$message = \"$messageTemplate\";");
