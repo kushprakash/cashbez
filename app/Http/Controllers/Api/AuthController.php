@@ -174,6 +174,7 @@ class AuthController extends Controller
         return ['status' => 1, 'message' => 'OTP valid'];
     }
 
+
     // Verify OTP and login/signup
     public function verifyOtp(Request $request)
     {
@@ -257,6 +258,13 @@ class AuthController extends Controller
                 $newRole = $defaultRole ?? null;   // jis role me default lena ho
             }
 
+
+            if($referUser->role == 10){
+                $newRole = 10;
+                $admin_id = 'ENX0000016';
+                $root = ',21,57,27';
+            }
+
         } else {
             // Jab refer_by empty hoga
             $admin_id = $adminData['mid'];
@@ -271,16 +279,20 @@ class AuthController extends Controller
         if (!$user) {
 
             // Referral ID required
-            if (!empty($request->refer_by)) {
+            if (empty($request->refer_by)) {
+                return [
+                    'status' => 0,
+                    'message' => 'Please enter a referral ID.'
+                ];
+            }
 
-                // Referral ID must exist
-                $referUser = User::where('mid', $request->refer_by)->first();
-                if (!$referUser) {
-                    return [
-                        'status' => 0,
-                        'message' => 'Referral ID not found. Please contact your senior or distributor.'
-                    ];
-                }
+            // Referral ID must exist
+            $referUser = User::where('mid', $request->refer_by)->first();
+            if (!$referUser) {
+                return [
+                    'status' => 0,
+                    'message' => 'Referral ID not found. Please contact your senior or distributor.'
+                ];
             }
 
             // Email must be unique
@@ -296,9 +308,11 @@ class AuthController extends Controller
             $nextMid = $lastUser->mid;
             $lastUser->markAsUsed();
 
-            $reffralby=$request->refer_by ?? null;
-        
 
+            if ($newRole == 2) {
+                $admin_id = $nextMid; // Default admin ID if refer_by is invalid
+                $root = '';
+            }
 
             $user1 = User::create([
                 'mid' => $nextMid, // Example: CW0000001 (last mid + 1)
@@ -309,13 +323,12 @@ class AuthController extends Controller
                 'email' => $request->email ?? null,
                 'role' => $newRole ?? null,
                 'root' => $root ?? null,
-                'refer_by' => $reffralby,
+                'refer_by' => $request->refer_by ?? null,
                 'status' => 1,
-                'is_api_partner'=>$isApiPartner,
                 'password' => Hash::make($request->mobile), // Hash the mobile number as password
             ]);
 
-             $account = Account::create([
+            $account = Account::create([
                 'user_id' => $user1->id,
                 'name' => 'Utility Wallet',
                 'number' => $request->mobile . date('ym') . rand(11, 99), // Example account number
@@ -341,8 +354,6 @@ class AuthController extends Controller
                 'primary_status' => true
             ]);
 
-
-
             // Assign permissions and commissions from role template
             $this->assignRolePermissionsAndCommissions($user1->id, $user1->role);
 
@@ -364,10 +375,11 @@ class AuthController extends Controller
                         'message' => 'Message not sent due to Technical issue. Please contact the administrator.'
                     ];
                 }
+
                 $messageTemplate = $messageRow->message;
                 eval("\$message = \"$messageTemplate\";");
 
-               //sendSms($message, $adminId, $number,$messageRow->template_id);
+                sendSms($message, $adminId, $number);
                 sentMail($toEmail, $subject, $adminId, $message);
             } else {
 
@@ -379,11 +391,10 @@ class AuthController extends Controller
                         'message' => 'Message not sent due to Technical issue. Please contact the administrator.'
                     ];
                 }
-
                 $messageTemplate = $messageRow->message;
                 eval("\$message = \"$messageTemplate\";");
 
-                //sendSms($message, $adminId, $number,$messageRow->template_id);
+                sendSms($message, $adminId, $number);
                 sentMail($toEmail, $subject, $adminId, $message);
             }
         }
@@ -403,6 +414,12 @@ class AuthController extends Controller
             ], 200);
         }
 
+        if ($user1->role == 10) {
+            $aepsdraft = DB::table('aeps_drafts')->select('aeps_status')->where('mid', $user1->mid)->first();
+            $user1->aeps_status = !empty($aepsdraft->aeps_status) ? $aepsdraft->aeps_status : 0;
+        } else {
+            $user1->aeps_status = 3;
+        }
 
         //get user role_name
         $role = DB::table('roles')->where('id', $user1->role)->first();
