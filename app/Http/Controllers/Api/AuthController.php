@@ -252,13 +252,12 @@ class AuthController extends Controller
 
             $adminUser = User::where('mid', $referUser->admin_mid)->first();
 
-            $refferRole = Role::where('id', $referUser->role)
-                ->where('status', 1)
+            $defaultRole = Role::where('status', 1)
                 ->where('user_id', $adminUser->id)
                 ->first();
 
 
-            if (!$refferRole) {
+            if (!$defaultRole) {
                 return [
                     'status' => 0,
                     'message' => 'Please contact administrator. Refferer role not Defined'
@@ -281,6 +280,9 @@ class AuthController extends Controller
                 $admin_id = $referUser->mid;
 
             } else {
+
+
+                $refferRole = Role::where('id', $referUser->role)->first();
              
                 $nextLevel = $refferRole->guest + 1;
                 $bigRole = Role::where('status', 1)
