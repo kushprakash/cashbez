@@ -317,6 +317,7 @@ class AuthController extends Controller
                 'mobile' => $request->mobile,
                 'name' => $request->name,
                 'email' => $request->email ?? null,
+                'pan_number' => $request->pan_number ?? null,
                 'role' => $newRole ?? null,
                 'root' => $root ?? null,
                 'refer_by' => $request->refer_by ?? null,
