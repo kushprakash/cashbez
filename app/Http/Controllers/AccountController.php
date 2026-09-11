@@ -28,6 +28,7 @@ use App\Models\Beneficiary;
 class AccountController extends Controller
 {
 
+    //api details
     private const BASE_URL = 'https://icchhamatidataservice.com/api/';
     private const MID = "AGENT1475";
     private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
