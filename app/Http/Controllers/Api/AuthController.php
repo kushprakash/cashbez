@@ -180,7 +180,7 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'mobile' => 'required|digits:10',
-            'otp'    => 'required|digits:6',
+            'otp'    => 'required|digits:6'
         ]);
 
         if ($validator->fails()) {
@@ -202,76 +202,7 @@ class AuthController extends Controller
             }
         }
 
-        // 22-11-2025 
-        // check if MID exists in header of request
-        $mid = $request->header('mid') ?? $request->input('mid');
-        if ($mid) {
-            $adminUser = User::where('mid', $mid)->first();
-            // need only id and mid in array of adminData for further use
-            $adminData =  ['id' => $adminUser->id, 'mid' => $adminUser->admin_mid];
-        } else {
-            $adminData = $this->getAdminId();
-        }
-        // End 22-11-2025
-
-        $defaultRole=null;
-        if (!empty($request->refer_by)) {
-
-            $referUser = User::where('mid', $request->refer_by)->first();
-
-            if ($referUser) {
-
-                $adminUser = User::where('mid', $referUser->admin_mid)->first();
-
-                // Current role of referUser
-                $refferRole = Role::where('id', $referUser->role)
-                    ->where('status', 1)
-                    ->where('user_id', $adminUser->id)
-                    ->first();
-
-                if ($refferRole) {
-
-                    // Check if big role exist (guest level + 1)
-                    $newGuestLevel = $refferRole->guest + 1;
-                    $bigRole = Role::where('status', 1)
-                        ->where('user_id', $adminUser->id)
-                        ->where('guest', $newGuestLevel)
-                        ->first();
-
-                    if ($bigRole) {
-                        // Guest → Big role exists
-                        $newRole = $bigRole->id;
-                        $root = $referUser->root . ',' . $referUser->id;
-                    } else {
-                        // Big role does not exist → same role
-                        $newRole = $referUser->role;
-                        $root = $referUser->root; // root referUser ka hi set hoga
-                    }
-
-                    $admin_id = $referUser->admin_mid;
-                }
-
-            } else {
-                // refer_by not found
-                $admin_id = $adminData['mid'];
-                $root = ',' . $adminData['id'];
-                $newRole = $defaultRole ?? null;   // jis role me default lena ho
-            }
-
-
-            if($referUser->role == 10){
-                $newRole = 10;
-                $admin_id = 'ENX0000016';
-                $root = ',21,57,27';
-            }
-
-        } else {
-            // Jab refer_by empty hoga
-            $admin_id = $adminData['mid'];
-            $root = ',' . $adminData['id'];
-            $newRole = $defaultRole ?? null;
-        }
-
+      
 
         // Find or create user
         $user1 = $user = User::where('mobile', $request->mobile)->first();
@@ -304,20 +235,73 @@ class AuthController extends Controller
                 ];
             }
 
+            $defaultRole=null;
+
+            $adminUser = User::where('mid', $referUser->admin_mid)->first();
+
+            $refferRole = Role::where('id', $referUser->role)
+                ->where('status', 1)
+                ->where('user_id', $adminUser->id)
+                ->first();
+
+
+            if (!$refferRole) {
+                return [
+                    'status' => 0,
+                    'message' => 'Please contact administrator. Refferer role not Defined'
+                ];
+            }
+  
+
+            if($referUser->mid==$referUser->admin_mid){
+
+
+                $guestLevel = 1;
+                $bigRole = Role::where('status', 1)
+                    ->where('user_id', $referUser->id)
+                    ->where('guest', $guestLevel)
+                    ->first();
+
+            
+                $newRole = $bigRole->id;
+                $root = $referUser->id;
+                $admin_id = $referUser->mid;
+
+            } else {
+             
+                $nextLevel = $refferRole->guest + 1;
+                $bigRole = Role::where('status', 1)
+                    ->where('user_id', $adminUser->id)
+                    ->where('guest', $nextLevel)
+                    ->first();
+
+                if ($bigRole) {
+                    $newRole = $bigRole->id;
+                    $root = $referUser->root . ',' . $referUser->id;
+                } else {
+                    $newRole = $referUser->role;
+                    $root = $referUser->root;
+                }
+
+                $admin_id = $referUser->admin_mid;
+
+            }
+
+          
+
+    
+
+
             $lastUser = Mid::where('status', 0)->first();
             $nextMid = $lastUser->mid;
             $lastUser->markAsUsed();
 
 
-            if ($newRole == 2) {
-                $admin_id = $nextMid; // Default admin ID if refer_by is invalid
-                $root = '';
-            }
 
             $user1 = User::create([
-                'mid' => $nextMid, // Example: CW0000001 (last mid + 1)
-                'mkey' => Str::random(32), // Generate a unique hash as MKEY
-                'admin_mid' => $admin_id, // ID of the admin creating the user
+                'mid' => $nextMid,
+                'mkey' => Str::random(32), 
+                'admin_mid' => $admin_id, 
                 'mobile' => $request->mobile,
                 'name' => $request->name,
                 'email' => $request->email ?? null,
