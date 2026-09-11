@@ -217,7 +217,13 @@ class AuthController extends Controller
                 ];
             }
 
-            // Referral ID must exist
+            if ($request->refer_by=='AGENT1') {
+                return [
+                    'status' => 0,
+                    'message' => 'Invalid referral ID.'
+                ];
+            }
+
             $referUser = User::where('mid', $request->refer_by)->first();
             if (!$referUser) {
                 return [
@@ -226,7 +232,14 @@ class AuthController extends Controller
                 ];
             }
 
-            // Email must be unique
+            $checkPan = User::where('pan_number', $request->pan_number)->first();
+            if ($checkPan) {
+                return [
+                    'status' => 0,
+                    'message' => 'PAN Number Already Exist.'
+                ];
+            }
+
             $checkEmail = User::where('email', $request->email)->first();
             if ($checkEmail) {
                 return [
@@ -288,9 +301,6 @@ class AuthController extends Controller
             }
 
           
-
-    
-
 
             $lastUser = Mid::where('status', 0)->first();
             $nextMid = $lastUser->mid;

@@ -34,6 +34,7 @@ const Signup = () => {
         name: '',
         email: '',
         refer_by: '',
+        pan_number: '',
     });
     const [roleType, setRoleType] = useState('user'); // 'user', 'api_partner', or 'white_label'
     const [errors, setErrors] = useState({});
@@ -429,18 +430,14 @@ const Signup = () => {
                     name: form.name,
                     email: form.email,
                     refer_by: form.refer_by,
-                    role_type: roleType,
-                    type: roleType,
-                    roleType: roleType,
+                    pan_number: form.pan_number
                 });
                 if (res.data && res.data.status === 1 && res.data.user && res.data.access_token) {
-                    if (roleType === 'api_partner' || roleType === 'white_label') {
-                        localStorage.setItem('token', res.data.access_token);
-                        storeTokenAndUserData(res.data.access_token, res.data.user);
-                        navigate('/dashboard');
-                    } else {
-                        setStep(3);
-                    }
+
+                    localStorage.setItem('token', res.data.access_token);
+                    storeTokenAndUserData(res.data.access_token, res.data.user);
+                    navigate('/dashboard');
+
                 } else {
                     handleApiError(res.data);
                 }
@@ -668,6 +665,22 @@ const Signup = () => {
                                                             />
                                                         </div>
                                                         {errors.name && <div className="text-danger small mt-1">{errors.name}</div>}
+                                                    </div>
+
+
+                                                    <div className="mb-3">
+                                                        <label className="form-label small text-muted fw-bold">PAN Number</label>
+                                                        <div className={styles.inputWrapper}>
+                                                            <input
+                                                                type="text"
+                                                                name="pan_number"
+                                                                value={form.pan_number}
+                                                                onChange={handleChange}
+                                                                placeholder="Enter Your Pan Number"
+                                                                className={`${styles.customInput} ${errors.pan_number ? styles.error : ''}`}
+                                                            />
+                                                        </div>
+                                                        {errors.pan_number && <div className="text-danger small mt-1">{errors.pan_number}</div>}
                                                     </div>
 
                                                     <div className="mb-3">
