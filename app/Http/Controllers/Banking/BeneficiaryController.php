@@ -289,8 +289,8 @@ class BeneficiaryController extends Controller
                 'status' => 1,
                 'admin_id' => $admin->id,
                 'created_by' => $user->id,
-                'ifsc_verified' => $ifscVerification['verified'],
-                'account_verified' => 'verified',
+                'ifsc_verified' => true,
+                'account_verified' => true,
                 'verification_data' => json_encode([
                     'ifsc_data' => $ifscVerification,
                     // 'account_data' => $accountVerification,
