@@ -24,7 +24,7 @@ const AddBeneficiary = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Handle mobile number formatting (only digits)
     let formattedValue = value;
     if (name === 'mobile') {
@@ -33,12 +33,12 @@ const AddBeneficiary = () => {
         formattedValue = formattedValue.slice(0, 10); // Limit to 10 digits
       }
     }
-    
+
     setFormData(prev => ({
       ...prev,
       [name]: formattedValue
     }));
-    
+
     // Clear error for this field
     if (errors[name]) {
       setErrors(prev => ({
@@ -86,8 +86,8 @@ const AddBeneficiary = () => {
     try {
       setLoading(true);
       const apiService = ApiService();
-      const response = await apiService.vPost('/api/v2/banking-send-otp', {});
-      
+      const response = await apiService.vPost('/api/v2/banking-send-otp', { type: 3 });
+
       if (response.data.status === 1) {
         setOtpSent(true);
         toast.success('OTP sent successfully');
@@ -145,7 +145,7 @@ const AddBeneficiary = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -177,32 +177,32 @@ const AddBeneficiary = () => {
 
   return (
     <>
-      <Pageheader 
-        mainheading="Add Beneficiary" 
-        parentfolder="Banking" 
-        activepage="Add Beneficiary" 
+      <Pageheader
+        mainheading="Add Beneficiary"
+        parentfolder="Banking"
+        activepage="Add Beneficiary"
       />
-      
+
       <div className="page-content-box">
         <div className="page-content-box-inner">
           <div className="row ">
             <div className="col-md-8">
               <div className="card">
-              
 
-                 <div className="card-header d-flex justify-content-between align-items-center rounded-top">
-                      <span className="d-flex align-items-center">
-                          <i className="bi bi-person-badge me-2" style={{ fontSize: '1.3rem' }}></i>
-                          <h5 className="mb-0 fw-semibold">Add New Beneficiary</h5>
-                      </span>
-                    <Link to="/banking/beneficiary" className="btn btn-primary text-white d-flex align-items-center">
+
+                <div className="card-header d-flex justify-content-between align-items-center rounded-top">
+                  <span className="d-flex align-items-center">
+                    <i className="bi bi-person-badge me-2" style={{ fontSize: '1.3rem' }}></i>
+                    <h5 className="mb-0 fw-semibold">Add New Beneficiary</h5>
+                  </span>
+                  <Link to="/banking/beneficiary" className="btn btn-primary text-white d-flex align-items-center">
                     <i className="fa fa-list me-1"></i> Beneficiary List
-                      </Link>
-                  </div>
-                
+                  </Link>
+                </div>
+
                 <div className="card-body">
-  
-              
+
+
                   <form onSubmit={handleSubmit}>
                     {/* Hidden field for type */}
                     <input
@@ -210,7 +210,7 @@ const AddBeneficiary = () => {
                       name="type"
                       value={formData.type}
                     />
-                    
+
                     <div className="row">
                       <div className="col-md-6">
                         <div className="mb-3">
@@ -249,7 +249,7 @@ const AddBeneficiary = () => {
                               <div className="invalid-feedback">{errors.mobile}</div>
                             )}
                           </div>
-                        
+
                         </div>
                       </div>
 
@@ -376,7 +376,7 @@ const AddBeneficiary = () => {
                       >
                         <i className="fa fa-arrow-left me-1"></i> Back to List
                       </button>
-                      
+
                       <button
                         type="submit"
                         className="btn btn-primary"
@@ -401,7 +401,7 @@ const AddBeneficiary = () => {
           </div>
         </div>
       </div>
-      
+
       <ToastContainer
         position="top-right"
         autoClose={5000}
