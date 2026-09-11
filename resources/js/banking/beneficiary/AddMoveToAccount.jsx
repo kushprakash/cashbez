@@ -84,7 +84,7 @@ const AddMoveToAccount = ({ isEmbedded = false, onSuccess }) => {
         try {
             setLoading(true);
             const apiService = ApiService();
-            const response = await apiService.vPost('/api/v2/banking-send-otp', {});
+            const response = await apiService.vPost('/api/v2/banking-send-otp', { type: 3 });
 
             if (response.data.status === 1) {
                 setOtpSent(true);

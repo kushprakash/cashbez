@@ -13,6 +13,7 @@ const AddUser = () => {
         aadhar_number: '',
         refer_by: '',
         status: 1, // Default status set to Active
+        is_api_partner: 0,
     });
     const [roles, setRoles] = useState([]);
     const [referName, setReferName] = useState('');
@@ -29,10 +30,17 @@ const AddUser = () => {
     }, []);
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setForm({
-            ...form,
-            [name]: name === 'status' ? Number(value) : value
+        const { name, value, type, checked } = e.target;
+        setForm(prev => {
+            const nextVal = type === 'checkbox' ? (checked ? 1 : 0) : (name === 'status' ? Number(value) : value);
+            const updated = {
+                ...prev,
+                [name]: nextVal
+            };
+            if (name === 'role' && Number(value) !== 2) {
+                updated.is_api_partner = 0;
+            }
+            return updated;
         });
         if (name === 'refer_by') {
             setReferName('');
@@ -76,7 +84,11 @@ const AddUser = () => {
         }
         setLoading(true);
         try {
-            const res = await apiService.vPost('/api/users', form, true, true);
+            const payload = {
+                ...form,
+                is_api_partner: Number(form.role) === 2 && form.is_api_partner ? 1 : 0
+            };
+            const res = await apiService.vPost('/api/users', payload, true, true);
             if (res.data && res.data.status === 1) {
                 navigate('/users/list');
             } else {
@@ -141,6 +153,24 @@ const AddUser = () => {
                                             </select>
                                             {errors.role && <div className="text-danger">{errors.role}</div>}
                                         </div>
+                                        {Number(form.role) === 2 && (
+                                            <div className="mb-3 col-md-3">
+                                                <label className="d-block">&nbsp;</label>
+                                                <div className="form-check mt-1">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="form-check-input"
+                                                        id="is_api_partner"
+                                                        name="is_api_partner"
+                                                        checked={form.is_api_partner == 1}
+                                                        onChange={handleChange}
+                                                    />
+                                                    <label className="form-check-label fw-semibold" htmlFor="is_api_partner" style={{ cursor: 'pointer' }}>
+                                                        Is API Partner <span className="text-muted fw-normal">(optional)</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="mb-3 col-md-3">
                                             <label>Aadhar Number</label>
                                             <input type="text" className="form-control" name="aadhar_number" value={form.aadhar_number} onChange={handleChange} />

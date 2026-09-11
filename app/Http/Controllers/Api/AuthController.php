@@ -887,6 +887,7 @@ class AuthController extends Controller
         ]);
     }
 
+   
     // Create User (Admin)
     public function storeUser(Request $request)
     {
@@ -897,6 +898,7 @@ class AuthController extends Controller
             'aadhar_number' => 'required|string',
             'refer_by' => 'required|string',
             'status' => 'required|integer',
+            'is_api_partner' => 'nullable|boolean',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -905,6 +907,7 @@ class AuthController extends Controller
                 'error' => $validator->errors()
             ], 200);
         }
+
         $referUser = User::where('mid', $request->refer_by)->first();
         if (!$referUser) {
             return response()->json([
@@ -913,26 +916,163 @@ class AuthController extends Controller
             ], 200);
         }
 
+        $adminUser = User::where('mid', $referUser->admin_mid)->first();
+
+        
+        if($referUser->mid==$referUser->admin_mid){
+
+            $guestLevel = 1;
+            $bigRole = Role::where('status', 1)
+                ->where('user_id', $referUser->id)
+                ->where('guest', $guestLevel)
+                ->first();
+
+        
+            $newRole = $bigRole->id;
+            $root = $referUser->id;
+            $admin_id = $referUser->mid;
+
+        } else {
+
+
+            $refferRole = Role::where('id', $referUser->role)->first();
+            
+            $nextLevel = $refferRole->guest + 1;
+            $bigRole = Role::where('status', 1)
+                ->where('user_id', $adminUser->id)
+                ->where('guest', $nextLevel)
+                ->first();
+
+            if ($bigRole) {
+                $newRole = $bigRole->id;
+                $root = $referUser->root . ',' . $referUser->id;
+            } else {
+                $newRole = $referUser->role;
+                $root = $referUser->root;
+            }
+
+            $admin_id = $referUser->admin_mid;
+
+        }
+
+        
+
         $lastUser = Mid::where('status', 0)->first();
         $nextMid = $lastUser->mid;
         $lastUser->markAsUsed();
 
+        if($newRole==2){
+            $root = '';
+            $admin_id = $nextMid;
+        }
+
         $user = User::create([
             'mid' => $nextMid,
             'mkey' => Str::random(32),
-            'admin_mid' => $referUser->role == 2 ? $referUser->mid : $referUser->admin_mid,
+            'admin_mid' => $admin_id,
             'mobile' => $request->mobile,
             'name' => $request->name,
             'email' => $request->email ?? null,
-            'role' => $request->role,
-            'root' => $referUser->root . ',' . $request->id,
+            'role' => $newRole,
+            'root' => $root,
             'refer_by' => $request->refer_by,
-            'status' => $request->status,
+            'is_api_partner' => (($request->role == 2 || $newRole == 2) && !empty($request->is_api_partner)) ? 1 : 0,
+            'status' => 1,
             'aadhar_number' => $request->aadhar_number,
             'password' => Hash::make($request->mobile),
         ]);
+
+
+        $account = Account::create([
+            'user_id' => $user->id,
+            'name' => 'Utility Wallet',
+            'number' => $request->mobile . date('ym') . rand(11, 99), // Example account number
+            'upi' => $request->mobile . '-1@cbz', // Example UPI ID
+            'mpin' => 1234, // Default MPIN
+            'hold_amount' => 0,
+            'created_by' => $user->id,
+            'admin_id' => $user->id,
+            'status' => 1,
+            'primary_status' => false
+        ]);
+
+        $account = Account::create([
+            'user_id' => $user->id,
+            'name' => 'Trade Wallet',
+            'number' => $request->mobile . date('ym') . rand(11, 99), // Example account number
+            'upi' => $request->mobile . '@cbz', // Example UPI ID
+            'mpin' => 1234, // Default MPIN
+            'hold_amount' => 0,
+            'created_by' => $user->id,
+            'admin_id' => $user->id,
+            'status' => 1,
+            'primary_status' => true
+        ]);
+
+
+        if($newRole==2){
+
+            $setting = Setting::where('user_id', 1)->first();
+
+            $newSetting = Setting::create([
+                'user_id' => $user->id,
+                'company_name' => $setting->company_name,
+                'logo' => $setting->logo,
+                'footer_logo' => $setting->footer_logo,
+                'favicon' => $setting->favicon,
+                'playstore_qr_img' => $setting->playstore_qr_img,
+                'playstore_url' => $setting->playstore_url,
+                'sign' => $setting->sign,
+                'about' => $setting->about,
+                'copy_right' => $setting->copy_right,
+                'address' => $setting->address,
+                'email' => $setting->email,
+                'website' => $setting->website,
+                'whatsapp_no' => $setting->whatsapp_no,
+                'mobile_no' => $setting->mobile_no,
+                'landline_no' => $setting->landline_no,
+                'map_url' => $setting->map_url,
+                'meta_title' => $setting->meta_title,
+                'meta_keyword' => $setting->meta_keyword,
+                'meta_description' => $setting->meta_description,
+                'theme_color_primary' => $setting->theme_color_primary,
+                'theme_color_secondary' => $setting->theme_color_secondary,
+                'currency_code' => $setting->currency_code,
+                'paytm_upi_id' => $setting->paytm_upi_id,
+                'paytm_mid' => $setting->paytm_mid,
+                'paytm_sign' => $setting->paytm_sign,
+                'call_back_url' => $setting->call_back_url,
+                'smtp_host' => $setting->smtp_host,
+                'smtp_port' => $setting->smtp_port,
+                'smtp_user' => $setting->smtp_user,
+                'smtp_password' => $setting->smtp_password,
+                'sender_id' => $setting->sender_id,
+                'apikey' => $setting->apikey,
+                'utility_chanel' => $setting->utility_chanel,
+                'min_balance' => $setting->min_balance,
+                'va_create_charge' => $setting->va_create_charge,
+                'va_receive_charge' => $setting->va_receive_charge,
+                'api_vpa_receive_charge' => $setting->api_vpa_receive_charge,
+                'status' => $setting->status,
+
+            ]);
+
+            $messages=DB::table('messages')->where('user_id', $adminUser->id)->get();
+
+            foreach ($messages as $message) {
+                DB::table('messages')->insert([
+                    'user_id' => $user->id,
+                    'name' => $message->name,
+                    'template_id' => $message->template_id,
+                    'message' => $message->message,
+                ]);
+            }
+        }
+
+
         // Assign permissions and commissions from role template
-        $this->assignRolePermissionsAndCommissions($user->id, $user->role);
+        $this->assignRolePermissionsAndCommissions($user->id, $newRole);
+
         return response()->json([
             'status' => 1,
             'message' => 'User created successfully',
@@ -1275,6 +1415,7 @@ class AuthController extends Controller
             return ['id' => 3, 'mid' => 'ENX0000002', 'baseUrl' => $baseUrl]; // Default admin ID
         }
     }
+
     // QR Login Flow
     public function initQrLogin()
     {

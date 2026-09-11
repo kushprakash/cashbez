@@ -18,6 +18,9 @@ use App\Services\CatchLogService;
 
 class BeneficiaryController extends Controller
 {
+    private const MID = "AGENT1475";
+    private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
+
     /**
      * Display a listing of beneficiaries
      */
@@ -212,22 +215,69 @@ class BeneficiaryController extends Controller
                 ], 200);
             }
 
+
+            $url = self::BASE_URL."v2/beneficiaries";
+
+
+            $data = [
+                "name"      => $request->name,
+                "mobile"    => $request->mobile,
+                "account"    => $request->account,
+                "confirmAccount"    => $request->confirmAccount,
+                "ifsc"        => $request->ifsc,
+                "type"  =>1,
+                "otp"=> $request->otp
+            ];
+
+            $ch = curl_init($url);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $response = curl_exec($ch);
+
+
+             DB::table('logs')->insert([
+                'mid'          => $user->mid ?? '',
+                'type'         => 'Add Beneficiary',
+                'platform'     => 'WEB',
+                'headers'      => json_encode([
+                    'Accept'       => 'application/json',
+                    'Content-Type' => 'application/json',
+                    'mid' => self::MID,
+                    'mkey' => self::MKEY,
+                ]),
+                'request_data'  => json_encode($data),
+                'response_data'  => $response,
+                'url'           => $url,
+                'txnid'         => 0,
+                'status'        => 0,
+                'timestamp'    => now(),
+                'created_at'   => now()->format('Y-m-d H:i:s'),
+            ]);
+
+
+            $json_response = json_decode($response, true);
+
+            if(isset($json_response['status']) && $json_response['status']==1){
+
             // Verify IFSC and get branch details
             $ifscVerification = $this->verifyIfsc($request->ifsc);
-            
-            // Verify bank account
-            $accountVerification = $this->verifyBankAccount($request->account, $request->ifsc, $user, $request->type, $admin);
-
-            if (!$accountVerification['verified']) {
-                return response()->json([
-                    'status' => 0,
-                    'message' => $accountVerification['error'] ?? 'Bank account verification failed',
-                    'data' => $accountVerification['response'] ?? null
-                ], 200);
-            }
 
             $beneficiaryData = [
                 'user_id' => $user->id,
+                'bid'   => $json_response['data']['id'],
                 'name' => $request->name,
                 'mobile' => $request->mobile,
                 'account' => $request->account,
@@ -249,16 +299,20 @@ class BeneficiaryController extends Controller
 
             $beneficiary = Beneficiary::create($beneficiaryData);
 
-            // Clear beneficiary cache for this user
-            $this->clearBeneficiaryCache($user->id);
-
-            DB::table('otps')->where('mobile', $mobile)->delete();
-
+          
             return response()->json([
                 'status' => 1,
                 'message' => 'Beneficiary added successfully',
-                'data' => $beneficiary->load(['user', 'admin', 'creator'])
+                'data'  =>  $beneficiary
             ]);
+
+        } else {
+
+               return response()->json([
+                'status' => 0,
+                'message' => $json_response['message'] ?? 'Beneficiary added failed',
+            ]);
+        }
 
         } catch (\Exception $e) {
             return response()->json([
@@ -314,6 +368,8 @@ class BeneficiaryController extends Controller
                 ], 200);
             }
 
+
+
             // Verify IFSC and get branch details
             $ifscVerification = $this->verifyIfsc($request->ifsc);
             
@@ -327,6 +383,40 @@ class BeneficiaryController extends Controller
                     'data' => $accountVerification['response'] ?? null
                 ], 200);
             }
+
+
+            $url = self::BASE_URL."v2/beneficiaries/create";
+
+            $data = [
+                "name"      => $request->name,
+                "mobile"    => $request->mobile,
+                "account"    => $request->account,
+                "confirmAccount"    => $request->confirmAccount,
+                "ifsc"        => $request->ifsc
+            ];
+
+            $ch = curl_init($url);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $response = curl_exec($ch);
+
+
+            $json_response = json_decode($response, true);
+
+            if(isset($json_response['status']) && $json_response['status']==1){
 
             $beneficiaryData = [
                 'user_id' => $user->id,
@@ -362,6 +452,15 @@ class BeneficiaryController extends Controller
                 'message' => 'Beneficiary added successfully',
                 'data' => $beneficiary
             ]);
+
+        } else {
+
+
+            return response()->json([
+                'status' => 0,
+                'message' => 'Failed to add beneficiary'
+            ], 500);
+        }
 
         } catch (\Exception $e) {
             return response()->json([
@@ -1076,61 +1175,135 @@ class BeneficiaryController extends Controller
 
             if(!empty($transactionData['status']) && $transactionData['status'] == 1) {
 
-                // Create payout record
-                $payout = Payout::create([
-                    'user_id' => $user->id,
-                    'beneficiary_id' => $beneficiary->id,
-                    'account_id' => $request->account_id,
-                    'bank_name' => $beneficiary->branch,
-                    'ifsc' => $beneficiary->ifsc,
-                    'name' => $beneficiary->name,
-                    'mobile' => $beneficiary->mobile,
-                    'account' => $beneficiary->account,
-                    'amount' => $request->amount,
-                    'transaction_id' => $request->transaction_id,
-                    'charge' => 0,
-                    'type' => $request->txn_type,
-                    'status' => 'pending',
-                    'status_number' => 0,
-                    'call_back_url' => $request->callback_url,
-                    'admin_id' => $admin->id,
-                    'created_by' => $user->id
+
+                $url = self::BASE_URL."v2/beneficiaries/beneficiary-payment";
+
+                $data = [
+                    "account_id"      => 2669,
+                    "beneficiary_id"    => $beneficiary->bid,
+                    "amount"    => $request->amount,
+                    "details"    => $request->details,
+                    "mpin"        => '1234',
+                    "transaction_id"  => $request->transaction_id,
+                    "channel"=> $request->channel,
+                    "txn_type"=> $request->txn_type
+                ];
+
+                $ch = curl_init($url);
+
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => json_encode($data),
+                    CURLOPT_HTTPHEADER     => [
+                        "Content-Type: application/json",
+                        "Accept: application/json",
+                        "mid: ".self::MID,
+                        "mkey: ".self::MKEY
+                    ],
+                    CURLOPT_TIMEOUT        => 60,
+                    CURLOPT_CONNECTTIMEOUT => 20
                 ]);
 
-                if($beneficiary->type==3){
+                $response = curl_exec($ch);
 
-                    $commissionTransactionData = [
+
+                DB::table('logs')->insert([
+                    'mid'          => $user->mid ?? '',
+                    'type'         => 'Beneficiary Payout',
+                    'platform'     => 'WEB',
+                    'headers'      => json_encode([
+                        'Accept'       => 'application/json',
+                        'Content-Type' => 'application/json',
+                        'mid' => self::MID,
+                        'mkey' => self::MKEY,
+                    ]),
+                    'request_data'  => json_encode($data),
+                    'response_data'  => $response,
+                    'url'           => $url,
+                    'txnid'         => 0,
+                    'status'        => 0,
+                    'timestamp'    => now(),
+                    'created_at'   => now()->format('Y-m-d H:i:s'),
+                ]);
+
+
+                $json_response = json_decode($response, true);
+
+                if(isset($json_response['status']) && $json_response['status']==1){
+
+
+                    // Create payout record
+                    $payout = Payout::create([
                         'user_id' => $user->id,
+                        'beneficiary_id' => $beneficiary->id,
+                        'account_id' => $request->account_id,
+                        'bank_name' => $beneficiary->branch,
+                        'ifsc' => $beneficiary->ifsc,
+                        'name' => $beneficiary->name,
+                        'mobile' => $beneficiary->mobile,
+                        'account' => $beneficiary->account,
                         'amount' => $request->amount,
-                        'sub_module_id' => 51,
-                        'description' => 'MOVE_TO Charge '.$beneficiary->account,
+                        'transaction_id' => $request->transaction_id,
+                        'charge' => 0,
+                        'type' => $request->txn_type,
+                        'status' => 'pending',
+                        'status_number' => 0,
+                        'call_back_url' => $request->callback_url,
                         'admin_id' => $admin->id,
-                        'category_code' => $category_code,
-                        'txn_type' => 'debit',
-                        'account_id' => $request->account_id
-                    ];
+                        'created_by' => $user->id
+                    ]);
 
-                    processCommissionCharge($commissionTransactionData);
+                    if($beneficiary->type==3){
 
+                        $commissionTransactionData = [
+                            'user_id' => $user->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 51,
+                            'description' => 'MOVE_TO Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $request->account_id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+                    } else {
+
+                        $commissionTransactionData = [
+                            'user_id' => $user->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 49,
+                            'description' => 'DMT Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $request->account_id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+                    }
+
+                    return response()->json(['status' => 1, 'message' => 'Transaction Accepted', 'data'=>$transactionData], 200);
                 } else {
 
-                    $commissionTransactionData = [
-                        'user_id' => $user->id,
+
+                    $transactionData = [
+                        'account_id' => $request->account_id,
+                        'mpin' => $request->mpin,
+                        'type' => 'CR',
                         'amount' => $request->amount,
-                        'sub_module_id' => 49,
-                        'description' => 'DMT Charge '.$beneficiary->account,
-                        'admin_id' => $admin->id,
-                        'category_code' => $category_code,
-                        'txn_type' => 'debit',
-                        'account_id' => $request->account_id
+                        'transaction_amount' => $request->amount,
+                        'description' => $category_code.' - '.$beneficiary->account,
+                        'transaction_id' => $request->transaction_id,
+                        'category_code' => $category_code
                     ];
 
-                    processCommissionCharge($commissionTransactionData);
+                    processTransaction($request, $transactionData);
+
+                    return response()->json(['status' => 0, 'message' => 'Transaction failed', 'data' => NULL], 200);
                 }
-
-
-                return response()->json(['status' => 1, 'message' => 'Transaction Accepted', 'data'=>$transactionData], 200);
-          
           
             } else {
                 return response()->json(['status' => 0, 'message' => 'Transaction failed', 'data' => NULL], 200);
