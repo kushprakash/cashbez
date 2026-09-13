@@ -31,49 +31,39 @@ class BeneficiaryController extends Controller
             $user = $request->get('user');
             $perPage = $request->get('per_page', 50);
 
-            // Generate cache key based on user_id and filters
-            $cacheKey = 'beneficiaries_user_' . $user->id . 
-                        '_search_' . ($request->filled('search') ? md5($request->search) : 'none') .
-                        '_verified_' . ($request->filled('verified') ? $request->verified : 'all') .
-                        '_page_' . ($request->get('page', 1)) .
-                        '_per_page_' . $perPage;
+            $query = Beneficiary::with(['user', 'admin', 'creator', 'setting'])
+                ->leftJoin(DB::raw('(SELECT beneficiary_id, MAX(created_at) as last_payment_date, COUNT(*) as payment_count FROM payouts GROUP BY beneficiary_id) as latest_payouts'), 'beneficiaries.id', '=', 'latest_payouts.beneficiary_id')
+                ->select('beneficiaries.*', 'latest_payouts.last_payment_date', 'latest_payouts.payment_count')
+                ->forUser($user->id)
+                ->orderBy('latest_payouts.last_payment_date', 'desc')
+                ->orderBy('beneficiaries.created_at', 'desc')
+                ->where('beneficiaries.type', '<', 5);
 
-            // Cache for 60 minutes (3600 seconds)
-            $beneficiaries = Cache::remember($cacheKey, 3600, function () use ($request, $user, $perPage) {
-                $query = Beneficiary::with(['user', 'admin', 'creator','setting'])
-                    ->leftJoin(DB::raw('(SELECT beneficiary_id, MAX(created_at) as last_payment_date, COUNT(*) as payment_count FROM payouts GROUP BY beneficiary_id) as latest_payouts'), 'beneficiaries.id', '=', 'latest_payouts.beneficiary_id')
-                    ->select('beneficiaries.*', 'latest_payouts.last_payment_date', 'latest_payouts.payment_count')
-                    ->forUser($user->id)
-                    ->orderBy('latest_payouts.last_payment_date', 'desc')
-                    ->orderBy('beneficiaries.created_at', 'desc')
-                    ->where('beneficiaries.type', '<', 5);
+            // Apply search filter
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('beneficiaries.name', 'LIKE', "%{$search}%")
+                      ->orWhere('beneficiaries.mobile', 'LIKE', "%{$search}%")
+                      ->orWhere('beneficiaries.account', 'LIKE', "%{$search}%")
+                      ->orWhere('beneficiaries.ifsc', 'LIKE', "%{$search}%")
+                      ->orWhere('beneficiaries.branch', 'LIKE', "%{$search}%");
+                });
+            }
 
-                // Apply search filter
-                if ($request->filled('search')) {
-                    $search = $request->search;
-                    $query->where(function ($q) use ($search) {
-                        $q->where('beneficiaries.name', 'LIKE', "%{$search}%")
-                          ->orWhere('beneficiaries.mobile', 'LIKE', "%{$search}%")
-                          ->orWhere('beneficiaries.account', 'LIKE', "%{$search}%")
-                          ->orWhere('beneficiaries.ifsc', 'LIKE', "%{$search}%")
-                          ->orWhere('beneficiaries.branch', 'LIKE', "%{$search}%");
+            // Apply verification status filter
+            if ($request->filled('verified')) {
+                if ($request->verified === 'true') {
+                    $query->verified();
+                } elseif ($request->verified === 'false') {
+                    $query->where(function ($q) {
+                        $q->where('beneficiaries.account_verified', false)
+                          ->orWhere('beneficiaries.ifsc_verified', false);
                     });
                 }
+            }
 
-                // Apply verification status filter
-                if ($request->filled('verified')) {
-                    if ($request->verified === 'true') {
-                        $query->verified();
-                    } elseif ($request->verified === 'false') {
-                        $query->where(function ($q) {
-                            $q->where('beneficiaries.account_verified', false)
-                              ->orWhere('beneficiaries.ifsc_verified', false);
-                        });
-                    }
-                }
-
-                return $query->paginate($perPage);
-            });
+            $beneficiaries = $query->paginate($perPage);
 
             return response()->json([
                 'status' => 1,
