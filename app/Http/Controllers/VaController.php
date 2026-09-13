@@ -510,6 +510,21 @@ class VaController extends Controller
         
                 $response = $request->all();
 
+
+
+                  DB::table('logs')->insert([
+                        'mid' => null,
+                        'type' => 'Bharatpay Callback',
+                        'platform' => 'Webhook',
+                        'headers' => NULL,
+                        'request_data' => json_encode($response),
+                        'url' => 'VPA Callback',
+                        'txnid' => rand(999999999, 111111111),
+                        'status' => 0,
+                        'timestamp' => now(),
+                        'created_at' => now()->format('Y-m-d H:i:s'),
+                    ]);
+
                 $eventData = $response['data'] ?? [];
                 if($response['type'] =='vpa_transaction'){
 
@@ -520,18 +535,7 @@ class VaController extends Controller
 
                     $vpa_data = Va::where('virtual_account_id', $virtualAccountId)->first();
 
-                    DB::table('logs')->insert([
-                        'mid' => $vpa_data->mid ?? $virtualAccountId,
-                        'type' => 'VPA Callback',
-                        'platform' => 'Webhook',
-                        'headers' => NULL,
-                        'request_data' => json_encode($eventData),
-                        'url' => 'VPA Callback',
-                        'txnid' => $eventData['id'] ?? rand(999999999, 111111111),
-                        'status' => 0,
-                        'timestamp' => now(),
-                        'created_at' => now()->format('Y-m-d H:i:s'),
-                    ]);
+                  
 
                     if ($vpa_data) {
                         $data = [];
