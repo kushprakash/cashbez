@@ -525,10 +525,11 @@ class VaController extends Controller
                         'created_at' => now()->format('Y-m-d H:i:s'),
                     ]);
 
-                $eventData = $response['data'] ?? [];
+                
                 if($response['type'] =='vpa_transaction'){
+                   
 
-                    $virtualAccountId = $eventData['virtual_account']['id'] ?? null;
+                    $virtualAccountId = $response['data']['virtual_account_id'] ?? null;
                     if (!$virtualAccountId) {
                         return response()->json(['status' => 0, 'message' => 'Virtual Account ID missing in callback data'], 200);
                     }
@@ -627,6 +628,7 @@ class VaController extends Controller
                                                 if ($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
                                                     try {
                                                         $data['id']=$eventData['id'];
+                                                        $data['virtual_account_id']=$virtualAccountId;
                                                         $postData = [
                                                             "type" => "vpa_transaction",
                                                             "data" => $data
