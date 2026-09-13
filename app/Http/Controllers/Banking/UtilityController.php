@@ -1828,127 +1828,50 @@ class UtilityController extends Controller
             $long = number_format((float)$rawLong, 4, '.', '');
             $geoCode = $request->geocode ?? ($lat . ',' . $long);
 
-            //bill fetch api call 
-            $url = 'https://nixopay.in/API/FetchBill';
+           $url = self::BASE_URL."v2/fetch-bill";
 
-            $params = [
-                'UserID'           => '60',
-                'Token'            => '1aaaabf3d07d13fd87b038f8bf77128e',
-                'Account'          => $request->customer_id,
-                'Amount'           => 0,
-                'SPKey'            => $request->biller_code,
-                'APIRequestID'     => rand(111111,999999),
-                'GEOCode'          => $geoCode,
-                'CustomerNumber'   => $user->mobile,
-                'Pincode'          => $pincode ?? '110001',
-                'Format'           => '1',
-                'Optional1'        => $user->mobile,
-                'OutletID'         => '10004'
+
+            $data = [
+                "biller_code"    => $request->biller_code,
+                "customer_id"    => $request->customer_id,
             ];
 
-
-            $url .= '?' . http_build_query($params);
-
-            $ch = curl_init();
+            $ch = curl_init($url);
 
             curl_setopt_array($ch, [
-                CURLOPT_URL            => $url,
                 CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
                 CURLOPT_TIMEOUT        => 60,
-                CURLOPT_CONNECTTIMEOUT => 15,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false,
-                CURLOPT_HTTPGET        => true,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
             $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            $curlErrno = curl_errno($ch);
-            curl_close($ch);
 
-            // Check for CURL errors
-            if ($curlErrno) {
-                Log::error('Fetch Bill CURL Error: ' . $curlError, [
-                    'account' => $request->customer_id,
-                    'curl_errno' => $curlErrno
-                ]);
-                return response()->json([
-                    'status'  => 0,
-                    'message' => 'Connection error while fetching bill: ' . $curlError,
-                    'data'    => null
-                ], 200);
-            }
+            $json_response = json_decode($response, true);
 
-            // Check HTTP response status
-            if ($httpCode != 200 || empty($response)) {
-                return response()->json([
-                    'status'  => 0,
-                    'message' => 'Bill service unavailable (HTTP ' . $httpCode . ')',
-                    'data'    => null
-                ], 200);
-            }
-
-            // Decode JSON
-            $rj = json_decode($response, true);
-            if (!$rj || !is_array($rj)) {
-                return response()->json([
-                    'status'  => 0,
-                    'message' => 'Invalid response from bill service',
-                    'data'    => null,
-                    'raw'     => $response
-                ], 200);
-            }
-
-
-
-
-             // ✅ Step 7: Log API Request BEFORE Call
-            DB::table('logs')->insert([
-                'mid'          => $request->get('user')->mid ?? null,
-                'type'         => 'Bill Fetch',
-                'platform'     => 'API',
-                'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
-                'request_data' => json_encode([
-                    'api_id' => 3,
-                    'api_name' => 'Nixopay',
-                    'target_url' => $url,
-                    'request_type' => 'GET',
-                    'parameters' => $params
-                ]),
-                'response_data' => $response,
-                'url'          => $url,
-                'txnid'        => '',
-                'status'       => 0,
-                'timestamp'    => now(),
-                'created_at'   => now()->format('Y-m-d H:i:s'),
-            ]);
-
-            $nixoStatus = $rj['status'] ?? null;
-            $nixoMsg = $rj['msg'] ?? ($rj['message'] ?? '');
-            $nixoErrorCode = (string)($rj['errorcode'] ?? '');
-
-            // Nixopay Success Status check (status == 2 or errorcode == 200 or msg == "Transaction Successful")
-            if ($nixoStatus == 2 || $nixoErrorCode === '200' || strtolower(trim((string)$nixoMsg)) === 'transaction successful') {
-                $dueAmount = isset($rj['dueamount']) && floatval($rj['dueamount']) > 0 
-                    ? (string)$rj['dueamount'] 
-                    : (isset($rj['amount']) ? (string)$rj['amount'] : '0');
+            if(isset($json_response['status']) && $json_response['status']==1){
 
                 $data = [
                     'operator'     => $request->billerid ?? ($request->biller_code ?? '305'),
-                    'status'       => $nixoStatus,
-                    'message'      => $nixoMsg ?: 'Transaction Successful',
-                    'dueAmount'    => $dueAmount,
-                    'dueDate'      => $rj['duedate'] ?? date('Y-m-d'),
-                    'customerName' => $rj['customername'] ?? ($request->customer_id ?? ''),
-                    'billNumber'   => (string)($rj['billnumber'] ?? ($request->customer_id ?? '')),
-                    'billDate'     => $rj['billdate'] ?? date('Y-m-d'),
-                    'billPeriod'   => $rj['bilperiod'] ?? '',
-                    'refId'        => (string)($rj['refid'] ?? ''),
-                    'fetchBillID'  => $rj['fetchBillID'] ?? 0,
+                    'status'       => $json_response['status'],
+                    'message'      => $json_response['message'] ?: 'Transaction Successful',
+                    'dueAmount'    => $json_response['data']['dueamount'],
+                    'dueDate'      => $json_response['data']['duedate'] ?? date('Y-m-d'),
+                    'customerName' => $json_response['data']['customername'] ?? ($request->customer_id ?? ''),
+                    'billNumber'   => (string)($json_response['data']['billnumber'] ?? ($request->customer_id ?? '')),
+                    'billDate'     => $json_response['data']['billdate'] ?? date('Y-m-d'),
+                    'billPeriod'   => $json_response['data']['billPeriod'] ?? '',
+                    'refId'        => (string)($json_response['data']['refid'] ?? ''),
+                    'fetchBillID'  => $json_response['data']['fetchBillID'] ?? 0,
                     'editable'     => false,
-                    'raw_response' => $rj
+                    'raw_response' => $json_response
                 ];
 
                 return response()->json([
