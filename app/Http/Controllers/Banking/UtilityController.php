@@ -1879,19 +1879,23 @@ class UtilityController extends Controller
 
             $json_response = json_decode($response, true);
 
+
+  
+
             if(isset($json_response['status']) && $json_response['status']==1){
+
 
                 $data = [
                     'operator'     => $request->billerid ?? ($request->biller_code ?? '305'),
                     'status'       => $json_response['status'],
                     'message'      => $json_response['message'] ?: 'Transaction Successful',
-                    'dueAmount'    => $json_response['data']['dueamount'],
-                    'dueDate'      => $json_response['data']['duedate'] ?? date('Y-m-d'),
-                    'customerName' => $json_response['data']['customername'] ?? ($request->customer_id ?? ''),
-                    'billNumber'   => (string)($json_response['data']['billnumber'] ?? ($request->customer_id ?? '')),
-                    'billDate'     => $json_response['data']['billdate'] ?? date('Y-m-d'),
+                    'dueAmount'    => $json_response['data']['dueAmount'],
+                    'dueDate'      => $json_response['data']['dueDate'] ?? date('Y-m-d'),
+                    'customerName' => $json_response['data']['customerName'] ?? ($request->customer_id ?? ''),
+                    'billNumber'   => (string)($json_response['data']['billNumber'] ?? ($request->customer_id ?? '')),
+                    'billDate'     => $json_response['data']['billDate'] ?? date('Y-m-d'),
                     'billPeriod'   => $json_response['data']['billPeriod'] ?? '',
-                    'refId'        => (string)($json_response['data']['refid'] ?? ''),
+                    'refId'        => (string)($json_response['data']['refId'] ?? ''),
                     'fetchBillID'  => $json_response['data']['fetchBillID'] ?? 0,
                     'editable'     => false,
                     'raw_response' => $json_response
