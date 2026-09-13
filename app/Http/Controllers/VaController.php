@@ -658,13 +658,15 @@ class VaController extends Controller
                             }
                         }
                     }
+
+                    return response()->json([
+                        'status' => 1,
+                        'message' => 'VPA Callback processed successfully'
+                    ], 200);
+
                 }
 
-                return response()->json([
-                    'status' => 1,
-                    'message' => 'VPA Callback processed successfully'
-                ], 200);
-
+                
         } catch (Exception $e) {
             \Log::error('vaCallback Exception: ' . $e->getMessage());
             return response()->json([
