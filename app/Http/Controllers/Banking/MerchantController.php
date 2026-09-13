@@ -1973,7 +1973,7 @@ class MerchantController extends Controller
                 }
 
 
-                $count = DB::table('logs')->where("mid", $existingUser->mid)->where("type", "2FA Request")->where("status", 1)->count();
+                $count = DB::table('logs')->where("mid", $existingUser->mid)->where("type", "2FA")->where("status", 1)->count();
                 if ($count >= 2) {
                     $account = Account::where('user_id', $credit_user_id)->where('primary_status', true)->first();
                     if ($account) {
