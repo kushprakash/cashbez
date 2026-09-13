@@ -12,6 +12,9 @@ use DB;
 
 class VaController extends Controller
 {
+    private const BASE_URL = 'https://icchhamatidataservice.com/api/';
+    private const MID = "AGENT1475";
+    private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
     /**
      * Display a listing of the Virtual Account records.
      */
@@ -373,110 +376,66 @@ class VaController extends Controller
                 $va = Va::where('mobile', $user->mobile)->first();
             }
 
-            $key = 'A96334D5FD';
-            $salt = '962A257E0C';
 
-            $payload = [];
-            $payload['key'] = $key;
-            $payload['label'] = $request->name;
-            $payload['description'] = $request->description ?? ($request->name . '-' . $request->account_number);
+            $url = self::BASE_URL."v2/generate-qr";
 
-            $payload['authorized_remitters'] = [
-                [
-                    'account_ifsc'   => $request->account_ifsc,
-                    'account_number' => $request->account_number,
-                ]
+
+            $data = [
+                "name"    => $request->name,
+                "account_number"    => $request->account_number,
+                "account_ifsc" => $request->account_ifsc
             ];
 
-            $string = $key . '|' . $request->name . '|' . $salt;
-            $signature = hash('sha512', $string);
+            $ch = curl_init($url);
 
-            $curl = curl_init();
-
-            curl_setopt_array($curl, [
-                CURLOPT_URL => 'https://wire.easebuzz.in/api/v1/insta-collect/virtual_accounts/',
+            curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_ENCODING => '',
-                CURLOPT_MAXREDIRS => 10,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => 0,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_CUSTOMREQUEST => 'POST',
-                CURLOPT_POSTFIELDS => json_encode($payload),
-                CURLOPT_HTTPHEADER => [
-                    'Authorization: ' . $signature,
-                    'Content-Type: application/json',
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
                 ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
-            $rawResponse = curl_exec($curl);
-            $curlError = null;
-
-            if (curl_errno($curl)) {
-                $curlError = curl_error($curl);
-            }
-
-            curl_close($curl);
-
+            $response = curl_exec($ch);
+            
+            // ✅ Step 7: Log API Request BEFORE Call
             DB::table('logs')->insert([
-                'mid' => $user->mid ?? NULL,
-                'type' => 'VPA Generation API',
-                'platform' => 'API Request',
-                'headers' => json_encode([
-                    'Authorization: ' . $signature,
-                    'Content-Type: application/json'
-                ]),
-                'request_data' => json_encode($payload),
-                'url' => 'https://wire.easebuzz.in/api/v1/insta-collect/virtual_accounts/',
-                'response_data' => $rawResponse ?? null,
-                'txnid' => $txnid,
-                'status' => 0,
-                'timestamp' => now(),
-                'created_at' => now()->format('Y-m-d H:i:s'),
+                'mid'          => $request->get('user')->mid ?? null,
+                'type'         => 'QR Generate',
+                'platform'     => 'API',
+                'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
+                'request_data' => json_encode($data),
+                'response_data' => $response,
+                'url'          => $url,
+                'txnid'        => '',
+                'status'       => 0,
+                'timestamp'    => now(),
+                'created_at'   => now()->format('Y-m-d H:i:s'),
             ]);
 
-            if ($curlError) {
-                // Refund charge
-                createTransaction([
-                    'account_id' => $account->id,
-                    'type' => 'CR',
-                    'amount' => 5,
-                    'description' => 'VPA Generation Failed (cURL Error) & Refund',
-                    'transaction_id' => rand(11111111, 99999999),
-                    'created_by' => $account->admin_id,
-                    'admin_id' => $account->admin_id,
-                    'user_id' => $account->user_id,
-                    'category_code' => 'CHARGE'
-                ]);
+            $json_response = json_decode($response, true);
+  
 
-                return response()->json([
-                    'status' => 0,
-                    'message' => 'cURL Error: ' . $curlError,
-                    'data' => NULL
-                ], 500);
-            }
-
-            $responseArray = json_decode($rawResponse, true);
-
-            if (is_array($responseArray) && isset($responseArray['success']) && $responseArray['success'] == true) {
-                // Easebuzz structure: $responseArray['data']['virtual_account'] or $responseArray['virtual_account'] or $responseArray['data']
-                $vaData = $responseArray['data']['virtual_account'] ?? $responseArray['virtual_account'] ?? $responseArray['data'] ?? $responseArray;
+            if(isset($json_response['status']) && $json_response['status']==1){
 
                 $vData = [
-                    'mid' => $user->mid ?? ($va ? $va->mid : null),
-                    'mobile' => $user->mobile ?? ($va ? $va->mobile : null),
+                    'mid' => $user->mid ?? null,
+                    'mobile' => $user->mobile ?? null,
                     'username' => $request->name,
                     'account_number' => $request->account_number,
                     'account_ifsc' => strtoupper($request->account_ifsc),
-                    'virtual_account_id' => $vaData['id'] ?? null,
-                    'virtual_account_number' => $vaData['virtual_account_number'] ?? null,
-                    'virtual_ifsc' => $vaData['virtual_ifsc_number'] ?? $vaData['virtual_ifsc'] ?? null,
-                    'virtual_upi_handle' => $vaData['virtual_upi_handle'] ?? null,
-                    'qrcode_image' => $vaData['upi_qrcode_remote_file_location'] ?? null,
-                    'qrcode_pdf' => $vaData['upi_qrcode_scanner_remote_file_location'] ?? null,
+                    'virtual_account_id' => $json_response['data']['virtual_account_id'] ?? null,
+                    'virtual_account_number' => $json_response['data']['virtual_account_number'] ?? null,
+                    'virtual_ifsc' => $json_response['data']['virtual_ifsc'] ?? null,
+                    'virtual_upi_handle' => $json_response['data']['virtual_upi_handle'] ?? null,
+                    'qrcode_image' => $json_response['data']['qrcode_image'] ?? null,
+                    'qrcode_pdf' => $json_response['data']['qrcode_pdf'] ?? null,
                     'status' => 1,
                 ];
 
@@ -493,7 +452,7 @@ class VaController extends Controller
 
                 return response()->json([
                     'status' => 1,
-                    'message' => 'Virtual Account QR generated successfully!',
+                    'message' => 'QR generated successfully!',
                     'data' => $va
                 ], 200);
 
@@ -503,7 +462,7 @@ class VaController extends Controller
                 createTransaction([
                     'account_id' => $account->id,
                     'type' => 'CR',
-                    'amount' => 5,
+                    'amount' => $va_charge,
                     'description' => $errorMsg . ' & Refund',
                     'transaction_id' => rand(11111111, 99999999),
                     'created_by' => $account->admin_id,
@@ -549,165 +508,142 @@ class VaController extends Controller
         try {
             // easy buzz virtual account transaction
         
-            $response = $request->all();
+                $response = $request->all();
 
-            if (empty($response) || !isset($response['event'])) {
-                return response()->json([
-                    'status' => 1,
-                    'message' => 'VPA Callback endpoint reached successfully'
-                ], 200);
-            }
-
-            $validEvents = ['TRANSACTION_CREDIT', 'REFUND_INITIATED', 'REFUND_STATUS_UPDATE', 'SETTLEMENT_INITIATED', 'SETTLEMENT_STATUS_UPDATE'];
-
-            if (in_array($response['event'], $validEvents)) {
-                $event = $response['event'];
                 $eventData = $response['data'] ?? [];
+                if($response['type'] =='vpa_transaction'){
 
-                $virtualAccountId = $eventData['virtual_account']['id'] ?? null;
-                if (!$virtualAccountId) {
-                    return response()->json(['status' => 0, 'message' => 'Virtual Account ID missing in callback data'], 200);
-                }
-
-                $vpa_data = Va::where('virtual_account_id', $virtualAccountId)->first();
-
-                DB::table('logs')->insert([
-                    'mid' => $vpa_data->mid ?? $virtualAccountId,
-                    'type' => 'VPA Callback',
-                    'platform' => 'Webhook',
-                    'headers' => NULL,
-                    'request_data' => json_encode($eventData),
-                    'url' => 'VPA Callback',
-                    'txnid' => $eventData['id'] ?? rand(999999999, 111111111),
-                    'status' => 0,
-                    'timestamp' => now(),
-                    'created_at' => now()->format('Y-m-d H:i:s'),
-                ]);
-
-                if ($vpa_data) {
-                    $data = [];
-                    $data['narration'] = $eventData['narration'] ?? null;
-
-                    if ($event == 'TRANSACTION_CREDIT' && in_array($eventData['status'] ?? '', ['received', 'unsettled'])) {
-                        $data['status'] = 'SUCCESS';
-                    } else if ($event == 'REFUND_INITIATED' && ($eventData['status'] ?? '') == 'in_process') {
-                        $data['status'] = 'REFUND_INITIATED';
-                    } else if ($event == 'REFUND_STATUS_UPDATE' && ($eventData['status'] ?? '') == 'success') {
-                        $data['status'] = 'REFUNDED';
-                    } else if ($event == 'SETTLEMENT_INITIATED' && ($eventData['status'] ?? '') == 'in_process') {
-                        $data['status'] = 'PENDING';
-                    } else if ($event == 'SETTLEMENT_STATUS_UPDATE' && ($eventData['status'] ?? '') == 'success') {
-                        $data['status'] = 'SUCCESS';
-                    } else {
-                        $data['status'] = 'PENDING';
+                    $virtualAccountId = $eventData['virtual_account']['id'] ?? null;
+                    if (!$virtualAccountId) {
+                        return response()->json(['status' => 0, 'message' => 'Virtual Account ID missing in callback data'], 200);
                     }
 
-                    $txnId = $eventData['id'] ?? null;
-                    if ($txnId) {
-                        $record = DB::table('vpa_transaction')->where('txn_id', $txnId)->first();
-                        if ($record) {
-                            $data['updated_at'] = date('Y-m-d H:i:s');
-                            DB::table('vpa_transaction')->where('id', $record->id)->update($data);
-                        } else {
-                            $data['remitter_full_name'] = $eventData['remitter_full_name'] ?? null;
-                            $data['remitter_account_number'] = $eventData['remitter_account_number'] ?? null;
-                            $data['remitter_account_ifsc'] = $eventData['remitter_account_ifsc'] ?? null;
-                            $data['remitter_phone_number'] = $eventData['remitter_phone_number'] ?? null;
-                            $data['payment_mode'] = $eventData['payment_mode'] ?? null;
-                            $data['amount'] = $eventData['amount'] ?? 0;
-                            $data['service_charge'] = $eventData['service_charge'] ?? 0;
-                            $data['gst_amount'] = $eventData['gst_amount'] ?? 0;
-                            $data['service_charge_with_gst'] = $eventData['service_charge_with_gst'] ?? 0;
-                            $data['vpa_id'] = $vpa_data->id;
-                            $data['mid'] = $vpa_data->mid;
-                            $data['txn_id'] = $txnId;
-                            $data['utr'] = $eventData['unique_transaction_reference'] ?? null;
-                            $data['created_at'] = date('Y-m-d H:i:s');
+                    $vpa_data = Va::where('virtual_account_id', $virtualAccountId)->first();
 
-                            $id = DB::table('vpa_transaction')->insertGetId($data);
+                    DB::table('logs')->insert([
+                        'mid' => $vpa_data->mid ?? $virtualAccountId,
+                        'type' => 'VPA Callback',
+                        'platform' => 'Webhook',
+                        'headers' => NULL,
+                        'request_data' => json_encode($eventData),
+                        'url' => 'VPA Callback',
+                        'txnid' => $eventData['id'] ?? rand(999999999, 111111111),
+                        'status' => 0,
+                        'timestamp' => now(),
+                        'created_at' => now()->format('Y-m-d H:i:s'),
+                    ]);
 
-                            $user = DB::table('users')->where('mid', $vpa_data->mid)->first();
+                    if ($vpa_data) {
+                        $data = [];
+                    
+                        $txnId = $eventData['id'] ?? null;
+                        if ($txnId) {
+                            $record = DB::table('vpa_transaction')->where('txn_id', $txnId)->first();
+                            if ($record) {
+                                $data['updated_at'] = date('Y-m-d H:i:s');
+                                DB::table('vpa_transaction')->where('id', $record->id)->update($data);
+                            } else {
+                                $data['remitter_full_name'] = $eventData['remitter_full_name'] ?? null;
+                                $data['remitter_account_number'] = $eventData['remitter_account_number'] ?? null;
+                                $data['remitter_account_ifsc'] = $eventData['remitter_account_ifsc'] ?? null;
+                                $data['remitter_phone_number'] = $eventData['remitter_phone_number'] ?? null;
+                                $data['payment_mode'] = $eventData['payment_mode'] ?? null;
+                                $data['amount'] = $eventData['amount'] ?? 0;
+                                $data['service_charge'] = $eventData['service_charge'] ?? 0;
+                                $data['gst_amount'] = $eventData['gst_amount'] ?? 0;
+                                $data['service_charge_with_gst'] = $eventData['service_charge_with_gst'] ?? 0;
+                                $data['vpa_id'] = $vpa_data->id;
+                                $data['mid'] = $vpa_data->mid;
+                                $data['txn_id'] = $txnId;
+                                $data['utr'] = $eventData['utr'] ?? null;
+                                $data['created_at'] = date('Y-m-d H:i:s');
 
-                            if ($user) {
-                                $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+                                $id = DB::table('vpa_transaction')->insertGetId($data);
 
-                                if ($account) {
+                                $user = DB::table('users')->where('mid', $vpa_data->mid)->first();
+
+                                if ($user) {
+                                    $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+
+                                    if ($account) {
 
 
-                                    $amt = (float) ($eventData['amount'] ?? 0);
-                                    
-
-                                    $transactionData1 = [
-                                        'account_id' => $account->id,
-                                        'type' => 'CR',
-                                        'amount' => $amt,
-                                        'description' => 'VPA Credit',
-                                        'transaction_id' => $txnId.'_CR',
-                                        'created_by' => $account->user_id,
-                                        'admin_id' => $account->admin_id,
-                                        'user_id' => $account->user_id,
-                                        'category_code' => 'DEPOSIT'
-                                    ];
-
-                                    if ($data['status'] == 'SUCCESS') {
-
-                                        $transactionData = createTransaction($transactionData1);
-
-                                        $settings = DB::table('settings')->where('user_id', $account->admin_id)->first();
-                                        $charge = $settings->va_receive_charge ?? 0;
+                                        $amt = (float) ($eventData['amount'] ?? 0);
                                         
-                                        $credit_user_id = $account->user_id;
-                                        $is_api_partner = false;
 
-                                        $adminData = User::where('id', $account->admin_id)->first();
-                                        if ($adminData && $adminData->is_api_partner == true) {
-                                            $credit_user_id = $adminData->id;
-                                            $is_api_partner = true;
-                                            $charge = $settings->api_vpa_receive_charge ?? 0;
-                                        } 
-
-                                        $transactionData13 = [
+                                        $transactionData1 = [
                                             'account_id' => $account->id,
-                                            'type' => 'DR',
-                                            'amount' => $charge,
-                                            'description' => 'VPA Credit Charge',
-                                            'transaction_id' => $txnId.'_DR',
+                                            'type' => 'CR',
+                                            'amount' => $amt,
+                                            'description' => 'VPA Credit',
+                                            'transaction_id' => $txnId.'_CR',
                                             'created_by' => $account->user_id,
                                             'admin_id' => $account->admin_id,
                                             'user_id' => $account->user_id,
-                                            'category_code' => 'CHARGE'
+                                            'category_code' => 'DEPOSIT'
                                         ];
 
-                                        if($charge>0){
-                                            $transactionData2 = createTransaction($transactionData13);
-                                        }
+                                        if ($data['status'] == 'SUCCESS') {
 
-                                        
+                                            $transactionData = createTransaction($transactionData1);
 
-                                        if ($is_api_partner == true) {
-                                            $setting = Setting::where('user_id', $credit_user_id)->first();
-                                            if ($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
-                                                try {
-                                                    $postData = [
-                                                        "type" => "vpa_transaction",
-                                                        "data" => $data
-                                                    ];
+                                            $settings = DB::table('settings')->where('user_id', $account->admin_id)->first();
+                                            $charge = $settings->va_receive_charge ?? 4;
+                                            
+                                            $credit_user_id = $account->user_id;
+                                            $is_api_partner = false;
 
-                                                    $ch = curl_init($setting->call_back_url);
-                                                    $payload = json_encode($postData);
+                                            $adminData = User::where('id', $account->admin_id)->first();
+                                            if ($adminData && $adminData->is_api_partner == true) {
+                                                $credit_user_id = $adminData->id;
+                                                $is_api_partner = true;
+                                                $charge = $settings->api_vpa_receive_charge ?? 0;
+                                            } 
 
-                                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                                    curl_setopt($ch, CURLOPT_POST, true);
-                                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                                        'Content-Type: application/json',
-                                                        'Content-Length: ' . strlen($payload)
-                                                    ]);
-                                                    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                                            $transactionData13 = [
+                                                'account_id' => $account->id,
+                                                'type' => 'DR',
+                                                'amount' => $charge,
+                                                'description' => 'VPA Credit Charge',
+                                                'transaction_id' => $txnId.'_DR',
+                                                'created_by' => $account->user_id,
+                                                'admin_id' => $account->admin_id,
+                                                'user_id' => $account->user_id,
+                                                'category_code' => 'CHARGE'
+                                            ];
 
-                                                    curl_exec($ch);
-                                                    curl_close($ch);
-                                                } catch (\Exception $e) {
-                                                    \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                                            if($charge>0){
+                                                $transactionData2 = createTransaction($transactionData13);
+                                            }
+
+                                            
+
+                                            if ($is_api_partner == true) {
+                                                $setting = Setting::where('user_id', $credit_user_id)->first();
+                                                if ($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
+                                                    try {
+                                                        $data['id']=$eventData['id'];
+                                                        $postData = [
+                                                            "type" => "vpa_transaction",
+                                                            "data" => $data
+                                                        ];
+
+                                                        $ch = curl_init($setting->call_back_url);
+                                                        $payload = json_encode($postData);
+
+                                                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                                        curl_setopt($ch, CURLOPT_POST, true);
+                                                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                                            'Content-Type: application/json',
+                                                            'Content-Length: ' . strlen($payload)
+                                                        ]);
+                                                        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+                                                        curl_exec($ch);
+                                                        curl_close($ch);
+                                                    } catch (\Exception $e) {
+                                                        \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                                                    }
                                                 }
                                             }
                                         }
@@ -717,12 +653,11 @@ class VaController extends Controller
                         }
                     }
                 }
-            }
 
-            return response()->json([
-                'status' => 1,
-                'message' => 'VPA Callback processed successfully'
-            ], 200);
+                return response()->json([
+                    'status' => 1,
+                    'message' => 'VPA Callback processed successfully'
+                ], 200);
 
         } catch (Exception $e) {
             \Log::error('vaCallback Exception: ' . $e->getMessage());
