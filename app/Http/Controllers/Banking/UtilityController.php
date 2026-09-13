@@ -1854,6 +1854,29 @@ class UtilityController extends Controller
 
             $response = curl_exec($ch);
 
+
+
+              // ✅ Step 7: Log API Request BEFORE Call
+            DB::table('logs')->insert([
+                'mid'          => $request->get('user')->mid ?? null,
+                'type'         => 'Bill Fetch',
+                'platform'     => 'API',
+                'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
+                'request_data' => json_encode([
+                    'api_id' => 3,
+                    'api_name' => 'Nixopay',
+                    'target_url' => $url,
+                    'request_type' => 'POST',
+                    'parameters' => $data
+                ]),
+                'response_data' => $response,
+                'url'          => $url,
+                'txnid'        => '',
+                'status'       => 0,
+                'timestamp'    => now(),
+                'created_at'   => now()->format('Y-m-d H:i:s'),
+            ]);
+
             $json_response = json_decode($response, true);
 
             if(isset($json_response['status']) && $json_response['status']==1){
