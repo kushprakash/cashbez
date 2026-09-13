@@ -1170,7 +1170,7 @@ class BeneficiaryController extends Controller
                 $url = self::BASE_URL."v2/beneficiaries/beneficiary-payment";
 
                 $data = [
-                    "account_id"      => 2669,
+                    "account_id"      => 2667,
                     "beneficiary_id"    => $beneficiary->bid,
                     "amount"    => $request->amount,
                     "details"    => $request->details,
