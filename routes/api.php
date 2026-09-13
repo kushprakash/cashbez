@@ -501,8 +501,8 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('/banking-send-otp', [AccountController::class, 'sendOtp']);
         Route::post('/banking-verify-otp', [AccountController::class, 'verifyOtp']);
        
-        Route::post('/mobile-plan', [UtilityController::class, 'mobilePlan'])->defaults('smodule', 2);
-        Route::post('/mobile-recharge', [UtilityController::class, 'processRecharge'])->defaults('smodule', 2);
+        Route::post('/mobile-plan', [UtilityController::class, 'mobilePlan']);
+        Route::post('/mobile-recharge', [UtilityController::class, 'processRecharge']);
         Route::post('/getOperator', [UtilityController::class, 'getOperator']);
         Route::post('/getCircles', [UtilityController::class, 'getCircles']);
         Route::get('/getCircles', [UtilityController::class, 'getCircles']);
@@ -512,10 +512,10 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('/cmsLogin', [CMSController::class, 'cmsLogin']);
         Route::get('/cmsHistory', [CMSController::class, 'cmsHistory']);
         // Bill payment routes
-        Route::get('/bill-categories', [UtilityController::class, 'getBillCategories'])->defaults('smodule', 3);
-        Route::post('/billers-by-category', [UtilityController::class, 'getBillersByCategory'])->defaults('smodule', 3);
-        Route::post('/fetch-bill', [UtilityController::class, 'fetchBill'])->defaults('smodule', 3);
-        Route::post('/bill-payment', [UtilityController::class, 'processRecharge'])->defaults('smodule', 3);
+        Route::get('/bill-categories', [UtilityController::class, 'getBillCategories']);
+        Route::post('/billers-by-category', [UtilityController::class, 'getBillersByCategory']);
+        Route::post('/fetch-bill', [UtilityController::class, 'fetchBill']);
+        Route::post('/bill-payment', [UtilityController::class, 'processRecharge']);
         Route::post('/bill-status', [UtilityController::class, 'checkStatus']);
         Route::get('/payouts', [BeneficiaryController::class, 'payouts']);
         Route::get('/money-transfer', [BeneficiaryController::class, 'MoneyTransfer']);
@@ -546,8 +546,8 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('/manualPerform3WayMATM', [MerchantController::class, 'manualPerform3WayMATM']);
 
         Route::prefix('aeps')->group(function () {
-            Route::get('/state-list', [MerchantController::class, 'aepsStateList'])->defaults('smodule', 1);
-            Route::post('/draft', [MerchantController::class, 'aepsDraft'])->defaults('smodule', 1);
+            Route::get('/state-list', [MerchantController::class, 'aepsStateList']);
+            Route::post('/draft', [MerchantController::class, 'aepsDraft']);
             Route::post('/draft-data', [MerchantController::class, 'aepsDraftData']);
             Route::post('/send-mobile-otp', [MerchantController::class, 'sendMobileOtp']);
             Route::post('/verify-mobile-otp', [MerchantController::class, 'verifyMobileOtp']);
@@ -562,7 +562,7 @@ Route::middleware('api.token.auth')->group(function () {
             Route::post('/verify-otp', [MerchantController::class, 'verifyOtp']);
             Route::post('/biometric-ekyc', [MerchantController::class, 'biometricEkyc']);
             Route::post('/change-device', [MerchantController::class, 'changeDevice']);
-            Route::post('/2fa', [MerchantController::class, 'twoFA'])->defaults('smodule', 1);
+            Route::post('/2fa', [MerchantController::class, 'twoFA']);
             Route::post('/doAeps', [MerchantController::class, 'doAeps']);
             Route::post('/send-aeps-otp', [MerchantController::class, 'sendAepsOtp']);
 

@@ -26,6 +26,10 @@ use App\Services\CatchLogService;
 
 class UtilityController extends Controller
 {
+    private const BASE_URL = 'https://icchhamatidataservice.com/api/';
+    private const MID = "AGENT1475";
+    private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
+
     public function mobilePlan(Request $request)
     {
         try {
@@ -115,151 +119,51 @@ class UtilityController extends Controller
     
     private function getPlan($number){
         try {
-            $mid = '6315';
-            $mkey = 'SANDIPs7384@#$';     
-            $ch = curl_init();
-            $timeout = 30; // Set reasonable timeout
+           
+            $url = self::BASE_URL."v2/mobile-plan";
 
-            $url = "https://planapi.in/api/Mobile/OperatorFetchNew?ApiUserID=" . urlencode($mid) .
-                "&ApiPassword=" . urlencode($mkey) .
-                "&Mobileno=" . urlencode($number);
 
-            $ch = curl_init();
+            $data = [
+                "number"    => $number
+            ];
+
+            $ch = curl_init($url);
 
             curl_setopt_array($ch, [
-                CURLOPT_URL            => $url,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HEADER         => false,
-                CURLOPT_CONNECTTIMEOUT => 30,
-                CURLOPT_TIMEOUT        => 30,
-                CURLOPT_SSL_VERIFYPEER => false, // Remove in production if SSL is properly configured
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
 
-            $jsonxx  = curl_exec($ch);
-            $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curl_errno = curl_error($ch);
-            $curlErrno = curl_errno($ch);
+            $response = curl_exec($ch);
 
-            curl_close($ch);
-         
-            
-            // Check for curl errors
-            if ($curl_errno) {
-                Log::error('getPlan CURL Error: ' . $curl_error, [
-                    'number' => $number,
-                    'url' => $myurl2,
-                    'curl_errno' => $curl_errno
-                ]);
-                return ['status' => 0, 'message' => 'Connection error: ' . $curl_error, 'data' => NULL];
-            }
-            
-            $data = json_decode($jsonxx, true);
-            
-            // Check if JSON decode was successful
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                Log::error('getPlan JSON Decode Error', [
-                    'number' => $number,
-                    'response' => $jsonxx,
-                    'json_error' => json_last_error_msg()
-                ]);
-                return ['status' => 0, 'message' => 'Invalid API response', 'data' => NULL];
-            }
-            
-            // Check if required fields exist
-            if (!isset($data['OpCode']) || !isset($data['CircleCode']) || !isset($data['STATUS'])) {
-                Log::warning('getPlan: Missing required fields in response', [
-                    'number' => $number,
-                    'response' => $data
-                ]);
-                return ['status' => 0, 'message' => 'Invalid response structure', 'data' => $data];
-            }
+            $json_response = json_decode($response, true);
 
-            $operator = $data['OpCode'];
-            $circle = $data['CircleCode'];
-            $status = $data['STATUS'];
-            $message = $data['Message'] ?? '';
-            $operatorname = $data['Operator'] ?? '';
-            $ciname = $data['Circle'] ?? '';
-
-            if ($operator != "" && $status == "1") {
-
-
-
-                $url = "https://planapi.in/api/Mobile/MobileRechargePlan?apimember_id=" . urlencode($mid) .
-                "&api_password=" . urlencode($mkey) .
-                "&operatorcode=" . urlencode($operator) . "&cricle=" . urlencode($circle);
-
-                $ch = curl_init();
-
-                curl_setopt_array($ch, [
-                    CURLOPT_URL            => $url,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_HEADER         => false,
-                    CURLOPT_CONNECTTIMEOUT => 30,
-                    CURLOPT_TIMEOUT        => 30,
-                    CURLOPT_SSL_VERIFYPEER => false, // Remove in production if SSL is properly configured
-                ]);
-
-                $res_data  = curl_exec($ch);
-                $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                $curl_errno = curl_error($ch);
-                $curlErrno = curl_errno($ch);
-
-                curl_close($ch);
-
-                // Check for curl errors on plan fetch
-                if ($curl_errno) {
-                    Log::error('getPlan Rplan CURL Error: ' . $curl_error, [
-                        'number' => $number,
-                        'operator' => $operator,
-                        'circle' => $circle,
-                        'curl_errno' => $curl_errno
-                    ]);
-                    return ['status' => 0, 'message' => 'Failed to fetch plans: ' . $curl_error, 'data' => NULL];
-                }
-                
-                $x = json_decode($res_data,true);
-                
-                // Check if plan data exists
-                if (!$x || !isset($x['RDATA'])) {
-                    Log::warning('getPlan: No plan data in response', [
-                        'number' => $number,
-                        'operator' => $operator,
-                        'circle' => $circle,
-                        'response' => $res_data
-                    ]);
-                    // Return success with empty plans instead of failing
-                    $ds = [
-                        'operatorname' => $operatorname,
-                        'operator' => $operator,
-                        'circalname' => $ciname,
-                        'circal' => $circle,
-                        'plan' => []
-                    ];
-                    return ['status' => 1, 'message' => 'success', 'data' => $ds];
-                }
-
-                $d = $x['RDATA'];
+            if(isset($json_response['status']) && $json_response['status']==1){
 
                 $ds = [
-                    'operatorname' => $operatorname,
-                    'operator' => $operator,
-                    'circalname' => $ciname, 
-                    'circal' => $circle, 
-                    'plan' => $d,
+                    'operatorname' => $json_response['data']['operatorname'],
+                    'operator' => $json_response['data']['operator'],
+                    'circalname' => $json_response['data']['circalname'], 
+                    'circal' => $json_response['data']['circal'], 
+                    'plan' => $json_response['data']['plan'],
                 ];
                 
                 return ['status' => 1, 'message' => 'success', 'data' => $ds];
 
             } else {
-                Log::info('getPlan: Invalid mobile number or failed status', [
-                    'number' => $number,
-                    'status' => $status,
-                    'message' => $message
-                ]);
-                return ['status' => 0, 'message' => 'Invalid Mobile Number', 'data' => $data];
+
+                return ['status' => 0, 'message' =>'Plan not found', 'data' => NULL];
             }
-            
+
         } catch (\Exception $e) {
             Log::error('getPlan Exception: ' . $e->getMessage(), [
                 'number' => $number,
