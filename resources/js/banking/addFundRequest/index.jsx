@@ -272,8 +272,12 @@ const AddFundRequest = () => {
     }, [searchParams, easebuzzLoaded, hasAutoTriggered, loading, initiatePaymentFlow, utilityWallet]);
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        await initiatePaymentFlow(accountId || utilityWallet?.id, amount);
+
+        toast.error('Service temporarily down please try after some time');
+        return;
+
+        // e.preventDefault();
+        // await initiatePaymentFlow(accountId || utilityWallet?.id, amount);
     };
 
     // Quick amount setter
