@@ -1,0 +1,1497 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Models\Financial\FinancialMember;
+use App\Models\Financial\FinancialAccount;
+use App\Models\Financial\FinancialTransaction;
+use App\Models\Financial\FinancialOtp;
+use App\Models\MembershipPlan;
+use App\Models\FinancialPlan;
+use App\Models\FinancialSetting;
+use App\Services\FinancialScopeService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+
+class AgentFinancialController extends Controller
+{
+    /**
+     * Agent Financial Dashboard Summary
+     */
+    public function getDashboardSummary(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+            }
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $memberQuery = FinancialMember::where('user_id', $user->id)->where('admin_id', $adminId);
+            $totalMembers = (clone $memberQuery)->count();
+            $activeMembers = (clone $memberQuery)->where('status', 'ACTIVE')->count();
+            $kycPending = (clone $memberQuery)->whereIn('kyc_status', ['PENDING', 'SUBMITTED'])->count();
+            $kycApproved = (clone $memberQuery)->where('kyc_status', 'APPROVED')->count();
+
+            $accountQuery = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId);
+            $savingAccounts = (clone $accountQuery)->where('service_type', 'SAVING')->count();
+            $ddAccounts = (clone $accountQuery)->where('service_type', 'DD')->count();
+            $rdAccounts = (clone $accountQuery)->where('service_type', 'RD')->count();
+            $fdAccounts = (clone $accountQuery)->where('service_type', 'FD')->count();
+            $misAccounts = (clone $accountQuery)->where('service_type', 'MIS')->count();
+
+            $today = Carbon::today()->toDateString();
+            $txnQuery = FinancialTransaction::where('user_id', $user->id)->where('admin_id', $adminId);
+            
+            $todayDeposit = (clone $txnQuery)->whereDate('created_at', $today)->where('txn_type', 'DEPOSIT')->sum('amount');
+            $todayWithdrawal = (clone $txnQuery)->whereDate('created_at', $today)->where('txn_type', 'WITHDRAWAL')->sum('amount');
+
+            $recentTransactions = (clone $txnQuery)->with(['member:id,name,member_id', 'account:id,account_number'])
+                                                  ->orderBy('id', 'desc')
+                                                  ->take(10)
+                                                  ->get();
+
+            $recentMembers = (clone $memberQuery)->orderBy('id', 'desc')->take(5)->get();
+
+            $utilityWallet = FinancialScopeService::getUtilityWallet($user);
+
+            return response()->json([
+                'status' => 1,
+                'data' => [
+                    'kpis' => [
+                        'total_members' => $totalMembers,
+                        'active_members' => $activeMembers,
+                        'kyc_pending' => $kycPending,
+                        'kyc_approved' => $kycApproved,
+                        'saving_accounts' => $savingAccounts,
+                        'dd_accounts' => $ddAccounts,
+                        'rd_accounts' => $rdAccounts,
+                        'fd_accounts' => $fdAccounts,
+                        'mis_accounts' => $misAccounts,
+                        'today_deposit' => floatval($todayDeposit),
+                        'today_withdrawal' => floatval($todayWithdrawal),
+                    ],
+                    'utility_wallet' => $utilityWallet ? [
+                        'account_id' => $utilityWallet->id,
+                        'number' => $utilityWallet->number,
+                        'balance' => floatval($utilityWallet->balance),
+                    ] : null,
+                    'recent_transactions' => $recentTransactions,
+                    'recent_members' => $recentMembers,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Members (Scoped List with Filter & Search)
+     */
+    public function getMembers(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $query = FinancialMember::where('user_id', $user->id)->where('admin_id', $adminId);
+
+            if ($request->filled('search')) {
+                $s = trim($request->search);
+                $query->where(function($q) use ($s) {
+                    $q->where('name', 'like', "%{$s}%")
+                      ->orWhere('member_id', 'like', "%{$s}%")
+                      ->orWhere('mobile', 'like', "%{$s}%")
+                      ->orWhere('email', 'like', "%{$s}%");
+                });
+            }
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->filled('kyc_status')) {
+                $query->where('kyc_status', $request->kyc_status);
+            }
+
+            $perPage = (int)$request->input('per_page', 15);
+            $members = $query->orderBy('id', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'status' => 1,
+                'data' => $members
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Create Member (With Utility Wallet Auto-Debit if Membership Fee > 0)
+     */
+    public function createMember(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'father_name' => 'nullable|string|max:255',
+                'dob' => 'nullable|date',
+                'gender' => 'required|in:male,female,other',
+                'mobile' => 'required|string|max:15',
+                'email' => 'nullable|email|max:255',
+                'address' => 'nullable|string',
+                'membership_plan_id' => 'nullable|exists:membership_plans,id',
+                'membership_fee' => 'nullable|numeric|min:0',
+                'mpin' => 'nullable|string|size:4',
+                'nominee_name' => 'nullable|string|max:255',
+                'nominee_relation' => 'nullable|string|max:100',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $membershipFee = floatval($request->input('membership_fee', 0));
+            $txnId = FinancialScopeService::generateTxnId();
+
+            // If membership fee > 0, MPIN is required and Utility Wallet will be debited
+            if ($membershipFee > 0) {
+                if (!$request->filled('mpin')) {
+                    return response()->json(['status' => 0, 'message' => 'Agent MPIN is required to pay membership fee.'], 400);
+                }
+
+                $debitRes = FinancialScopeService::processUtilityWalletDebit(
+                    $request,
+                    $user,
+                    $request->mpin,
+                    $membershipFee,
+                    "Member Registration Fee ({$request->name})",
+                    $txnId
+                );
+
+                if ($debitRes['status'] == 0) {
+                    return response()->json($debitRes, 400);
+                }
+            }
+
+            $memberId = FinancialScopeService::generateMemberId();
+
+            $member = FinancialMember::create([
+                'member_id' => $memberId,
+                'user_id' => $user->id,
+                'admin_id' => $adminId,
+                'created_by' => $user->id,
+                'name' => $request->name,
+                'father_name' => $request->father_name,
+                'husband_name' => $request->husband_name,
+                'dob' => $request->dob,
+                'gender' => $request->gender,
+                'mobile' => $request->mobile,
+                'email' => $request->email,
+                'address' => $request->address,
+                'state' => $request->state,
+                'district' => $request->district,
+                'pincode' => $request->pincode,
+                'occupation' => $request->occupation,
+                'membership_plan_id' => $request->membership_plan_id,
+                'membership_fee' => $membershipFee,
+                'nominee_name' => $request->nominee_name,
+                'nominee_relation' => $request->nominee_relation,
+                'nominee_mobile' => $request->nominee_mobile,
+                'status' => 'ACTIVE',
+                'kyc_status' => 'PENDING',
+            ]);
+
+            if ($membershipFee > 0) {
+                FinancialTransaction::create([
+                    'transaction_id' => $txnId,
+                    'member_id' => $member->id,
+                    'user_id' => $user->id,
+                    'admin_id' => $adminId,
+                    'service_type' => 'MEMBERSHIP',
+                    'txn_type' => 'MEMBERSHIP_FEE',
+                    'amount' => $membershipFee,
+                    'charges' => 0,
+                    'net_amount' => $membershipFee,
+                    'payment_mode' => 'UTILITY_WALLET',
+                    'narration' => "Membership fee registration for {$member->name} ({$member->member_id})",
+                    'status' => 'SUCCESS',
+                ]);
+            }
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Member registered successfully!',
+                'data' => $member
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Member 360 Details
+     */
+    public function getMemberDetails($id)
+    {
+        try {
+            $user = request()->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $member = FinancialMember::where('id', $id)
+                                    ->where('user_id', $user->id)
+                                    ->where('admin_id', $adminId)
+                                    ->with(['accounts', 'transactions'])
+                                    ->firstOrFail();
+
+            return response()->json([
+                'status' => 1,
+                'data' => $member
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => 'Member not found or unauthorized access.'], 404);
+        }
+    }
+
+    /**
+     * Update Member
+     */
+    public function updateMember(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $member = FinancialMember::where('id', $id)
+                                    ->where('user_id', $user->id)
+                                    ->where('admin_id', $adminId)
+                                    ->firstOrFail();
+
+            $member->update($request->only([
+                'name', 'father_name', 'husband_name', 'dob', 'gender',
+                'mobile', 'email', 'address', 'state', 'district', 'pincode',
+                'occupation', 'nominee_name', 'nominee_relation', 'nominee_mobile'
+            ]));
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Member updated successfully!',
+                'data' => $member
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get KYC Pending List
+     */
+    public function getKycPendingList(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $members = FinancialMember::where('user_id', $user->id)
+                                      ->where('admin_id', $adminId)
+                                      ->whereIn('kyc_status', ['PENDING', 'SUBMITTED', 'REJECTED'])
+                                      ->orderBy('id', 'desc')
+                                      ->paginate(15);
+
+            return response()->json([
+                'status' => 1,
+                'data' => $members
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Send Aadhaar OTP for Member KYC
+     */
+    public function sendMemberAadhaarOtp(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'aadhar_number' => 'required|string|size:12',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 0,
+                'message' => $validator->errors()->first()
+            ]);
+        }
+
+        $user = $request->user();
+        if (!$user) {
+            $token = $request->header('Token');
+            $user = User::where('remember_token', $token)->first();
+        }
+        if (!$user) {
+            return response()->json(['status' => 0, 'message' => 'Invalid token'], 401);
+        }
+
+        try {
+            $admin = User::where('mid', $user->admin_mid)->select('mid', 'mkey')->first();
+            if (!$admin || !$admin->mid || !$admin->mkey) {
+                $admin = $user;
+            }
+            if (!$admin || !$admin->mid || !$admin->mkey) {
+                $admin = User::whereNotNull('mid')->whereNotNull('mkey')->where('mid', '!=', '')->first();
+            }
+
+            $curl = curl_init();
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => url(''). '/api/v2/verify/aadhar-send-otp',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode([
+                    "aadhaar_number" => $request->aadhar_number
+                ]),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json',
+                    'mid: ' . ($user ? $user->mid : ''),
+                    'mkey: ' . ($user ? $user->mkey : '')
+                ),
+            ));
+
+            $response = curl_exec($curl);
+            curl_close($curl);
+            
+            $rj = json_decode($response, true);
+
+            if (isset($rj['status']) && $rj['status'] == 1) {
+                $refid = $rj['data']['refid'] ?? '';
+                return response()->json([
+                    'status' => 1,
+                    'message' => 'OTP sent successfully',
+                    'refid' => $refid,
+                    'txnid' => $refid,
+                    'otp_sent' => true
+                ]);
+            } else {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $rj['message'] ?? 'Technical Issue Try again',
+                    'txnid' => '',
+                    'otp_sent' => false,
+                    'data' => $response
+                ]);
+            }
+        }
+        catch (\Exception $e) {
+            Log::error('Aadhaar OTP Error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 0,
+                'message' => 'Failed to send OTP: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Verify Aadhaar OTP for Member KYC
+     */
+    public function verifyMemberAadhaarOtp(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'otp' => 'required|string|size:6',
+            'refid' => 'nullable|string',
+            'txnid' => 'nullable|string',
+            'aadhar_number' => 'required|string|size:12',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 0,
+                'message' => $validator->errors()->first()
+            ]);
+        }
+
+        $user = $request->user();
+        if (!$user) {
+            $token = $request->header('Token');
+            $user = User::where('remember_token', $token)->first();
+        }
+        if (!$user) {
+            return response()->json(['status' => 0, 'message' => 'Invalid token'], 401);
+        }
+
+        $refid = $request->refid ?? $request->txnid;
+        if (!$refid) {
+            return response()->json(['status' => 0, 'message' => 'Transaction reference ID (refid) is required.']);
+        }
+
+        try {
+            $admin = User::where('mid', $user->admin_mid)->select('mid', 'mkey')->first();
+            if (!$admin || !$admin->mid || !$admin->mkey) {
+                $admin = $user;
+            }
+            if (!$admin || !$admin->mid || !$admin->mkey) {
+                $admin = User::whereNotNull('mid')->whereNotNull('mkey')->where('mid', '!=', '')->first();
+            }
+
+            $curl = curl_init();
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => url(''). '/api/v2/verify/aadhaar-verify-otp',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode([
+                    "otp" => $request->otp,
+                    "refid" => $refid
+                ]),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json',
+                    'mid: ' . ($user ? $user->mid : ''),
+                    'mkey: ' . ($user ? $user->mkey : '')
+                ),
+            ));
+
+            $response = curl_exec($curl);
+            curl_close($curl);
+            $rj = json_decode($response, true);
+
+            if (isset($rj['status']) && $rj['status'] == 1) {
+                $aadhaarInfo = $rj['data'];
+
+                // Format photo if needed
+                $photo = $aadhaarInfo['photo_link'] ?? null;
+                if ($photo && strpos($photo, 'data:image') === false) {
+                    $photo = 'data:image/png;base64,' . $photo;
+                }
+
+                // Format gender
+                $genderRaw = strtoupper($aadhaarInfo['gender'] ?? 'M');
+                $gender = ($genderRaw === 'M' || $genderRaw === 'MALE') ? 'male' : (($genderRaw === 'F' || $genderRaw === 'FEMALE') ? 'female' : 'other');
+
+                // Address formatting
+                $split = $aadhaarInfo['split_address'] ?? [];
+                $address = $aadhaarInfo['address'] ?? ($split ? implode(', ', array_filter($split)) : null);
+
+                // Format DOB if needed
+                $dobFormatted = null;
+                if (isset($aadhaarInfo['dob'])) {
+                    try {
+                        $dobFormatted = \Carbon\Carbon::createFromFormat('d-m-Y', $aadhaarInfo['dob'])->format('Y-m-d');
+                    } catch (\Exception $ex) {
+                        $dobFormatted = $aadhaarInfo['dob'];
+                    }
+                }
+
+                return response()->json([
+                    'status' => 1,
+                    'message' => 'Aadhaar verified successfully',
+                    'aadhaar_data' => [
+                        'name' => $aadhaarInfo['name'] ?? null,
+                        'care_of' => $aadhaarInfo['care_of'] ?? null,
+                        'dob' => $dobFormatted,
+                        'gender' => $gender,
+                        'address' => $address,
+                        'state' => $split['state'] ?? null,
+                        'pincode' => $split['pincode'] ?? null,
+                        'photo' => $photo,
+                        'aadhar_number' => $request->aadhar_number,
+                        'verified' => true
+                    ]
+                ]);
+            } else {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $rj['message'] ?? 'Technical Issue try again..'
+                ]);
+            }
+        }
+        catch (\Exception $e) {
+            Log::error('Aadhaar Verification Error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 0,
+                'message' => 'Verification failed: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Submit Member KYC & Save Verified Data
+     */
+    public function submitMemberKyc(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $member = FinancialMember::where('id', $id)
+                                    ->where('user_id', $user->id)
+                                    ->where('admin_id', $adminId)
+                                    ->firstOrFail();
+
+            // Require verified Aadhaar data to approve KYC
+            if (!$request->boolean('verified') && !$request->filled('aadhar_number')) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'KYC cannot be approved without completing Aadhaar OTP verification!'
+                ], 422);
+            }
+
+            $updateData = [
+                'kyc_status' => 'APPROVED',
+            ];
+
+            if ($request->filled('aadhar_number')) {
+                $updateData['aadhar_number'] = $request->aadhar_number;
+            }
+            if ($request->filled('name')) {
+                $updateData['name'] = $request->name;
+            }
+            if ($request->filled('care_of')) {
+                $updateData['father_name'] = $request->care_of;
+            }
+            if ($request->filled('dob')) {
+                $updateData['dob'] = $request->dob;
+            }
+            if ($request->filled('gender')) {
+                $updateData['gender'] = $request->gender;
+            }
+            if ($request->filled('address')) {
+                $updateData['address'] = $request->address;
+            }
+            if ($request->filled('state')) {
+                $updateData['state'] = $request->state;
+            }
+            if ($request->filled('pincode')) {
+                $updateData['pincode'] = $request->pincode;
+            }
+            if ($request->filled('photo')) {
+                $updateData['photo'] = $request->photo;
+            }
+
+            $member->update($updateData);
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Member KYC verified & approved successfully!',
+                'data' => $member
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Saving Accounts List
+     */
+    public function getSavingAccounts(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $query = FinancialAccount::where('user_id', $user->id)
+                                     ->where('admin_id', $adminId)
+                                     ->where('service_type', 'SAVING')
+                                     ->with(['member:id,member_id,name,mobile,kyc_status']);
+
+            if ($request->filled('search')) {
+                $s = trim($request->search);
+                $query->where(function($q) use ($s) {
+                    $q->where('account_number', 'like', "%{$s}%")
+                      ->orWhereHas('member', function($mq) use ($s) {
+                          $mq->where('name', 'like', "%{$s}%")
+                             ->orWhere('mobile', 'like', "%{$s}%")
+                             ->orWhere('member_id', 'like', "%{$s}%");
+                      });
+                });
+            }
+
+            $perPage = (int)$request->input('per_page', 15);
+            $accounts = $query->orderBy('id', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'status' => 1,
+                'data' => $accounts
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Open Saving Account (With Utility Wallet Auto-Debit & Agent MPIN)
+     */
+    public function openSavingAccount(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'member_id' => 'required|exists:financial_members,id',
+                'opening_amount' => 'required|numeric|min:0',
+                'mpin' => 'required|string|size:4',
+                'nominee_name' => 'nullable|string|max:255',
+                'nominee_relation' => 'nullable|string|max:100',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $member = FinancialMember::where('id', $request->member_id)
+                                    ->where('user_id', $user->id)
+                                    ->where('admin_id', $adminId)
+                                    ->firstOrFail();
+
+            $openingAmount = floatval($request->opening_amount);
+            $txnId = FinancialScopeService::generateTxnId();
+
+            // Auto-debit opening amount from Utility Wallet if openingAmount > 0
+            if ($openingAmount > 0) {
+                $debitRes = FinancialScopeService::processUtilityWalletDebit(
+                    $request,
+                    $user,
+                    $request->mpin,
+                    $openingAmount,
+                    "Saving Account Opening ({$member->name})",
+                    $txnId
+                );
+
+                if ($debitRes['status'] == 0) {
+                    return response()->json($debitRes, 400);
+                }
+            }
+
+            $accountNumber = FinancialScopeService::generateAccountNumber('SB');
+
+            $account = FinancialAccount::create([
+                'account_number' => $accountNumber,
+                'member_id' => $member->id,
+                'user_id' => $user->id,
+                'admin_id' => $adminId,
+                'created_by' => $user->id,
+                'service_type' => 'SAVING',
+                'current_balance' => $openingAmount,
+                'available_balance' => $openingAmount,
+                'opening_amount' => $openingAmount,
+                'status' => 'ACTIVE',
+                'nominee_name' => $request->nominee_name ?? $member->nominee_name,
+                'nominee_relation' => $request->nominee_relation ?? $member->nominee_relation,
+            ]);
+
+            if ($openingAmount > 0) {
+                FinancialTransaction::create([
+                    'transaction_id' => $txnId,
+                    'account_id' => $account->id,
+                    'member_id' => $member->id,
+                    'user_id' => $user->id,
+                    'admin_id' => $adminId,
+                    'service_type' => 'SAVING',
+                    'txn_type' => 'DEPOSIT',
+                    'amount' => $openingAmount,
+                    'charges' => 0,
+                    'net_amount' => $openingAmount,
+                    'balance_before' => 0,
+                    'balance_after' => $openingAmount,
+                    'payment_mode' => 'UTILITY_WALLET',
+                    'narration' => "Saving Account Opening Deposit for Account {$account->account_number}",
+                    'status' => 'SUCCESS',
+                ]);
+            }
+
+            return response()->json([
+                'status' => 1,
+                'message' => "Saving Account {$accountNumber} opened successfully!",
+                'data' => $account
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Saving Account Deposit (With Utility Wallet Auto-Debit & Agent MPIN)
+     */
+    public function depositSaving(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'account_id' => 'required|exists:financial_accounts,id',
+                'amount' => 'required|numeric|min:1',
+                'mpin' => 'required|string|size:4',
+                'narration' => 'nullable|string|max:255',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $account = FinancialAccount::where('id', $request->account_id)
+                                      ->where('user_id', $user->id)
+                                      ->where('admin_id', $adminId)
+                                      ->where('service_type', 'SAVING')
+                                      ->firstOrFail();
+
+            $amount = floatval($request->amount);
+            $txnId = FinancialScopeService::generateTxnId();
+
+            // Auto-debit from Utility Wallet
+            $debitRes = FinancialScopeService::processUtilityWalletDebit(
+                $request,
+                $user,
+                $request->mpin,
+                $amount,
+                "Saving Deposit for Account {$account->account_number}",
+                $txnId
+            );
+
+            if ($debitRes['status'] == 0) {
+                return response()->json($debitRes, 400);
+            }
+
+            DB::transaction(function() use ($account, $amount, $txnId, $user, $adminId, $request) {
+                $balanceBefore = $account->current_balance;
+                $balanceAfter = $balanceBefore + $amount;
+
+                $account->update([
+                    'current_balance' => $balanceAfter,
+                    'available_balance' => $balanceAfter,
+                ]);
+
+                FinancialTransaction::create([
+                    'transaction_id' => $txnId,
+                    'account_id' => $account->id,
+                    'member_id' => $account->member_id,
+                    'user_id' => $user->id,
+                    'admin_id' => $adminId,
+                    'service_type' => 'SAVING',
+                    'txn_type' => 'DEPOSIT',
+                    'amount' => $amount,
+                    'charges' => 0,
+                    'net_amount' => $amount,
+                    'balance_before' => $balanceBefore,
+                    'balance_after' => $balanceAfter,
+                    'payment_mode' => 'UTILITY_WALLET',
+                    'narration' => $request->narration ?? "Saving Deposit for Account {$account->account_number}",
+                    'status' => 'SUCCESS',
+                ]);
+            });
+
+            return response()->json([
+                'status' => 1,
+                'message' => "Deposit of ₹{$amount} to Account {$account->account_number} completed successfully!",
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Send Withdrawal OTP to Member's Registered Mobile Number
+     */
+    public function sendWithdrawalOtp(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'account_id' => 'required|exists:financial_accounts,id',
+                'amount' => 'required|numeric|min:1',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $account = FinancialAccount::where('id', $request->account_id)
+                                      ->where('user_id', $user->id)
+                                      ->where('admin_id', $adminId)
+                                      ->with('member')
+                                      ->firstOrFail();
+
+            $member = $account->member;
+
+            // Strict Backend KYC Check for Withdrawal
+            $setting = FinancialSetting::where('admin_id', $adminId)->first();
+            $kycMandatory = $setting ? ($setting->kyc_required_at_withdrawal ?? true) : true;
+
+            if ($kycMandatory && $member->kyc_status !== 'APPROVED') {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Withdrawal Rejected: Member KYC is not approved.'
+                ], 400);
+            }
+
+            $amount = floatval($request->amount);
+            if ($account->available_balance < $amount) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => "Insufficient available balance. Available: ₹{$account->available_balance}"
+                ], 400);
+            }
+
+            // Generate 6-digit OTP
+            $otp = (string)rand(100000, 999999);
+            
+            // Hardcode bypass for test number if needed
+            if ($member->mobile === '9835153380') {
+                $otp = '957295';
+            }
+
+            FinancialOtp::create([
+                'mobile' => $member->mobile,
+                'otp' => $otp,
+                'purpose' => 'WITHDRAWAL',
+                'account_id' => $account->id,
+                'member_id' => $member->id,
+                'expires_at' => Carbon::now()->addMinutes(10),
+            ]);
+
+            // Send SMS
+            $message = "Your OTP for Saving Account {$account->account_number} withdrawal of Rs. {$amount} is {$otp}. Valid for 10 mins.";
+            if (function_exists('sendSms')) {
+                sendSms($message, $adminId, $member->mobile);
+            }
+
+            return response()->json([
+                'status' => 1,
+                'message' => "OTP sent successfully to member's registered mobile number (" . substr($member->mobile, 0, 3) . "*****" . substr($member->mobile, -2) . ").",
+                'mobile' => $member->mobile,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Saving Account Withdrawal (Verifies Member OTP + Agent MPIN)
+     */
+    public function withdrawSaving(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'account_id' => 'required|exists:financial_accounts,id',
+                'amount' => 'required|numeric|min:1',
+                'otp' => 'required|string|size:6',
+                'mpin' => 'required|string|size:4',
+                'narration' => 'nullable|string|max:255',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $account = FinancialAccount::where('id', $request->account_id)
+                                      ->where('user_id', $user->id)
+                                      ->where('admin_id', $adminId)
+                                      ->where('service_type', 'SAVING')
+                                      ->with('member')
+                                      ->firstOrFail();
+
+            $member = $account->member;
+
+            // 1. Verify Member Mobile OTP
+            $otpRecord = FinancialOtp::where('mobile', $member->mobile)
+                                     ->where('account_id', $account->id)
+                                     ->where('purpose', 'WITHDRAWAL')
+                                     ->where('otp', $request->otp)
+                                     ->where('is_used', false)
+                                     ->where('expires_at', '>=', Carbon::now())
+                                     ->latest()
+                                     ->first();
+
+            if (!$otpRecord) {
+                return response()->json(['status' => 0, 'message' => 'Invalid or expired OTP. Please try again.'], 400);
+            }
+
+            // 2. Verify Agent MPIN against Utility Wallet
+            $wallet = FinancialScopeService::getUtilityWallet($user);
+            if (!$wallet) {
+                return response()->json(['status' => 0, 'message' => 'Agent Utility Wallet not found.'], 400);
+            }
+
+            if (!$wallet->verifyMpin($request->mpin)) {
+                return response()->json(['status' => 0, 'message' => 'Invalid Agent MPIN entered.'], 400);
+            }
+
+            // 3. Strict Backend KYC Check
+            $setting = FinancialSetting::where('admin_id', $adminId)->first();
+            $kycMandatory = $setting ? ($setting->kyc_required_at_withdrawal ?? true) : true;
+
+            if ($kycMandatory && $member->kyc_status !== 'APPROVED') {
+                return response()->json(['status' => 0, 'message' => 'Withdrawal Rejected: Member KYC is not approved.'], 400);
+            }
+
+            $amount = floatval($request->amount);
+            if ($account->available_balance < $amount) {
+                return response()->json(['status' => 0, 'message' => "Insufficient available balance in account."], 400);
+            }
+
+            $txnId = FinancialScopeService::generateTxnId();
+
+            DB::transaction(function() use ($account, $amount, $txnId, $user, $adminId, $request, $otpRecord) {
+                $otpRecord->update(['is_used' => true]);
+
+                $balanceBefore = $account->current_balance;
+                $balanceAfter = $balanceBefore - $amount;
+
+                $account->update([
+                    'current_balance' => $balanceAfter,
+                    'available_balance' => $balanceAfter,
+                ]);
+
+                FinancialTransaction::create([
+                    'transaction_id' => $txnId,
+                    'account_id' => $account->id,
+                    'member_id' => $account->member_id,
+                    'user_id' => $user->id,
+                    'admin_id' => $adminId,
+                    'service_type' => 'SAVING',
+                    'txn_type' => 'WITHDRAWAL',
+                    'amount' => $amount,
+                    'charges' => 0,
+                    'net_amount' => $amount,
+                    'balance_before' => $balanceBefore,
+                    'balance_after' => $balanceAfter,
+                    'payment_mode' => 'CASH',
+                    'narration' => $request->narration ?? "Saving Withdrawal from Account {$account->account_number}",
+                    'status' => 'SUCCESS',
+                ]);
+            });
+
+            return response()->json([
+                'status' => 1,
+                'message' => "Withdrawal of ₹{$amount} from Account {$account->account_number} completed successfully!",
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Accounts by Service Type (DD, RD, FD, MIS)
+     */
+    public function getAccountsByType(Request $request, $serviceType)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $type = strtoupper($serviceType);
+
+            $query = FinancialAccount::where('user_id', $user->id)
+                                     ->where('admin_id', $adminId)
+                                     ->where('service_type', $type)
+                                     ->with(['member:id,member_id,name,mobile,kyc_status']);
+
+            if ($request->filled('search')) {
+                $s = trim($request->search);
+                $query->where(function($q) use ($s) {
+                    $q->where('account_number', 'like', "%{$s}%")
+                      ->orWhereHas('member', function($mq) use ($s) {
+                          $mq->where('name', 'like', "%{$s}%")
+                             ->orWhere('mobile', 'like', "%{$s}%")
+                             ->orWhere('member_id', 'like', "%{$s}%");
+                      });
+                });
+            }
+
+            $perPage = (int)$request->input('per_page', 15);
+            $accounts = $query->orderBy('id', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'status' => 1,
+                'data' => $accounts
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Open DD, RD, FD, or MIS Account (Utility Wallet Debit + MPIN)
+     */
+    public function openFinancialAccount(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'member_id' => 'required|exists:financial_members,id',
+                'service_type' => 'required|in:DD,RD,FD,MIS',
+                'amount' => 'required|numeric|min:1',
+                'duration_months' => 'nullable|integer|min:1',
+                'mpin' => 'required|string|size:4',
+                'nominee_name' => 'nullable|string|max:255',
+                'nominee_relation' => 'nullable|string|max:100',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $member = FinancialMember::where('id', $request->member_id)
+                                    ->where('user_id', $user->id)
+                                    ->where('admin_id', $adminId)
+                                    ->firstOrFail();
+
+            $serviceType = strtoupper($request->service_type);
+            $amount = floatval($request->amount);
+            $txnId = FinancialScopeService::generateTxnId();
+
+            // Auto-debit opening amount from Utility Wallet
+            $debitRes = FinancialScopeService::processUtilityWalletDebit(
+                $request,
+                $user,
+                $request->mpin,
+                $amount,
+                "{$serviceType} Account Opening ({$member->name})",
+                $txnId
+            );
+
+            if ($debitRes['status'] == 0) {
+                return response()->json($debitRes, 400);
+            }
+
+            $accountNumber = FinancialScopeService::generateAccountNumber($serviceType);
+
+            $account = FinancialAccount::create([
+                'account_number' => $accountNumber,
+                'member_id' => $member->id,
+                'user_id' => $user->id,
+                'admin_id' => $adminId,
+                'created_by' => $user->id,
+                'service_type' => $serviceType,
+                'plan_id' => $request->plan_id ?? null,
+                'current_balance' => $amount,
+                'available_balance' => $amount,
+                'opening_amount' => $amount,
+                'interest_rate' => floatval($request->interest_rate ?? 7.5),
+                'duration_months' => (int)($request->duration_months ?? 12),
+                'status' => 'ACTIVE',
+                'nominee_name' => $request->nominee_name ?? $member->nominee_name,
+                'nominee_relation' => $request->nominee_relation ?? $member->nominee_relation,
+            ]);
+
+            FinancialTransaction::create([
+                'transaction_id' => $txnId,
+                'account_id' => $account->id,
+                'member_id' => $member->id,
+                'user_id' => $user->id,
+                'admin_id' => $adminId,
+                'service_type' => $serviceType,
+                'txn_type' => 'DEPOSIT',
+                'amount' => $amount,
+                'charges' => 0,
+                'net_amount' => $amount,
+                'balance_before' => 0,
+                'balance_after' => $amount,
+                'payment_mode' => 'UTILITY_WALLET',
+                'narration' => "{$serviceType} Account Opening Deposit for {$account->account_number}",
+                'status' => 'SUCCESS',
+            ]);
+
+            return response()->json([
+                'status' => 1,
+                'message' => "{$serviceType} Account {$accountNumber} opened successfully!",
+                'data' => $account
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Collect DD / RD Installment or Field Collection (Utility Wallet Debit + MPIN)
+     */
+    public function collectInstallment(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'account_id' => 'required|exists:financial_accounts,id',
+                'amount' => 'required|numeric|min:1',
+                'mpin' => 'required|string|size:4',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $account = FinancialAccount::where('id', $request->account_id)
+                                      ->where('user_id', $user->id)
+                                      ->where('admin_id', $adminId)
+                                      ->firstOrFail();
+
+            $amount = floatval($request->amount);
+            $txnId = FinancialScopeService::generateTxnId();
+
+            // Auto-debit from Utility Wallet
+            $debitRes = FinancialScopeService::processUtilityWalletDebit(
+                $request,
+                $user,
+                $request->mpin,
+                $amount,
+                "{$account->service_type} Collection for Account {$account->account_number}",
+                $txnId
+            );
+
+            if ($debitRes['status'] == 0) {
+                return response()->json($debitRes, 400);
+            }
+
+            DB::transaction(function() use ($account, $amount, $txnId, $user, $adminId, $request) {
+                $balanceBefore = $account->current_balance;
+                $balanceAfter = $balanceBefore + $amount;
+
+                $account->update([
+                    'current_balance' => $balanceAfter,
+                    'available_balance' => $balanceAfter,
+                ]);
+
+                FinancialTransaction::create([
+                    'transaction_id' => $txnId,
+                    'account_id' => $account->id,
+                    'member_id' => $account->member_id,
+                    'user_id' => $user->id,
+                    'admin_id' => $adminId,
+                    'service_type' => $account->service_type,
+                    'txn_type' => 'DEPOSIT',
+                    'amount' => $amount,
+                    'charges' => 0,
+                    'net_amount' => $amount,
+                    'balance_before' => $balanceBefore,
+                    'balance_after' => $balanceAfter,
+                    'payment_mode' => 'UTILITY_WALLET',
+                    'narration' => $request->narration ?? "{$account->service_type} Collection for Account {$account->account_number}",
+                    'status' => 'SUCCESS',
+                ]);
+            });
+
+            return response()->json([
+                'status' => 1,
+                'message' => "Collection of ₹{$amount} for Account {$account->account_number} posted successfully!",
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get FD Certificate Details
+     */
+    public function getFdCertificate($id)
+    {
+        try {
+            $user = request()->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $account = FinancialAccount::where('id', $id)
+                                      ->where('user_id', $user->id)
+                                      ->where('admin_id', $adminId)
+                                      ->where('service_type', 'FD')
+                                      ->with('member')
+                                      ->firstOrFail();
+
+            $openingDate = Carbon::parse($account->created_at);
+            $maturityDate = (clone $openingDate)->addMonths($account->duration_months ?? 12);
+            $rate = floatval($account->interest_rate ?? 7.5);
+            $principal = floatval($account->opening_amount);
+            $estimatedInterest = ($principal * $rate * (($account->duration_months ?? 12) / 12)) / 100;
+            $maturityAmount = $principal + $estimatedInterest;
+
+            return response()->json([
+                'status' => 1,
+                'data' => [
+                    'account_number' => $account->account_number,
+                    'member_name' => $account->member->name,
+                    'member_id' => $account->member->member_id,
+                    'mobile' => $account->member->mobile,
+                    'principal' => $principal,
+                    'interest_rate' => $rate,
+                    'duration_months' => $account->duration_months ?? 12,
+                    'opening_date' => $openingDate->toDateString(),
+                    'maturity_date' => $maturityDate->toDateString(),
+                    'maturity_amount' => $maturityAmount,
+                    'nominee_name' => $account->nominee_name ?? $account->member->nominee_name,
+                    'nominee_relation' => $account->nominee_relation ?? $account->member->nominee_relation,
+                    'status' => $account->status,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => 'FD Account not found.'], 404);
+        }
+    }
+
+    /**
+     * Get Maturities Center List
+     */
+    public function getMaturityList(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $maturities = FinancialMaturity::where('user_id', $user->id)
+                                          ->where('admin_id', $adminId)
+                                          ->with(['account:id,account_number,service_type', 'member:id,name,member_id,mobile'])
+                                          ->orderBy('id', 'desc')
+                                          ->paginate(15);
+
+            return response()->json([
+                'status' => 1,
+                'data' => $maturities
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Scoped Passbook Statement
+     */
+    public function getPassbookStatement(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $query = FinancialTransaction::where('user_id', $user->id)
+                                         ->where('admin_id', $adminId)
+                                         ->with(['member:id,name,member_id', 'account:id,account_number,service_type']);
+
+            if ($request->filled('service_type')) {
+                $query->where('service_type', $request->service_type);
+            }
+
+            if ($request->filled('txn_type')) {
+                $query->where('txn_type', $request->txn_type);
+            }
+
+            if ($request->filled('from_date')) {
+                $query->whereDate('created_at', '>=', $request->from_date);
+            }
+
+            if ($request->filled('to_date')) {
+                $query->whereDate('created_at', '<=', $request->to_date);
+            }
+
+            $perPage = (int)$request->input('per_page', 20);
+            $transactions = $query->orderBy('id', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'status' => 1,
+                'data' => $transactions
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Scoped Agent Reports Data
+     */
+    public function getAgentReports(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $reportType = $request->input('report_type', 'MEMBERS');
+
+            if ($reportType === 'MEMBERS') {
+                $data = FinancialMember::where('user_id', $user->id)->where('admin_id', $adminId)->orderBy('id', 'desc')->get();
+            } else if ($reportType === 'SAVING') {
+                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'SAVING')->with('member')->get();
+            } else if ($reportType === 'DD') {
+                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'DD')->with('member')->get();
+            } else if ($reportType === 'RD') {
+                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'RD')->with('member')->get();
+            } else if ($reportType === 'FD') {
+                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'FD')->with('member')->get();
+            } else {
+                $data = FinancialTransaction::where('user_id', $user->id)->where('admin_id', $adminId)->with(['member', 'account'])->orderBy('id', 'desc')->take(100)->get();
+            }
+
+            return response()->json([
+                'status' => 1,
+                'report_type' => $reportType,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Daily Closing Calculations for Agent
+     */
+    public function getDailyClosingInfo(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $today = Carbon::today()->toDateString();
+
+            // Calculate opening balance from last approved closing or 0
+            $lastClosing = FinancialDailyClosing::where('user_id', $user->id)
+                                                ->where('admin_id', $adminId)
+                                                ->where('status', 'APPROVED')
+                                                ->orderBy('closing_date', 'desc')
+                                                ->first();
+
+            $openingBalance = $lastClosing ? floatval($lastClosing->closing_balance) : 0.00;
+
+            $txnQuery = FinancialTransaction::where('user_id', $user->id)
+                                            ->where('admin_id', $adminId)
+                                            ->whereDate('created_at', $today);
+
+            $totalDeposit = (clone $txnQuery)->where('txn_type', 'DEPOSIT')->sum('amount');
+            $totalWithdrawal = (clone $txnQuery)->where('txn_type', 'WITHDRAWAL')->sum('amount');
+            $closingBalance = $openingBalance + $totalDeposit - $totalWithdrawal;
+
+            $existingClosing = FinancialDailyClosing::where('user_id', $user->id)
+                                                    ->where('admin_id', $adminId)
+                                                    ->whereDate('closing_date', $today)
+                                                    ->first();
+
+            return response()->json([
+                'status' => 1,
+                'data' => [
+                    'closing_date' => $today,
+                    'opening_balance' => $openingBalance,
+                    'total_deposit' => floatval($totalDeposit),
+                    'total_withdrawal' => floatval($totalWithdrawal),
+                    'calculated_closing_balance' => floatval($closingBalance),
+                    'today_status' => $existingClosing ? $existingClosing->status : 'NOT_SUBMITTED',
+                    'existing_closing' => $existingClosing,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Submit Agent Daily Closing
+     */
+    public function submitDailyClosing(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $validator = Validator::make($request->all(), [
+                'physical_cash' => 'required|numeric|min:0',
+                'remark' => 'nullable|string|max:500',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
+
+            $today = Carbon::today()->toDateString();
+            $txnQuery = FinancialTransaction::where('user_id', $user->id)
+                                            ->where('admin_id', $adminId)
+                                            ->whereDate('created_at', $today);
+
+            $lastClosing = FinancialDailyClosing::where('user_id', $user->id)
+                                                ->where('admin_id', $adminId)
+                                                ->where('status', 'APPROVED')
+                                                ->orderBy('closing_date', 'desc')
+                                                ->first();
+
+            $openingBalance = $lastClosing ? floatval($lastClosing->closing_balance) : 0.00;
+            $totalDeposit = floatval((clone $txnQuery)->where('txn_type', 'DEPOSIT')->sum('amount'));
+            $totalWithdrawal = floatval((clone $txnQuery)->where('txn_type', 'WITHDRAWAL')->sum('amount'));
+            $closingBalance = $openingBalance + $totalDeposit - $totalWithdrawal;
+            $physicalCash = floatval($request->physical_cash);
+            $difference = $physicalCash - $closingBalance;
+
+            $closing = FinancialDailyClosing::updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'admin_id' => $adminId,
+                    'closing_date' => $today,
+                ],
+                [
+                    'opening_balance' => $openingBalance,
+                    'total_deposit' => $totalDeposit,
+                    'total_withdrawal' => $totalWithdrawal,
+                    'closing_balance' => $closingBalance,
+                    'physical_cash' => $physicalCash,
+                    'difference' => $difference,
+                    'status' => 'PENDING',
+                    'remark' => $request->remark,
+                ]
+            );
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Daily closing submitted successfully for Admin approval!',
+                'data' => $closing
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+}

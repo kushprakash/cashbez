@@ -1,0 +1,2754 @@
+============================================================
+FINANCIAL SERVICES MODULE
+MASTER IMPLEMENTATION PRD
+FOR EXISTING LARAVEL + REACT PROJECT
+============================================================
+
+PROJECT CONTEXT
+---------------
+
+This is an existing Laravel + React project.
+
+We need to add a complete Financial Services module similar to
+a Nidhi/financial banking system.
+
+IMPORTANT:
+Do NOT replace, rewrite or unnecessarily refactor the existing
+project.
+
+Before implementing anything, inspect the existing project and
+reuse its:
+
+- Authentication
+- User system
+- Admin system
+- Roles and permissions
+- Database conventions
+- API conventions
+- React components
+- Form components
+- Table components
+- Modal components
+- Notification system
+- Existing Aadhaar verification API
+- Existing PAN verification API
+- Existing Bank Account Verification API
+- Existing PDF/receipt system
+- Existing scheduler/queue system
+- Existing audit system
+
+If a required feature already exists, reuse it instead of
+creating duplicate functionality.
+
+
+============================================================
+GLOBAL ARCHITECTURE RULES
+============================================================
+
+1. MULTI-TENANT DATA ISOLATION
+--------------------------------
+
+Every Financial business table MUST contain:
+
+user_id
+admin_id
+
+This rule is mandatory.
+
+Examples:
+
+members
+member_kycs
+membership_plans
+financial_settings
+financial_plans
+saving_plans
+dd_plans
+rd_plans
+fd_plans
+mis_plans
+financial_accounts
+saving_accounts
+dd_accounts
+rd_accounts
+fd_accounts
+mis_accounts
+financial_transactions
+financial_ledger
+deposits
+withdrawals
+dd_collections
+rd_installments
+interest_calculations
+interest_postings
+maturities
+maturity_payments
+account_closures
+financial_receipts
+financial_audit_logs
+daily_closings
+
+All relevant tables must have user_id and admin_id.
+
+
+2. DATA ISOLATION
+-----------------
+
+Every SELECT, INSERT, UPDATE and DELETE/soft-delete operation
+must respect:
+
+user_id
+AND
+admin_id
+
+Never fetch a financial record only by ID.
+
+Example:
+
+WHERE id = ?
+AND user_id = ?
+AND admin_id = ?
+
+
+3. CREATED/UPDATED BY
+---------------------
+
+Where applicable, financial tables should also maintain:
+
+created_by
+updated_by
+
+Approval-related tables may maintain:
+
+approved_by
+approved_at
+
+
+4. FINANCIAL RECORDS
+--------------------
+
+Never hard-delete financial transactions.
+
+Transactions must be immutable.
+
+If correction is required, use:
+
+REVERSAL
+ADJUSTMENT
+CANCELLATION
+
+with proper audit trail.
+
+
+5. MONEY
+--------
+
+Use:
+
+DECIMAL(18,2)
+
+for monetary fields.
+
+Do not use floating-point calculations for money.
+
+
+6. DATABASE TRANSACTION
+-----------------------
+
+All financial operations must use database transactions.
+
+Examples:
+
+Account Opening
+Deposit
+Withdrawal
+Interest Posting
+Maturity
+Premature Closure
+Account Closure
+Adjustment
+Reversal
+
+
+7. BACKEND IS AUTHORITATIVE
+---------------------------
+
+React frontend validation is only for user experience.
+
+Every important business rule MUST also be validated/enforced
+on Laravel backend.
+
+Never trust:
+
+plan_id
+account_id
+member_id
+amount
+interest_rate
+charges
+limits
+KYC status
+
+sent by frontend without backend verification.
+
+
+============================================================
+FINANCIAL SERVICES
+============================================================
+
+The system will support:
+
+1. Saving Account
+2. Daily Deposit (DD)
+3. Recurring Deposit (RD)
+4. Fixed Deposit (FD)
+5. Monthly Income Scheme (MIS)
+
+
+============================================================
+CORE BUSINESS RULE
+============================================================
+
+All financial services are Member ID based.
+
+The operator/admin must select or enter Member ID before
+creating any financial account.
+
+Account opening flow:
+
+Member ID
+    ↓
+Validate Member
+    ↓
+Fetch Member Data
+    ↓
+Select Financial Service
+    ↓
+Select Plan
+    ↓
+Enter Financial Details
+    ↓
+Validate Plan Rules
+    ↓
+Nominee
+    ↓
+Opening Amount / Installment
+    ↓
+Create Account
+
+
+============================================================
+KYC BUSINESS RULE
+============================================================
+
+DEFAULT:
+
+KYC is NOT mandatory during account opening.
+
+KYC IS mandatory during withdrawal/settlement according to
+financial settings.
+
+Default:
+
+KYC at Account Opening = NO
+KYC at Withdrawal = YES
+
+Admin must be able to configure this from Financial Master.
+
+Even if React tries to bypass KYC, Laravel backend must block
+withdrawal when required KYC is not approved.
+
+
+============================================================
+IMPLEMENTATION SEQUENCE
+============================================================
+
+The following steps MUST be implemented in this exact order.
+
+Do not skip the order.
+
+STEP 01
+Existing Project Audit
+
+STEP 02
+Financial Module Foundation
+
+STEP 03
+Financial Master
+
+STEP 04
+Membership Master
+
+STEP 05
+Common Financial Plan Master
+
+STEP 06
+Saving Plan Master
+
+STEP 07
+Daily Deposit Plan Master
+
+STEP 08
+Recurring Deposit Plan Master
+
+STEP 09
+Fixed Deposit Plan Master
+
+STEP 10
+MIS Plan Master
+
+STEP 11
+Charges and Penalty Master
+
+STEP 12
+Financial Account Architecture
+
+STEP 13
+Member Master
+
+STEP 14
+Member KYC
+
+STEP 15
+Saving Account Opening
+
+STEP 16
+Saving Deposit
+
+STEP 17
+Saving Withdrawal
+
+STEP 18
+Daily Deposit Account
+
+STEP 19
+Daily Deposit Collection
+
+STEP 20
+Daily Deposit Maturity
+
+STEP 21
+Recurring Deposit Account
+
+STEP 22
+RD Installment Collection
+
+STEP 23
+RD Overdue and Penalty
+
+STEP 24
+RD Maturity
+
+STEP 25
+Fixed Deposit Account
+
+STEP 26
+FD Interest
+
+STEP 27
+FD Premature Closure
+
+STEP 28
+FD Maturity
+
+STEP 29
+FD Renewal
+
+STEP 30
+MIS Account
+
+STEP 31
+MIS Monthly Payout
+
+STEP 32
+MIS Premature Closure
+
+STEP 33
+MIS Maturity
+
+STEP 34
+Central Financial Ledger
+
+STEP 35
+Interest Calculation Engine
+
+STEP 36
+Maturity Engine
+
+STEP 37
+Central Withdrawal System
+
+STEP 38
+Member 360 Financial Profile
+
+STEP 39
+Reports
+
+STEP 40
+Financial Receipts
+
+STEP 41
+Daily Closing
+
+STEP 42
+Audit Logs
+
+STEP 43
+Notifications
+
+STEP 44
+Security and Data Isolation Testing
+
+STEP 45
+Final Integration Testing
+
+
+============================================================
+STEP 01
+EXISTING PROJECT AUDIT
+============================================================
+
+DO NOT MODIFY CODE FIRST.
+
+Inspect the complete existing project.
+
+Check:
+
+- Laravel version
+- PHP version
+- React version
+- Backend structure
+- Frontend structure
+- Authentication
+- Logged-in user
+- Admin structure
+- user_id implementation
+- admin_id implementation
+- Roles
+- Permissions
+- Database naming
+- Existing migrations
+- Existing models
+- Existing controllers
+- Existing services
+- Existing API routes
+- Existing React routes
+- Existing UI components
+- Existing form validation
+- Existing tables
+- Existing modal
+- Existing notification system
+- Existing Aadhaar API
+- Existing PAN API
+- Existing bank verification API
+- Existing PDF system
+- Existing scheduler
+- Existing queue
+- Existing audit system
+
+Prepare an architecture report.
+
+Do not create duplicate functionality.
+
+Do not modify unrelated files.
+
+
+============================================================
+STEP 02
+FINANCIAL MODULE FOUNDATION
+============================================================
+
+Create the Financial module structure.
+
+Create:
+
+Financial Dashboard
+Financial Master
+Membership Master
+Plan Master
+Member Master
+Saving
+DD
+RD
+FD
+MIS
+Collection
+Withdrawal
+Maturity
+Reports
+Settings
+Audit
+
+Add:
+
+Laravel routes
+Controllers/Services according to existing architecture
+React routes
+React navigation/menu
+Permissions
+
+Use existing authentication.
+
+Every financial request must be authenticated.
+
+Every financial record must be scoped by:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 03
+FINANCIAL MASTER
+============================================================
+
+Create Admin Financial Master.
+
+Financial Master controls the complete financial system.
+
+Sections:
+
+1. General Settings
+2. KYC Settings
+3. Account Settings
+4. Withdrawal Settings
+5. Maturity Settings
+6. Interest Settings
+7. Transaction Settings
+8. Receipt Settings
+
+GENERAL SETTINGS:
+
+financial_service_name
+financial_service_code
+currency
+financial_year
+member_id_prefix
+account_number_prefix
+transaction_id_prefix
+receipt_prefix
+minimum_member_age
+maximum_member_age
+
+KYC SETTINGS:
+
+kyc_required_at_account_opening
+kyc_required_at_withdrawal
+aadhaar_verification_required
+pan_verification_required
+bank_verification_required
+withdrawal_approval_required
+
+DEFAULT:
+
+kyc_required_at_account_opening = false
+kyc_required_at_withdrawal = true
+
+ACCOUNT SETTINGS:
+
+account_opening_approval_required
+account_closure_approval_required
+transaction_approval_required
+
+WITHDRAWAL SETTINGS:
+
+minimum_withdrawal
+maximum_withdrawal
+daily_withdrawal_limit
+monthly_withdrawal_limit
+cash_withdrawal_limit
+bank_transfer_limit
+
+MATURITY SETTINGS:
+
+maturity_notification_days
+prematurity_notification_days
+maturity_payment_approval_required
+maturity_kyc_required
+maturity_bank_verification_required
+
+All settings:
+
+user_id
+admin_id
+
+must be maintained.
+
+Never hard-code these settings in React.
+
+
+============================================================
+STEP 04
+MEMBERSHIP MASTER
+============================================================
+
+Admin creates membership plans.
+
+Fields:
+
+membership_type
+membership_code
+membership_name
+membership_fee
+gst_applicable
+gst_percentage
+total_fee
+validity
+validity_unit
+renewal_required
+renewal_fee
+renewal_period
+late_renewal_fee
+status
+effective_from
+effective_to
+
+Every membership plan:
+
+user_id
+admin_id
+
+Features:
+
+Create
+Edit
+View
+Activate
+Deactivate
+Search
+Filter
+
+Do not delete a membership plan already used by members.
+
+
+============================================================
+STEP 05
+COMMON FINANCIAL PLAN MASTER
+============================================================
+
+Create reusable financial plan architecture.
+
+Supported services:
+
+SAVING
+DD
+RD
+FD
+MIS
+
+Common fields:
+
+id
+user_id
+admin_id
+service_type
+plan_code
+plan_name
+description
+status
+effective_from
+effective_to
+
+Opening:
+
+minimum_opening_amount
+maximum_opening_amount
+
+Balance:
+
+minimum_balance
+maximum_total_balance
+
+Duration:
+
+minimum_duration
+maximum_duration
+duration_unit
+
+Interest:
+
+interest_rate
+interest_type
+interest_calculation_method
+interest_calculation_frequency
+interest_credit_frequency
+
+Nominee:
+
+nominee_required
+
+Closure:
+
+premature_closure_allowed
+premature_closure_charge
+premature_closure_penalty
+
+Do not hard-code plan values in React.
+
+Backend must validate plan rules.
+
+
+============================================================
+STEP 06
+SAVING PLAN MASTER
+============================================================
+
+Create Saving Account Plan Master.
+
+Fields:
+
+plan_name
+plan_code
+
+minimum_opening_amount
+maximum_opening_amount
+
+minimum_balance
+maximum_total_balance
+
+maximum_daily_deposit
+maximum_monthly_deposit
+
+interest_rate
+interest_type
+interest_calculation_method
+interest_calculation_frequency
+interest_credit_frequency
+
+withdrawal_allowed
+minimum_withdrawal
+maximum_withdrawal
+daily_withdrawal_limit
+monthly_withdrawal_limit
+withdrawal_charge
+
+account_opening_charge
+account_closure_charge
+
+nominee_required
+joint_account_allowed
+minor_account_allowed
+
+dormant_period
+
+status
+effective_from
+effective_to
+
+Every record:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 07
+DAILY DEPOSIT PLAN MASTER
+============================================================
+
+Create DD Plan Master.
+
+Fields:
+
+plan_name
+plan_code
+
+minimum_daily_deposit
+maximum_daily_deposit
+maximum_total_deposit
+
+minimum_duration
+maximum_duration
+duration_unit
+
+interest_rate
+interest_type
+interest_calculation_method
+interest_calculation_frequency
+
+grace_period
+late_payment_allowed
+late_payment_charge
+maximum_missed_deposits
+
+premature_closure_allowed
+premature_closure_penalty
+
+maturity_calculation_rule
+
+nominee_required
+
+status
+effective_from
+effective_to
+
+Every record:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 08
+RECURRING DEPOSIT PLAN MASTER
+============================================================
+
+Create RD Plan Master.
+
+Fields:
+
+plan_name
+plan_code
+
+minimum_installment
+maximum_installment
+
+installment_frequency
+
+minimum_duration
+maximum_duration
+duration_unit
+
+interest_rate
+interest_type
+compounding_frequency
+interest_calculation_method
+
+grace_period
+late_fee
+missed_installment_charge
+maximum_missed_installments
+
+premature_closure_allowed
+premature_closure_penalty
+
+maturity_rule
+
+nominee_required
+
+status
+effective_from
+effective_to
+
+Every record:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 09
+FIXED DEPOSIT PLAN MASTER
+============================================================
+
+Create FD Plan Master.
+
+Fields:
+
+plan_name
+plan_code
+
+minimum_opening_amount
+maximum_opening_amount
+maximum_total_investment
+
+minimum_duration
+maximum_duration
+duration_unit
+
+interest_rate
+interest_type
+compounding_frequency
+interest_calculation_method
+
+interest_payout
+
+Supported:
+
+AT_MATURITY
+MONTHLY
+QUARTERLY
+HALF_YEARLY
+YEARLY
+
+Premature:
+
+premature_closure_allowed
+minimum_lockin_period
+premature_penalty
+reduced_interest_rate
+
+Renewal:
+
+auto_renewal
+renewal_type
+
+Supported:
+
+PRINCIPAL_ONLY
+PRINCIPAL_PLUS_INTEREST
+NO_RENEWAL
+
+nominee_required
+
+status
+effective_from
+effective_to
+
+Every record:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 10
+MIS PLAN MASTER
+============================================================
+
+Create MIS Plan Master.
+
+Fields:
+
+plan_name
+plan_code
+
+minimum_investment
+maximum_investment
+maximum_total_balance
+
+minimum_duration
+maximum_duration
+duration_unit
+
+interest_rate
+interest_type
+interest_calculation_method
+
+payout_frequency
+payout_day
+
+premature_closure_allowed
+premature_penalty
+lockin_period
+
+maturity_settlement_rule
+
+nominee_required
+
+status
+effective_from
+effective_to
+
+Every record:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 11
+CHARGE AND PENALTY MASTER
+============================================================
+
+Create centralized charge/penalty configuration.
+
+CHARGES:
+
+MEMBERSHIP
+ACCOUNT_OPENING
+DEPOSIT
+WITHDRAWAL
+ACCOUNT_CLOSURE
+STATEMENT
+DUPLICATE_PASSBOOK
+NOMINEE_CHANGE
+MATURITY
+PREMATURE_CLOSURE
+
+PENALTIES:
+
+DD_LATE_PAYMENT
+RD_LATE_INSTALLMENT
+MINIMUM_BALANCE
+PREMATURE_FD
+ACCOUNT_DORMANCY
+OTHER
+
+Fields:
+
+user_id
+admin_id
+service_type
+charge_type
+penalty_type
+name
+amount
+percentage
+gst_applicable
+gst_percentage
+effective_from
+effective_to
+status
+
+Backend must calculate actual applicable charge.
+
+
+============================================================
+STEP 12
+FINANCIAL ACCOUNT ARCHITECTURE
+============================================================
+
+Create common financial_accounts table.
+
+Fields:
+
+id
+user_id
+admin_id
+member_id
+account_no
+service_type
+plan_id
+opening_date
+opening_amount
+current_balance
+available_balance
+hold_amount
+interest_rate_snapshot
+interest_type_snapshot
+plan_snapshot
+maturity_date
+status
+created_by
+updated_by
+created_at
+updated_at
+
+Statuses:
+
+ACTIVE
+FROZEN
+DORMANT
+MATURED
+CLOSED
+
+Account number must be unique under user_id/admin_id.
+
+Store plan snapshot when account is created.
+
+This is important because admin may change a plan later.
+
+Existing account calculations must NOT unexpectedly change
+because a new plan value was configured.
+
+
+============================================================
+STEP 13
+MEMBER MASTER
+============================================================
+
+Create Member Master.
+
+Fields:
+
+member_id
+member_number
+membership_plan_id
+membership_number
+membership_start_date
+
+name
+father_name
+husband_name
+dob
+gender
+mobile
+email
+
+address
+state
+district
+pincode
+
+occupation
+
+photo
+signature
+
+status
+kyc_status
+
+Every member:
+
+user_id
+admin_id
+
+Statuses:
+
+ACTIVE
+INACTIVE
+BLOCKED
+DECEASED
+
+Member ID must be system generated.
+
+Member ID must be unique within user_id/admin_id.
+
+Features:
+
+Create
+List
+Search
+Filter
+View
+Edit
+Block
+Unblock
+KYC
+Accounts
+Statement
+
+
+============================================================
+STEP 14
+MEMBER KYC
+============================================================
+
+Create Member KYC module.
+
+Reuse existing project APIs.
+
+Aadhaar verification
+PAN verification
+Bank verification
+
+Statuses:
+
+PENDING
+SUBMITTED
+UNDER_VERIFICATION
+APPROVED
+REJECTED
+
+Store:
+
+user_id
+admin_id
+member_id
+
+Verification information:
+
+aadhaar_status
+pan_status
+bank_status
+kyc_status
+
+verification references
+rejection_reason
+verified_by
+verified_at
+
+Do not store unnecessary sensitive API data.
+
+KYC Dashboard:
+
+Pending
+Approved
+Rejected
+Aadhaar Pending
+PAN Pending
+Bank Pending
+
+Account opening may proceed without KYC if Financial Master
+allows it.
+
+Withdrawal must enforce KYC when configured.
+
+
+============================================================
+STEP 15
+SAVING ACCOUNT OPENING
+============================================================
+
+Operator enters:
+
+Member ID
+
+Backend:
+
+1. Validate user_id/admin_id.
+2. Find member.
+3. Verify member status.
+4. Fetch member data.
+5. Select Saving Plan.
+6. Fetch active plan.
+7. Validate opening amount.
+8. Validate minimum opening amount.
+9. Validate maximum opening amount.
+10. Validate balance rules.
+11. Calculate charges.
+12. Add nominee.
+13. Validate nominee.
+14. Generate account number.
+15. Create account.
+16. Create opening transaction.
+17. Create ledger.
+18. Generate receipt.
+19. Audit action.
+
+KYC at opening must follow Financial Master.
+
+Account creation must be atomic.
+
+
+============================================================
+STEP 16
+SAVING DEPOSIT
+============================================================
+
+Input:
+
+Member ID
+Account Number
+Amount
+Payment Mode
+Reference
+Narration
+
+Validate:
+
+Member
+Account
+user_id
+admin_id
+Account status
+Amount
+Daily limit
+Monthly limit
+Maximum total balance
+
+Success:
+
+Transaction
+Ledger
+Balance
+Receipt
+Audit
+
+Use DB transaction.
+
+
+============================================================
+STEP 17
+SAVING WITHDRAWAL
+============================================================
+
+Input:
+
+Member ID
+Account Number
+Amount
+Payment Mode
+Reference
+
+Process:
+
+Validate member
+Validate account
+Validate balance
+Validate withdrawal limits
+Validate KYC
+Validate bank verification if enabled
+Validate approval if enabled
+Calculate charges
+Process transaction
+Update balance
+Create ledger
+Create receipt
+Create audit log
+
+If KYC is not approved:
+
+Do not allow withdrawal.
+
+Frontend cannot bypass this rule.
+
+
+============================================================
+STEP 18
+DAILY DEPOSIT ACCOUNT
+============================================================
+
+Create DD account using:
+
+Member ID
+DD Plan
+Daily Amount
+Duration
+Start Date
+Nominee
+
+Validate:
+
+minimum daily amount
+maximum daily amount
+duration
+maximum total deposit
+
+Create:
+
+DD account
+Opening transaction
+Ledger
+Receipt
+
+
+============================================================
+STEP 19
+DAILY DEPOSIT COLLECTION
+============================================================
+
+Collection fields:
+
+member_id
+account_id
+installment_number
+amount
+collection_date
+payment_mode
+reference
+collector
+
+Validate DD plan rules.
+
+Store:
+
+user_id
+admin_id
+
+Statuses:
+
+PENDING
+PAID
+PARTIAL
+OVERDUE
+WAIVED
+
+Create transaction and ledger for successful collection.
+
+
+============================================================
+STEP 20
+DAILY DEPOSIT MATURITY
+============================================================
+
+Calculate:
+
+Principal
+Interest
+Penalty
+Charges
+Final Maturity Amount
+
+Before payment:
+
+KYC check according to settings.
+Bank verification according to settings.
+
+Create:
+
+Maturity record
+Transaction
+Ledger
+Payment
+Receipt
+Audit
+
+Account becomes MATURED/CLOSED according to configuration.
+
+
+============================================================
+STEP 21
+RD ACCOUNT
+============================================================
+
+Open RD using:
+
+Member ID
+RD Plan
+Installment Amount
+Installment Frequency
+Duration
+Start Date
+Nominee
+
+Validate all plan limits.
+
+Create:
+
+RD Account
+Opening/first installment transaction
+Ledger
+Receipt
+
+
+============================================================
+STEP 22
+RD INSTALLMENT
+============================================================
+
+Track every installment.
+
+Fields:
+
+account_id
+member_id
+installment_number
+due_date
+amount
+paid_date
+paid_amount
+late_fee
+status
+
+Statuses:
+
+PENDING
+PAID
+PARTIAL
+OVERDUE
+WAIVED
+
+Every record:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 23
+RD OVERDUE AND PENALTY
+============================================================
+
+Automatically identify overdue installments.
+
+Calculate:
+
+Grace Period
+Late Fee
+Penalty
+
+Do not manually alter historical installments.
+
+All penalties must create financial transaction and ledger entry
+when posted.
+
+
+============================================================
+STEP 24
+RD MATURITY
+============================================================
+
+At maturity calculate:
+
+Total Principal
+Interest
+Penalty
+Charges
+Final Amount
+
+Check:
+
+KYC
+Bank verification
+Approval
+
+Create:
+
+Maturity
+Transaction
+Ledger
+Receipt
+Audit
+
+Update account status.
+
+
+============================================================
+STEP 25
+FD ACCOUNT
+============================================================
+
+FD opening:
+
+Member ID
+FD Plan
+Deposit Amount
+Duration
+Interest Rate
+Interest Payout
+Nominee
+
+Validate:
+
+minimum amount
+maximum amount
+maximum investment
+duration
+plan status
+
+Create:
+
+FD account
+Principal transaction
+Ledger
+Receipt
+
+Store:
+
+interest_rate_snapshot
+plan_snapshot
+maturity_date
+
+
+============================================================
+STEP 26
+FD INTEREST
+============================================================
+
+Support:
+
+Simple Interest
+Compound Interest
+
+Payout:
+
+At Maturity
+Monthly
+Quarterly
+Half-Yearly
+Yearly
+
+Interest calculation must use account snapshot.
+
+Never silently change old FD interest because admin changed
+the plan later.
+
+
+============================================================
+STEP 27
+FD PREMATURE CLOSURE
+============================================================
+
+Process:
+
+Closure Request
+↓
+Account Validation
+↓
+Lock-in Check
+↓
+KYC Check
+↓
+Calculate applicable reduced interest
+↓
+Penalty
+↓
+Charges
+↓
+Final Settlement
+↓
+Transaction
+↓
+Ledger
+↓
+Receipt
+↓
+Close Account
+
+Do not delete FD.
+
+
+============================================================
+STEP 28
+FD MATURITY
+============================================================
+
+At maturity:
+
+Principal
++
+Interest
+-
+Charges
+-
+Penalties
+=
+Final Payable Amount
+
+Validate:
+
+KYC
+Bank Verification
+Approval
+
+Then:
+
+Maturity
+Transaction
+Ledger
+Payment
+Receipt
+Account Update
+
+
+============================================================
+STEP 29
+FD RENEWAL
+============================================================
+
+Support:
+
+NO_RENEWAL
+PRINCIPAL_ONLY
+PRINCIPAL_PLUS_INTEREST
+
+When renewal happens:
+
+Close old maturity cycle.
+
+Create new FD cycle/account as per architecture.
+
+Do not overwrite historical maturity data.
+
+Maintain complete history.
+
+
+============================================================
+STEP 30
+MIS ACCOUNT
+============================================================
+
+Open MIS:
+
+Member ID
+MIS Plan
+Investment Amount
+Duration
+Payout Frequency
+Payout Day
+Nominee
+Bank Account
+
+Validate:
+
+minimum investment
+maximum investment
+maximum balance
+duration
+plan status
+
+Create:
+
+MIS account
+Principal transaction
+Ledger
+Receipt
+
+
+============================================================
+STEP 31
+MIS MONTHLY PAYOUT
+============================================================
+
+At payout date:
+
+Find eligible MIS accounts.
+
+Calculate payout.
+
+Check:
+
+KYC
+Bank verification
+Approval
+
+Create:
+
+MIS payout
+Transaction
+Ledger
+Receipt
+Audit
+
+Statuses:
+
+PENDING
+PROCESSING
+PAID
+FAILED
+HOLD
+
+
+============================================================
+STEP 32
+MIS PREMATURE CLOSURE
+============================================================
+
+Process:
+
+Request
+↓
+Lock-in validation
+↓
+KYC
+↓
+Calculate interest
+↓
+Penalty
+↓
+Charges
+↓
+Final settlement
+↓
+Transaction
+↓
+Ledger
+↓
+Receipt
+↓
+Close
+
+
+============================================================
+STEP 33
+MIS MATURITY
+============================================================
+
+Calculate:
+
+Principal
+Interest
+Charges
+Penalty
+Final settlement amount
+
+Validate KYC and bank verification.
+
+Create maturity transaction and ledger.
+
+
+============================================================
+STEP 34
+CENTRAL FINANCIAL LEDGER
+============================================================
+
+Create immutable financial ledger.
+
+Transaction types:
+
+OPENING
+DEPOSIT
+WITHDRAWAL
+INTEREST_CREDIT
+INTEREST_DEBIT
+PENALTY
+CHARGE
+MATURITY
+MATURITY_PAYMENT
+PREMATURE_CLOSURE
+REFUND
+TRANSFER
+ADJUSTMENT
+REVERSAL
+RENEWAL
+
+Fields:
+
+id
+user_id
+admin_id
+member_id
+account_id
+transaction_id
+service_type
+transaction_type
+debit
+credit
+balance_before
+balance_after
+narration
+reference
+status
+created_by
+created_at
+
+Never delete ledger records.
+
+Every financial balance change MUST have corresponding
+transaction and ledger record.
+
+
+============================================================
+STEP 35
+INTEREST CALCULATION ENGINE
+============================================================
+
+Create reusable:
+
+FinancialInterestService
+
+Support:
+
+Simple Interest
+Compound Interest
+
+Frequency:
+
+Daily
+Monthly
+Quarterly
+Half-Yearly
+Yearly
+
+Credit:
+
+Monthly
+Quarterly
+Half-Yearly
+Yearly
+At Maturity
+
+Use account plan snapshot.
+
+Every interest posting creates:
+
+interest_calculation
+interest_posting
+transaction
+ledger
+audit
+
+Use DECIMAL-safe calculations.
+
+
+============================================================
+STEP 36
+MATURITY ENGINE
+============================================================
+
+Create reusable:
+
+FinancialMaturityService
+
+Services:
+
+DD
+RD
+FD
+MIS
+
+Features:
+
+Upcoming Maturity
+Today's Maturity
+Matured
+Pending Settlement
+Paid
+Renewed
+
+Maturity must use account-level snapshot.
+
+Do not use newly changed plan values for old accounts.
+
+Settlement:
+
+Validate account
+Validate member
+KYC
+Bank verification
+Principal
+Interest
+Penalty
+Charges
+Final amount
+Transaction
+Ledger
+Account update
+Receipt
+Audit
+
+
+============================================================
+STEP 37
+CENTRAL WITHDRAWAL
+============================================================
+
+Create common withdrawal system.
+
+Supported:
+
+SAVING
+DD
+RD
+FD
+MIS
+
+Process:
+
+Account validation
+Member validation
+Balance validation
+KYC validation
+Bank validation
+Withdrawal limits
+Approval
+Charges
+Penalty
+Transaction
+Ledger
+Receipt
+Audit
+
+Backend must enforce every rule.
+
+
+============================================================
+STEP 38
+MEMBER 360
+============================================================
+
+Create Member Financial Profile.
+
+Show:
+
+Member Information
+Membership
+KYC
+Saving Accounts
+DD Accounts
+RD Accounts
+FD Accounts
+MIS Accounts
+Total Deposit
+Total Balance
+Total Interest
+Total Withdrawal
+Upcoming Maturity
+Matured Accounts
+Transactions
+Statements
+
+All data must be scoped by:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 39
+REPORTS
+============================================================
+
+Create:
+
+Member Report
+Membership Report
+KYC Report
+
+Saving Report
+DD Report
+RD Report
+FD Report
+MIS Report
+
+Deposit Report
+Withdrawal Report
+Interest Report
+Maturity Report
+Collection Report
+Transaction Report
+Ledger Report
+Daily Closing Report
+
+Filters:
+
+Date
+Member ID
+Account Number
+Service Type
+Plan
+Status
+Amount
+
+Export:
+
+Excel
+CSV
+PDF
+
+Every report must enforce:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 40
+FINANCIAL RECEIPTS
+============================================================
+
+Generate receipt for:
+
+Membership
+Account Opening
+Deposit
+DD Collection
+RD Installment
+FD Opening
+MIS Opening
+Withdrawal
+Interest
+Maturity
+Premature Closure
+Refund
+
+Receipt fields:
+
+Company Name
+Admin/Branch
+Member ID
+Member Name
+Account Number
+Service
+Plan
+Transaction ID
+Receipt Number
+Date
+Amount
+Payment Mode
+Previous Balance
+Transaction Amount
+Current Balance
+Narration
+
+Receipt number must be unique under:
+
+user_id
+admin_id
+
+
+============================================================
+STEP 41
+DAILY CLOSING
+============================================================
+
+Create daily financial closing.
+
+Calculate:
+
+Opening Balance
+Total Deposit
+Total Collection
+Interest Credit
+Charges
+Penalties
+Total Withdrawal
+Maturity Payment
+Other Credit
+Other Debit
+Closing Balance
+
+Closing should become immutable after approval.
+
+Correction must use adjustment/reversal.
+
+Fields:
+
+user_id
+admin_id
+closing_date
+opening_balance
+total_credit
+total_debit
+closing_balance
+status
+created_by
+approved_by
+approved_at
+
+
+============================================================
+STEP 42
+AUDIT LOGS
+============================================================
+
+Audit all sensitive actions.
+
+Actions:
+
+Member Create
+Member Edit
+KYC Approval
+KYC Rejection
+Account Opening
+Deposit
+Withdrawal
+Interest Posting
+Maturity
+Account Closure
+Plan Change
+Charge Change
+Penalty Change
+Balance Adjustment
+Transaction Reversal
+Daily Closing
+
+Fields:
+
+user_id
+admin_id
+user_id_of_actor
+action
+module
+record_id
+old_data
+new_data
+reason
+ip_address
+user_agent
+created_at
+
+Financial actions must always be traceable.
+
+
+============================================================
+STEP 43
+NOTIFICATIONS
+============================================================
+
+Create notification framework.
+
+Events:
+
+Member Created
+KYC Approved
+KYC Rejected
+Account Opened
+Deposit Successful
+Withdrawal Successful
+RD Due
+DD Due
+FD Maturity Upcoming
+FD Matured
+MIS Payout
+Maturity
+Account Closed
+
+Use existing project notification integrations where available.
+
+Possible channels:
+
+SMS
+WhatsApp
+Email
+In-App
+
+
+============================================================
+STEP 44
+SECURITY AND DATA ISOLATION TESTING
+============================================================
+
+Test all APIs.
+
+Create at least two different user/admin datasets.
+
+Verify:
+
+User A cannot access User B data.
+
+Admin A cannot access Admin B data.
+
+Test:
+
+Members
+KYC
+Plans
+Accounts
+Deposits
+Withdrawals
+Transactions
+Ledger
+Maturity
+Reports
+Receipts
+
+Attempt ID manipulation:
+
+User A sends User B account_id.
+
+Expected:
+
+403 or 404.
+
+No data leakage.
+
+Test:
+
+Unauthorized API
+Invalid Member
+Invalid Account
+Blocked Account
+Insufficient Balance
+KYC Pending Withdrawal
+KYC Rejected Withdrawal
+Duplicate Transaction
+Duplicate Account
+Invalid Plan
+Inactive Plan
+Maximum Balance
+Daily Limit
+Monthly Limit
+Concurrent Deposit
+Concurrent Withdrawal
+Double Submit
+Invalid Amount
+Negative Amount
+Zero Amount
+
+
+============================================================
+STEP 45
+FINAL INTEGRATION TESTING
+============================================================
+
+Test complete end-to-end flows.
+
+FLOW 1:
+
+Create Membership Plan
+↓
+Create Member
+↓
+KYC Pending
+↓
+Open Saving Account
+↓
+Deposit
+↓
+KYC Approval
+↓
+Withdrawal
+↓
+Statement
+
+FLOW 2:
+
+Create DD Plan
+↓
+Open DD
+↓
+Daily Collection
+↓
+Missed Payment
+↓
+Penalty
+↓
+Maturity
+↓
+KYC Check
+↓
+Settlement
+
+FLOW 3:
+
+Create RD Plan
+↓
+Open RD
+↓
+Installments
+↓
+Late Installment
+↓
+Penalty
+↓
+Interest
+↓
+Maturity
+↓
+Settlement
+
+FLOW 4:
+
+Create FD Plan
+↓
+Open FD
+↓
+Interest
+↓
+Maturity
+↓
+KYC
+↓
+Settlement
+OR
+Renewal
+
+FLOW 5:
+
+Create MIS Plan
+↓
+Open MIS
+↓
+Monthly Payout
+↓
+KYC
+↓
+Payment
+↓
+Maturity
+
+Verify ledger for every flow.
+
+
+============================================================
+FINANCIAL DASHBOARD
+============================================================
+
+Create dashboard with colorful icon-based cards.
+
+Categories:
+
+1. Member Master
+2. Saving Account
+3. Daily Deposit
+4. Recurring Deposit
+5. Fixed Deposit
+6. MIS
+7. Collection
+8. Withdrawal
+9. Maturity
+10. KYC
+11. Reports
+12. Financial Master
+13. Audit
+
+Dashboard summary:
+
+Total Members
+Active Members
+KYC Pending
+KYC Approved
+
+Total Saving Balance
+Total DD Deposit
+Total RD Deposit
+Total FD Deposit
+Total MIS Investment
+
+Today's Collection
+Today's Deposit
+Today's Withdrawal
+Today's Maturity
+
+Upcoming Maturity
+Pending KYC
+Pending Withdrawal
+Pending Payout
+
+Use colorful cards and professional financial UI.
+
+Use existing React design system.
+
+
+============================================================
+REACT UI REQUIREMENTS
+============================================================
+
+Use existing React architecture.
+
+Do not introduce another UI framework unnecessarily.
+
+Every module should have:
+
+List
+Search
+Filter
+Create
+Edit
+View
+Status
+Actions
+
+Forms must have:
+
+Proper labels
+Validation
+Loading state
+Error state
+Success notification
+Confirmation before sensitive actions
+
+Financial amount fields must support proper decimal values.
+
+Plan forms should dynamically show/hide service-specific fields.
+
+
+============================================================
+LARAVEL BACKEND REQUIREMENTS
+============================================================
+
+Follow existing project architecture.
+
+Prefer reusable services such as:
+
+FinancialAccountService
+FinancialTransactionService
+FinancialLedgerService
+FinancialInterestService
+FinancialMaturityService
+FinancialWithdrawalService
+FinancialKycService
+FinancialReceiptService
+
+Controllers should not contain huge financial calculation logic.
+
+Business logic should be in reusable services.
+
+Use Form Request validation where existing project architecture
+supports it.
+
+Use database transactions.
+
+Use authorization/permissions.
+
+
+============================================================
+ACCOUNT NUMBER GENERATION
+============================================================
+
+Generate unique account numbers.
+
+Example:
+
+SB-2026-000001
+DD-2026-000001
+RD-2026-000001
+FD-2026-000001
+MIS-2026-000001
+
+Prefix should come from Financial Master or service configuration.
+
+Account number uniqueness must respect:
+
+user_id
+admin_id
+
+Never generate duplicate account numbers under same scope.
+
+
+============================================================
+MEMBER NUMBER GENERATION
+============================================================
+
+Example:
+
+MEM-2026-000001
+
+Member number must be unique under:
+
+user_id
+admin_id
+
+
+============================================================
+TRANSACTION NUMBER
+============================================================
+
+Example:
+
+TXN-2026-00000001
+
+Must be unique under appropriate scope.
+
+Every transaction must be traceable.
+
+
+============================================================
+IMPORTANT BALANCE RULE
+============================================================
+
+Do not blindly trust current_balance from frontend.
+
+Backend must calculate:
+
+balance_before
+transaction amount
+balance_after
+
+Example:
+
+Deposit:
+
+balance_after =
+balance_before + credit - debit
+
+Withdrawal:
+
+balance_after =
+balance_before + credit - debit
+
+Use database locking where necessary to prevent concurrent
+withdrawal/deposit race conditions.
+
+
+============================================================
+PLAN VERSIONING / SNAPSHOT
+============================================================
+
+When an account is opened:
+
+Save plan-related values into account snapshot.
+
+At minimum:
+
+interest_rate_snapshot
+interest_type_snapshot
+duration_snapshot
+calculation_method_snapshot
+plan_snapshot
+
+If admin later changes:
+
+Interest Rate
+Duration
+Penalty
+Limits
+
+old accounts must not unexpectedly change.
+
+New accounts should use the new active plan configuration.
+
+
+============================================================
+APPROVAL SYSTEM
+============================================================
+
+Where approval is enabled:
+
+Created
+↓
+Pending Approval
+↓
+Approved / Rejected
+
+Sensitive operations that may require approval:
+
+Account Opening
+Withdrawal
+Maturity Payment
+Premature Closure
+Account Closure
+Balance Adjustment
+Transaction Reversal
+Daily Closing
+
+Approval must record:
+
+approved_by
+approved_at
+approval_reason
+
+
+============================================================
+ACCOUNT STATUS
+============================================================
+
+Supported:
+
+ACTIVE
+FROZEN
+DORMANT
+MATURED
+CLOSED
+
+Rules:
+
+FROZEN:
+No normal transaction.
+
+CLOSED:
+No new transaction.
+
+MATURED:
+Only maturity/renewal/settlement operations.
+
+DORMANT:
+Follow configured rules.
+
+All status rules must be enforced backend.
+
+
+============================================================
+NOMINEE
+============================================================
+
+Nominee should support:
+
+Name
+Relationship
+DOB
+Gender
+Mobile
+Address
+Share Percentage
+
+For multiple nominees:
+
+Total share percentage must equal:
+
+100%
+
+If nominee is minor:
+
+Guardian information required.
+
+Nominee records must contain:
+
+user_id
+admin_id
+member_id
+account_id
+
+
+============================================================
+FINANCIAL STATEMENT
+============================================================
+
+Each account should have statement:
+
+Date
+Transaction ID
+Description
+Debit
+Credit
+Balance
+Reference
+
+Filters:
+
+Date Range
+Transaction Type
+Amount
+
+Export:
+
+PDF
+Excel
+CSV
+
+
+============================================================
+PERFORMANCE REQUIREMENTS
+============================================================
+
+Use database indexes for:
+
+user_id
+admin_id
+member_id
+account_id
+account_no
+transaction_id
+service_type
+status
+created_at
+maturity_date
+
+Composite indexes should be added where useful:
+
+user_id + admin_id
+user_id + admin_id + member_id
+user_id + admin_id + account_no
+user_id + admin_id + service_type
+user_id + admin_id + status
+
+
+============================================================
+IMPORTANT DEVELOPMENT RULE
+============================================================
+
+Do not implement everything blindly in one giant code change.
+
+Implement internally in the exact STEP order defined above.
+
+After each STEP:
+
+1. Check migrations
+2. Check Laravel backend
+3. Check API
+4. Check React UI
+5. Run validation
+6. Run tests if available
+7. Run frontend build
+8. Check for errors
+9. Check user_id/admin_id isolation
+10. Report changed files
+
+Do not move to the next step if the current step has
+compilation/migration/runtime errors.
+
+
+============================================================
+FINAL QUALITY REQUIREMENT
+============================================================
+
+The final system must be:
+
+Secure
+Multi-tenant
+Auditable
+Ledger-based
+Plan-driven
+KYC-aware
+Transaction-safe
+Scalable
+Maintainable
+
+Do not implement the module as simple CRUD.
+
+The core architecture must be:
+
+Member
++
+Financial Plan
++
+Financial Account
++
+Transaction
++
+Ledger
++
+Interest
++
+Maturity
++
+KYC
++
+Audit
+
+All financial data must be scoped using:
+
+user_id
++
+admin_id
+
+Backend must always be authoritative.
+
+Never allow frontend manipulation to bypass financial rules.
+
+============================================================
+END OF MASTER PRD
+============================================================

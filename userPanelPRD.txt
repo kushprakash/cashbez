@@ -1,0 +1,2019 @@
+============================================================
+USER / AGENT PANEL - COMPLETE IMPLEMENTATION PRD
+============================================================
+
+PROJECT CONTEXT
+
+Existing project Laravel + React based hai.
+
+Is project me Admin Panel ke saath ek complete User/Agent Panel implement karna hai.
+
+IMPORTANT:
+- Existing authentication system ko reuse karo.
+- Existing Laravel backend architecture ko reuse karo.
+- Existing React architecture/design system ko reuse karo.
+- Existing API integrations ko reuse karo.
+- Existing KYC APIs ko reuse karo.
+- Existing UI components ko reuse karo.
+- Existing unrelated modules ko modify/refactor mat karo.
+- Agent ke liye separate frontend experience ho sakta hai, lekin backend authorization mandatory hai.
+- Sirf React menu hide karna permission nahi maana jayega.
+- Har permission Laravel backend par enforce honi chahiye.
+
+============================================================
+1. AGENT ROLE
+============================================================
+
+Agent/User ek limited financial operator hoga.
+
+Agent ko sirf:
+- apne allowed members
+- apne allowed accounts
+- apne allowed transactions
+- apne allowed financial services
+- apne allowed reports
+- apne allowed actions
+
+access karne honge.
+
+Agent ko Admin ka complete financial data access nahi milega.
+
+Agent kisi doosre Agent/User ka data access nahi kar sakta.
+
+Mandatory data scope:
+
+user_id + admin_id
+
+Har financial query me authenticated user_id aur admin_id backend se automatically apply karo.
+
+Frontend se user_id/admin_id receive karke trust mat karo.
+
+============================================================
+2. AGENT LOGIN
+============================================================
+
+Existing login/authentication system reuse karo.
+
+Login ke baad backend identify kare:
+
+- logged-in user
+- user_id
+- admin_id
+- role
+- permissions
+- status
+
+Agar user inactive/blocked hai:
+- login deny karo
+- financial APIs access deny karo
+
+Agent ke liye role/permission based authorization implement karo.
+
+============================================================
+3. AGENT DASHBOARD
+============================================================
+
+Agent login ke baad dashboard open hoga.
+
+Dashboard cards:
+
+1. Total Members
+2. Active Members
+3. KYC Pending
+4. KYC Approved
+5. Saving Accounts
+6. DD Accounts
+7. RD Accounts
+8. FD Accounts
+9. MIS Accounts
+10. Today's Collection
+11. Today's Deposit
+12. Today's Withdrawal
+13. Pending Approval
+14. Upcoming Maturity
+15. Today's Maturity
+
+Additional dashboard sections:
+
+- Recent Transactions
+- Recent Members
+- Today's Collection Summary
+- Service-wise Collection
+- Pending KYC
+- Upcoming Maturity
+- Pending Withdrawal
+- Pending Approval
+
+All dashboard numbers backend calculated honge.
+
+Agent dashboard me sirf us agent ke authorized/scoped records show honge.
+
+============================================================
+4. AGENT SIDEBAR
+============================================================
+
+Sidebar:
+
+Dashboard
+
+Members
+  - Member List
+  - Add Member
+  - Member 360
+
+KYC
+  - KYC Pending
+  - KYC Submitted
+  - KYC Approved
+  - KYC Rejected
+
+Saving
+  - Saving Accounts
+  - Open Saving Account
+  - Deposit
+  - Withdrawal
+
+Daily Deposit
+  - DD Accounts
+  - Open DD Account
+  - DD Collection
+  - DD Due
+  - DD Overdue
+  - DD Maturity
+
+Recurring Deposit
+  - RD Accounts
+  - Open RD Account
+  - RD Installment
+  - RD Due
+  - RD Overdue
+  - RD Maturity
+
+Fixed Deposit
+  - FD Accounts
+  - Open FD
+  - FD Statement
+  - FD Maturity
+  - FD Renewal
+  - Premature Closure Request
+
+MIS
+  - MIS Accounts
+  - Open MIS
+  - MIS Payout
+  - MIS Statement
+  - MIS Maturity
+  - Premature Closure Request
+
+Collection
+Withdrawal
+Maturity
+Receipts
+Statements
+Reports
+Daily Closing
+Profile
+
+Sidebar items permission ke according show honge.
+
+Lekin backend authorization bhi mandatory hoga.
+
+============================================================
+5. AGENT PROFILE
+============================================================
+
+Profile page:
+
+- Name
+- Mobile
+- Email
+- User ID
+- Agent Code
+- Admin/Company
+- Branch
+- Address
+- Status
+- Joining Date
+- Permissions
+- Commission information if enabled
+
+Agent apni sensitive authorization settings modify nahi kar sakta.
+
+============================================================
+6. MEMBER MANAGEMENT
+============================================================
+
+Agent Member create kar sakta hai agar CREATE_MEMBER permission hai.
+
+Member create form:
+
+- Name
+- Father Name
+- Husband Name
+- DOB
+- Gender
+- Mobile
+- Email
+- Address
+- State
+- District
+- Pincode
+- Occupation
+- Photo
+- Signature
+- Membership Plan
+- Nominee
+
+Backend validation mandatory.
+
+Member ID backend generate karega.
+
+Example:
+
+MEM-2026-000001
+
+Agent manually Member ID create nahi karega.
+
+Member record me:
+
+- user_id
+- admin_id
+- created_by
+- updated_by
+
+mandatory.
+
+============================================================
+7. MEMBER LIST
+============================================================
+
+Agent Member List me sirf apne scoped members dekhe.
+
+Search:
+- Member ID
+- Member Number
+- Name
+- Mobile
+
+Filters:
+- Status
+- KYC Status
+- Membership
+- Date Range
+
+Actions:
+- View
+- Edit
+- KYC
+- Accounts
+- Statement
+- Member 360
+
+No cross-agent data access.
+
+============================================================
+8. MEMBER 360
+============================================================
+
+Member 360 page me:
+
+MEMBER INFORMATION
+
+- Member ID
+- Member Number
+- Name
+- Mobile
+- Email
+- Address
+- Membership
+- Status
+- KYC Status
+
+KYC
+
+- Aadhaar Status
+- PAN Status
+- Bank Verification Status
+- Overall KYC Status
+
+ACCOUNTS
+
+- Saving
+- DD
+- RD
+- FD
+- MIS
+
+FINANCIAL SUMMARY
+
+- Total Deposit
+- Total Balance
+- Total Withdrawal
+- Total Interest
+- Total Collection
+- Upcoming Maturity
+- Matured Amount
+
+RECENT TRANSACTIONS
+
+- Date
+- Service
+- Transaction
+- Credit
+- Debit
+- Balance
+
+STATEMENT
+
+Complete financial statement.
+
+============================================================
+9. MEMBERSHIP
+============================================================
+
+Agent active membership plans dekh sake.
+
+Membership registration:
+
+- Member
+- Membership Plan
+- Membership Fee
+- GST
+- Total Amount
+- Payment Mode
+- Reference
+
+Amount backend calculate karega.
+
+Agent frontend se membership fee change nahi kar sakta.
+
+Membership receipt generate hogi.
+
+Renewal permission based hoga.
+
+============================================================
+10. AGENT KYC
+============================================================
+
+KYC module:
+
+- KYC Pending
+- KYC Submitted
+- KYC Under Verification
+- KYC Approved
+- KYC Rejected
+
+KYC operations:
+
+- Aadhaar verification
+- PAN verification
+- Bank verification
+- KYC submission
+- KYC status
+- Re-submit rejected KYC
+
+Existing KYC APIs reuse karo.
+
+Financial Master ke rules follow karo.
+
+IMPORTANT:
+
+Agar account opening KYC required nahi hai:
+Agent account open kar sakta hai without KYC.
+
+Agar withdrawal KYC required hai:
+KYC approved ke bina withdrawal backend reject karega.
+
+Frontend KYC restriction bypass nahi kar sakta.
+
+============================================================
+11. SAVING ACCOUNT
+============================================================
+
+Agent ko active Saving Plans dikhao.
+
+Open Saving Account:
+
+1. Member ID
+2. Member details
+3. Saving Plan
+4. Opening Amount
+5. Nominee
+6. Payment Mode
+7. Reference
+8. Preview
+9. Submit
+
+Backend:
+- Member validate
+- Scope validate
+- Member status validate
+- Plan validate
+- Amount validate
+- Minimum amount validate
+- Maximum amount validate
+- Charges calculate
+- Nominee validate
+- Account number generate
+- Account create
+- Opening transaction
+- Ledger
+- Receipt
+- Audit
+
+Example account number:
+
+SB-2026-000001
+
+Agar approval enabled hai:
+
+PENDING APPROVAL
+
+status create hoga.
+
+============================================================
+12. SAVING DEPOSIT
+============================================================
+
+Agent Saving Deposit kar sakta hai.
+
+Form:
+
+- Member ID
+- Account Number
+- Amount
+- Payment Mode
+- Reference
+- Narration
+
+Backend validate:
+
+- user_id
+- admin_id
+- member
+- account
+- account status
+- minimum amount
+- maximum amount
+- daily limit
+- monthly limit
+- maximum balance
+
+Success:
+
+Transaction
++
+Ledger
++
+Balance Update
++
+Receipt
++
+Audit
+
+Agent current balance manually submit nahi karega.
+
+============================================================
+13. SAVING WITHDRAWAL
+============================================================
+
+Agent withdrawal request create kar sakta hai.
+
+Form:
+
+- Member ID
+- Account Number
+- Amount
+- Payment Mode
+- Bank/Cash
+- Reference
+- Narration
+
+Backend validate:
+
+- user scope
+- account scope
+- account status
+- available balance
+- minimum withdrawal
+- maximum withdrawal
+- daily limit
+- monthly limit
+- KYC
+- bank verification
+- approval requirement
+- applicable charges
+
+If KYC required and KYC approved nahi hai:
+
+WITHDRAWAL MUST BE REJECTED BY BACKEND.
+
+Flow:
+
+Agent
+→ Withdrawal Request
+→ Validation
+→ KYC
+→ Bank Verification
+→ Limit Check
+→ Approval
+→ Transaction
+→ Ledger
+→ Balance
+→ Receipt
+→ Audit
+
+============================================================
+14. DD ACCOUNT
+============================================================
+
+Agent DD account open kar sakta hai.
+
+Fields:
+
+- Member
+- DD Plan
+- Daily Deposit Amount
+- Duration
+- Start Date
+- Nominee
+
+Backend:
+- plan validation
+- amount validation
+- duration validation
+- nominee validation
+- account number
+- opening transaction
+- ledger
+- receipt
+
+Account example:
+
+DD-2026-000001
+
+============================================================
+15. DD COLLECTION
+============================================================
+
+Agent DD collection kar sakta hai.
+
+Fields:
+
+- Member
+- DD Account
+- Installment Number
+- Amount
+- Collection Date
+- Payment Mode
+- Reference
+- Collector
+
+Backend:
+- due date
+- installment
+- amount
+- grace period
+- late fee
+- maximum missed deposit
+- account status
+
+Statuses:
+
+PENDING
+PAID
+PARTIAL
+OVERDUE
+WAIVED
+
+Success:
+
+Transaction
++
+Ledger
++
+Receipt
++
+Audit
+
+============================================================
+16. DD DUE LIST
+============================================================
+
+Agent ko DD due list mile:
+
+- Member
+- Account
+- Installment
+- Due Date
+- Amount
+- Status
+
+Filters:
+- Today
+- Tomorrow
+- Date Range
+- Member
+- Status
+
+============================================================
+17. DD MATURITY
+============================================================
+
+Agent DD maturity list dekh sake.
+
+Show:
+
+- Member
+- Account
+- Principal
+- Interest
+- Penalty
+- Charges
+- Final Amount
+- Maturity Date
+- Status
+
+Maturity payment approval required hone par agent sirf request create karega.
+
+============================================================
+18. RD ACCOUNT
+============================================================
+
+Agent RD open kar sakta hai.
+
+Fields:
+
+- Member
+- RD Plan
+- Installment Amount
+- Installment Frequency
+- Duration
+- Start Date
+- Nominee
+
+Backend validates all plan rules.
+
+============================================================
+19. RD INSTALLMENT
+============================================================
+
+Agent installment collect kar sakta hai.
+
+Fields:
+
+- Member
+- RD Account
+- Installment Number
+- Due Date
+- Amount
+- Paid Date
+- Payment Mode
+- Reference
+
+Backend calculates:
+- late fee
+- penalty
+- overdue
+- missed installment
+
+Agent penalty manually change nahi kar sakta.
+
+============================================================
+20. RD OVERDUE
+============================================================
+
+Show:
+
+- Member
+- Account
+- Installment
+- Due Date
+- Days Late
+- Late Fee
+- Total Payable
+
+Backend configured grace period follow kare.
+
+============================================================
+21. RD MATURITY
+============================================================
+
+Show:
+
+- Principal
+- Interest
+- Penalty
+- Charges
+- Final Maturity Amount
+- Maturity Date
+
+Maturity rules backend calculate kare.
+
+============================================================
+22. FD ACCOUNT
+============================================================
+
+Agent FD opening request create kare.
+
+Fields:
+
+- Member
+- FD Plan
+- Deposit Amount
+- Duration
+- Interest Rate
+- Payout Type
+- Nominee
+- Payment Mode
+- Reference
+
+IMPORTANT:
+
+Interest rate frontend se accept karke trust nahi karna.
+
+Backend active FD Plan se rate lega.
+
+FD example:
+
+FD-2026-000001
+
+============================================================
+23. FD CERTIFICATE
+============================================================
+
+Agent FD certificate view/print/download kar sake.
+
+Show:
+
+- Company
+- Member
+- Member ID
+- FD Account Number
+- Principal
+- Interest Rate
+- Duration
+- Start Date
+- Maturity Date
+- Maturity Amount
+- Nominee
+- Status
+
+============================================================
+24. FD PREMATURE CLOSURE
+============================================================
+
+Agent premature closure request create kare.
+
+Flow:
+
+Request
+→ Lock-in Check
+→ KYC Check
+→ Interest Recalculation
+→ Penalty
+→ Charges
+→ Approval
+→ Settlement
+→ Transaction
+→ Ledger
+→ Receipt
+→ Account Closure
+
+Agent final amount manually modify nahi kar sakta.
+
+============================================================
+25. FD RENEWAL
+============================================================
+
+Agent renewal request create kar sakta hai.
+
+Options:
+
+- No Renewal
+- Principal Only
+- Principal + Interest
+
+Admin-configured FD renewal rule follow karo.
+
+Historical FD cycle preserve karo.
+
+============================================================
+26. MIS ACCOUNT
+============================================================
+
+Agent MIS open kar sakta hai.
+
+Fields:
+
+- Member
+- MIS Plan
+- Investment Amount
+- Duration
+- Payout Frequency
+- Payout Day
+- Nominee
+- Bank Account
+
+Backend plan limits validate kare.
+
+============================================================
+27. MIS PAYOUT
+============================================================
+
+Agent payout status dekh sake.
+
+Statuses:
+
+PENDING
+PROCESSING
+PAID
+FAILED
+HOLD
+
+Agent payout manually mark PAID nahi kar sakta unless explicit permission/backend approval allows it.
+
+============================================================
+28. MIS PREMATURE CLOSURE
+============================================================
+
+Agent premature closure request create kare.
+
+Backend calculates:
+- principal
+- earned interest
+- penalty
+- charges
+- settlement
+
+Approval requirement apply karo.
+
+============================================================
+29. MIS MATURITY
+============================================================
+
+Agent MIS maturity देख सके.
+
+Show:
+- Principal
+- Interest
+- Charges
+- Penalty
+- Final Amount
+- Maturity Date
+- Status
+
+============================================================
+30. COLLECTION MODULE
+============================================================
+
+Dedicated Agent Collection page.
+
+Today's collection:
+
+Saving
+₹ XX
+
+DD
+₹ XX
+
+RD
+₹ XX
+
+Other
+₹ XX
+
+TOTAL
+₹ XX
+
+Filters:
+
+- Today
+- Yesterday
+- Date Range
+- Member
+- Service
+- Payment Mode
+
+Agent only own collection data see kare.
+
+============================================================
+31. WITHDRAWAL MODULE
+============================================================
+
+Agent Withdrawal page:
+
+Tabs:
+
+- New Request
+- Pending
+- Approved
+- Rejected
+- Completed
+
+Show:
+- Member
+- Account
+- Service
+- Amount
+- Charges
+- Net Amount
+- KYC
+- Approval Status
+- Date
+- Transaction ID
+
+============================================================
+32. MATURITY MODULE
+============================================================
+
+Tabs:
+
+- Upcoming
+- Today
+- Matured
+- Pending Payment
+- Paid
+- Renewal Pending
+
+Filters:
+- Service
+- Member
+- Date
+- Status
+
+============================================================
+33. RECEIPTS
+============================================================
+
+Agent receipt list.
+
+Types:
+- Membership
+- Account Opening
+- Saving Deposit
+- DD Collection
+- RD Installment
+- FD Opening
+- MIS Opening
+- Withdrawal
+- Interest
+- Maturity
+- Premature Closure
+- Refund
+
+Receipt fields:
+
+- Company
+- Agent
+- Member
+- Member ID
+- Account Number
+- Service
+- Plan
+- Transaction ID
+- Receipt Number
+- Date
+- Amount
+- Payment Mode
+- Previous Balance
+- Current Balance
+- Narration
+
+Actions:
+- View
+- Print
+- Download PDF
+
+Receipt backend generated hona chahiye.
+
+============================================================
+34. PASSBOOK / STATEMENT
+============================================================
+
+Agent member/account statement dekh sake.
+
+Columns:
+
+Date
+Transaction
+Reference
+Debit
+Credit
+Balance
+
+Filters:
+- Date Range
+- Transaction Type
+- Service
+- Account
+
+Export:
+- PDF
+- Excel
+- CSV
+- Print
+
+============================================================
+35. REPORTS
+============================================================
+
+Agent reports:
+
+1. Member Report
+2. Membership Report
+3. KYC Report
+4. Saving Report
+5. DD Report
+6. RD Report
+7. FD Report
+8. MIS Report
+9. Deposit Report
+10. Withdrawal Report
+11. Collection Report
+12. Maturity Report
+13. Transaction Report
+14. Statement Report
+
+Filters:
+- Date
+- Member
+- Account
+- Service
+- Plan
+- Status
+- Amount
+
+Agent ko sirf authorized/scoped reports milenge.
+
+============================================================
+36. DAILY CLOSING
+============================================================
+
+Agent Daily Closing page.
+
+Show:
+
+Opening Balance
+
++ Saving Deposit
++ DD Collection
++ RD Collection
++ Other Collection
++ Other Credit
+
+- Withdrawal
+- Refund
+- Other Debit
+
+= Closing Balance
+
+Agent closing submit karega.
+
+Admin approval ke baad closing locked ho jayega.
+
+Approved closing edit/delete nahi hoga.
+
+Correction:
+Adjustment/Reversal
+
+============================================================
+37. AGENT COMMISSION
+============================================================
+
+Agar commission system enabled hai to separate Agent Commission module create karo.
+
+Agent dekh sake:
+
+- Total Earned
+- Pending
+- Paid
+- This Month
+- Previous Month
+- Service-wise Commission
+
+Commission sources:
+- New Member
+- Saving Account
+- DD
+- RD
+- FD
+- MIS
+- Collection
+- Other configured services
+
+Separate commission ledger maintain karo.
+
+Member financial balance me commission mix mat karo.
+
+============================================================
+38. AGENT PERMISSIONS
+============================================================
+
+Admin Agent permissions configure kar sake.
+
+Modules:
+
+Dashboard
+Member
+Membership
+KYC
+Saving
+DD
+RD
+FD
+MIS
+Collection
+Withdrawal
+Maturity
+Receipt
+Statement
+Reports
+Daily Closing
+Commission
+
+Actions:
+
+VIEW
+CREATE
+EDIT
+APPROVE
+EXPORT
+
+Example:
+
+Saving:
+- View = YES
+- Create = YES
+- Deposit = YES
+- Withdrawal = YES
+- Export = YES
+
+Ya admin requirement ke according permissions change kar sake.
+
+============================================================
+39. PERMISSION ENFORCEMENT
+============================================================
+
+IMPORTANT:
+
+React me menu hide karna permission enforcement nahi hai.
+
+Har API par Laravel backend permission check kare.
+
+Example:
+
+Agent ke paas:
+
+saving.deposit = false
+
+to:
+
+POST /api/agent/saving/deposit
+
+backend request reject kare.
+
+Frontend se manually API call karne par bhi permission bypass nahi honi chahiye.
+
+============================================================
+40. DATA ISOLATION
+============================================================
+
+This is CRITICAL.
+
+Agent A cannot access Agent B's:
+
+- Member
+- Saving Account
+- DD Account
+- RD Account
+- FD Account
+- MIS Account
+- Deposit
+- Withdrawal
+- Collection
+- Transaction
+- Ledger
+- Receipt
+- KYC
+- Maturity
+- Report
+- Commission
+- Daily Closing
+
+Every query must use:
+
+user_id = authenticated user ID
+
+AND
+
+admin_id = authenticated admin ID
+
+Do NOT trust these values from frontend.
+
+============================================================
+41. BAD QUERY EXAMPLE
+============================================================
+
+DO NOT USE:
+
+FinancialAccount::find($accountId);
+
+OR:
+
+FinancialAccount::where('id', $accountId)->first();
+
+============================================================
+42. CORRECT QUERY LOGIC
+============================================================
+
+Use authenticated scope:
+
+FinancialAccount
+where user_id = authenticated user_id
+where admin_id = authenticated admin_id
+where id = requested account id
+
+Same rule for every financial table.
+
+============================================================
+43. CENTRAL FINANCIAL SCOPE SERVICE
+============================================================
+
+Create reusable FinancialScopeService or equivalent architecture.
+
+Purpose:
+
+- automatically apply user_id
+- automatically apply admin_id
+- prevent cross-agent access
+- reduce developer mistakes
+- centralize authorization/data isolation
+
+Use it for:
+- members
+- accounts
+- transactions
+- ledger
+- receipts
+- KYC
+- maturity
+- reports
+- collections
+- commissions
+
+============================================================
+44. AGENT API
+============================================================
+
+Recommended APIs:
+
+GET
+/api/agent/dashboard
+
+GET/POST
+/api/agent/members
+
+GET
+/api/agent/members/{id}
+
+PUT
+/api/agent/members/{id}
+
+GET/POST
+/api/agent/kyc
+
+GET/POST
+/api/agent/saving
+
+POST
+/api/agent/saving/deposit
+
+POST
+/api/agent/saving/withdrawal
+
+GET/POST
+/api/agent/dd
+
+POST
+/api/agent/dd/collection
+
+GET/POST
+/api/agent/rd
+
+POST
+/api/agent/rd/installment
+
+GET/POST
+/api/agent/fd
+
+POST
+/api/agent/fd/renewal
+
+GET/POST
+/api/agent/mis
+
+GET
+/api/agent/maturity
+
+POST
+/api/agent/maturity/request
+
+GET
+/api/agent/receipts
+
+GET
+/api/agent/statements
+
+GET
+/api/agent/reports
+
+GET/POST
+/api/agent/closing
+
+GET
+/api/agent/commission
+
+============================================================
+45. AGENT API SECURITY
+============================================================
+
+Every API:
+
+1. Authenticate user.
+2. Check user status.
+3. Check role.
+4. Check permission.
+5. Resolve authenticated user_id.
+6. Resolve authenticated admin_id.
+7. Apply scope.
+8. Validate request.
+9. Execute business logic.
+10. Create audit where required.
+11. Return only authorized data.
+
+Never accept user_id/admin_id as trusted frontend parameters.
+
+If received from frontend, ignore them or validate strictly against authenticated identity.
+
+============================================================
+46. FINANCIAL TRANSACTION RULE
+============================================================
+
+Agent cannot directly update:
+
+- current_balance
+- available_balance
+- ledger balance
+- interest
+- maturity amount
+- charges
+- penalty
+
+Agent only submits an operation.
+
+Backend calculates final values.
+
+Example:
+
+Deposit:
+
+balance_before
++
+deposit
+-
+charges
+=
+balance_after
+
+Withdrawal:
+
+balance_before
+-
+withdrawal
+-
+charges
+=
+balance_after
+
+============================================================
+47. TRANSACTION SAFETY
+============================================================
+
+Every financial operation must use DB transaction.
+
+Example:
+
+DB transaction start
+
+Validate account
+
+Lock account row
+
+Read current balance
+
+Calculate amount
+
+Create transaction
+
+Create ledger
+
+Update balance
+
+Create receipt
+
+Create audit
+
+Commit
+
+If any step fails:
+
+ROLLBACK EVERYTHING.
+
+============================================================
+48. DUPLICATE TRANSACTION PROTECTION
+============================================================
+
+Prevent duplicate submission.
+
+Use:
+- transaction reference
+- idempotency key where appropriate
+- unique constraints
+- backend duplicate validation
+
+If user double-clicks Deposit/Collection:
+Do not create two transactions.
+
+============================================================
+49. AGENT UI FORM RULES
+============================================================
+
+Every form must have:
+
+- labels
+- required indicator
+- validation
+- loading state
+- disabled submit during processing
+- success message
+- error message
+- confirmation
+- API error handling
+
+Financial amounts:
+- proper decimal format
+- no floating-point calculation in React
+- backend final calculation
+
+============================================================
+50. AGENT ACCOUNT SEARCH
+============================================================
+
+Search by:
+
+- Member ID
+- Member Number
+- Account Number
+- Mobile
+- Member Name
+
+Search results must remain scoped.
+
+Agent cannot use another agent's account number to retrieve data.
+
+============================================================
+51. AGENT NOTIFICATIONS
+============================================================
+
+Agent can receive notifications for:
+
+- new member
+- KYC approval
+- KYC rejection
+- account opening
+- deposit success
+- withdrawal approval
+- withdrawal rejection
+- DD due
+- RD due
+- maturity
+- FD maturity
+- MIS payout
+- daily closing approval/rejection
+
+Reuse existing notification infrastructure.
+
+============================================================
+52. AGENT AUDIT
+============================================================
+
+Log important actions:
+
+- login
+- member create
+- member edit
+- KYC submit
+- KYC verification
+- account opening
+- deposit
+- withdrawal request
+- maturity request
+- premature closure request
+- FD renewal request
+- daily closing
+- report export
+- receipt download
+- statement export
+
+Audit fields:
+
+- user_id
+- admin_id
+- actor_id
+- module
+- action
+- record_id
+- old_data
+- new_data
+- reason
+- IP
+- user_agent
+- created_at
+
+============================================================
+53. AGENT DASHBOARD UI
+============================================================
+
+Use existing React UI design system.
+
+Make dashboard professional and colorful.
+
+Cards with icons:
+
+Members
+KYC
+Saving
+DD
+RD
+FD
+MIS
+Collection
+Withdrawal
+Maturity
+
+Use responsive design.
+
+Desktop + tablet + mobile friendly.
+
+Do not introduce unnecessary UI libraries if existing components are available.
+
+============================================================
+54. AGENT MEMBER PAGE UI
+============================================================
+
+Member List:
+
+Search
+Filter
+Pagination
+Status
+KYC
+Membership
+
+Table:
+
+Member ID
+Name
+Mobile
+Membership
+KYC
+Accounts
+Status
+Created Date
+Actions
+
+Actions:
+View
+Edit
+KYC
+Accounts
+Statement
+
+============================================================
+55. AGENT ACCOUNT PAGE UI
+============================================================
+
+Account List:
+
+Account Number
+Member
+Service
+Plan
+Opening Amount
+Current Balance
+Interest
+Maturity Date
+Status
+Actions
+
+Actions permission based.
+
+============================================================
+56. AGENT COLLECTION PAGE UI
+============================================================
+
+Collection page should be optimized for fast field-agent use.
+
+Flow:
+
+Select Member
+→ Select Account
+→ Enter Amount
+→ Payment Mode
+→ Reference
+→ Preview
+→ Confirm
+→ Receipt
+
+Keep form simple and fast.
+
+============================================================
+57. AGENT WITHDRAWAL PAGE UI
+============================================================
+
+Show:
+
+Available Balance
+Withdrawal Limits
+KYC Status
+Bank Status
+
+Then:
+
+Amount
+Payment Mode
+Reference
+Narration
+
+Before submit show confirmation:
+
+Amount
+Charges
+Net Amount
+Remaining Balance
+
+Final calculation must come from backend.
+
+============================================================
+58. AGENT MATURITY PAGE UI
+============================================================
+
+Show maturity cards:
+
+Maturing Today
+Maturing This Week
+Maturing This Month
+Already Matured
+
+Filters:
+- Service
+- Member
+- Status
+- Date
+
+============================================================
+59. AGENT REPORT UI
+============================================================
+
+Every report:
+
+- filter section
+- date range
+- search
+- pagination
+- total count
+- total amount
+- export button
+
+Export must also enforce backend user_id/admin_id scope.
+
+============================================================
+60. AGENT DAILY CLOSING UI
+============================================================
+
+Show automatically calculated:
+
+Opening
+Collection
+Deposit
+Withdrawal
+Refund
+Other
+Closing
+
+Agent enters only required closing information.
+
+Do not allow agent to manually alter calculated financial totals.
+
+============================================================
+61. AGENT COMMISSION UI
+============================================================
+
+Dashboard:
+
+Total Commission
+Pending
+Paid
+This Month
+
+Table:
+
+Date
+Service
+Reference
+Transaction
+Rate
+Commission
+Status
+
+Only agent's own commission.
+
+============================================================
+62. AGENT MOBILE RESPONSIVENESS
+============================================================
+
+Agent portal should work properly on:
+
+- Desktop
+- Laptop
+- Tablet
+- Mobile
+
+Collection and member search pages should be mobile-friendly because agents may use phones during field collection.
+
+============================================================
+63. AGENT SECURITY TESTING
+============================================================
+
+Mandatory tests:
+
+Test 1:
+Agent A requests Agent B member ID.
+Expected:
+403 / Not Found according to security convention.
+
+Test 2:
+Agent A changes account ID in API request.
+Expected:
+Access denied.
+
+Test 3:
+Agent A changes member ID.
+Expected:
+Access denied.
+
+Test 4:
+Agent A changes user_id in request.
+Expected:
+Ignored/rejected.
+
+Test 5:
+Agent A changes admin_id.
+Expected:
+Ignored/rejected.
+
+Test 6:
+Agent without withdrawal permission calls withdrawal API.
+Expected:
+403.
+
+Test 7:
+Agent without report export permission calls export API.
+Expected:
+403.
+
+Test 8:
+Agent tries withdrawal without required KYC.
+Expected:
+Backend rejection.
+
+Test 9:
+Agent tries to modify current balance.
+Expected:
+Impossible.
+
+Test 10:
+Agent repeats same deposit request.
+Expected:
+Duplicate transaction prevented.
+
+Test 11:
+Two withdrawals simultaneously.
+Expected:
+No incorrect/negative balance.
+
+Test 12:
+Agent tries to delete financial transaction.
+Expected:
+Not allowed.
+
+============================================================
+64. ADMIN VS AGENT ACCESS
+============================================================
+
+ADMIN:
+
+- Full financial master
+- Plans
+- Charges
+- Penalties
+- All members according to admin scope
+- All agents
+- Permissions
+- Approvals
+- Reports
+- Ledger
+- Audit
+- Daily closing
+- Commission configuration
+
+AGENT:
+
+- Assigned/scoped members
+- Permitted financial services
+- Collection
+- Account requests
+- Withdrawal requests
+- Maturity requests
+- Receipts
+- Statements
+- Reports according to permission
+- Daily closing
+- Commission
+
+Agent should NOT get unrestricted Admin access.
+
+============================================================
+65. FINAL USER PANEL FLOW
+============================================================
+
+LOGIN
+
+↓
+
+DASHBOARD
+
+↓
+
+MEMBER
+
+↓
+
+KYC
+
+↓
+
+SELECT SERVICE
+
+↓
+
+SAVING / DD / RD / FD / MIS
+
+↓
+
+ACCOUNT OPENING
+
+↓
+
+DEPOSIT / COLLECTION
+
+↓
+
+WITHDRAWAL REQUEST
+
+↓
+
+INTEREST
+
+↓
+
+MATURITY
+
+↓
+
+RENEWAL / CLOSURE
+
+↓
+
+RECEIPT
+
+↓
+
+STATEMENT
+
+↓
+
+REPORT
+
+↓
+
+DAILY CLOSING
+
+↓
+
+AUDIT
+
+============================================================
+66. FINAL DEVELOPMENT INSTRUCTION
+============================================================
+
+Implement this User/Agent Panel step-by-step.
+
+Before implementing any page:
+
+1. Inspect existing Laravel authentication.
+2. Inspect existing user/admin tables.
+3. Inspect existing permission system.
+4. Inspect existing React routing.
+5. Inspect existing React components.
+6. Inspect existing API service structure.
+7. Reuse existing architecture.
+8. Do not duplicate existing features.
+
+For every module:
+
+Backend:
+- route
+- middleware
+- permission
+- controller
+- request validation
+- service
+- database transaction
+- scope
+- audit
+
+Frontend:
+- route
+- page
+- form
+- list
+- search
+- filters
+- validation
+- loading
+- error
+- success
+- permission-based action
+
+Testing:
+- functional test
+- authorization test
+- data isolation test
+- duplicate request test
+- financial calculation test
+- build test
+
+============================================================
+67. FINAL NON-NEGOTIABLE RULES
+============================================================
+
+1. Backend is authoritative.
+2. React is never trusted for financial calculations.
+3. Never trust frontend user_id.
+4. Never trust frontend admin_id.
+5. Never trust frontend balance.
+6. Never trust frontend interest rate.
+7. Never trust frontend charges.
+8. Never trust frontend KYC status.
+9. Never access financial records by ID alone.
+10. Every financial query must use user_id + admin_id.
+11. Financial transactions cannot be hard deleted.
+12. Use reversal/adjustment for correction.
+13. Money must use DECIMAL(18,2).
+14. Financial operations must use DB transactions.
+15. Use database locking for balance-changing operations.
+16. Prevent duplicate financial transactions.
+17. Enforce permissions in Laravel backend.
+18. React menu hiding is not authorization.
+19. KYC withdrawal rules must be enforced backend.
+20. Approval rules must be enforced backend.
+21. Existing plan snapshot must remain unchanged for old accounts.
+22. Existing APIs/integrations should be reused.
+23. Do not modify unrelated project modules.
+24. Do not move to next implementation step until current step is tested and stable.
+
+FINAL GOAL:
+
+Create a secure, production-ready User/Agent Financial Portal where an Agent can manage members and permitted financial operations while having ZERO unauthorized access to another Agent/User/Admin financial data.
+
+DATA ISOLATION:
+
+user_id + admin_id
+
+MUST BE ENFORCED EVERYWHERE.
+
+============================================================
+END OF USER / AGENT PANEL PRD
+============================================================

@@ -1,0 +1,87 @@
+# Application
+APP_NAME=BharatPay
+APP_ENV=production
+APP_KEY=base64:s8QSggcEq0xxF6XJA/cOCox5gMd2oYNUj2NCkVHYvSY=
+APP_DEBUG=false
+APP_URL=https://banking.cashbez.com/
+JWT_SECRET=base64:XDbarRv35bYbTlRyCmyOMCXGT3ofRReVb0uoEVLA92lDaEoC9QgO6ahNGGNubrF6
+APP_LOCALE=en
+APP_FALLBACK_LOCALE=en
+APP_FAKER_LOCALE=en_US
+
+APP_MAINTENANCE_DRIVER=file
+
+PHP_CLI_SERVER_WORKERS=4
+BCRYPT_ROUNDS=12
+
+LOG_CHANNEL=stack
+LOG_STACK=single
+LOG_DEPRECATIONS_CHANNEL=null
+LOG_LEVEL=warning
+
+# Database
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=cashbez
+DB_USERNAME=root
+DB_PASSWORD=
+
+# Session & Cache
+SESSION_DRIVER=file
+SESSION_LIFETIME=120
+SESSION_ENCRYPT=false
+SESSION_PATH=/
+SESSION_DOMAIN=banking.cashbez.com
+CACHE_STORE=file
+
+# Broadcasting & Queue
+BROADCAST_CONNECTION=log
+QUEUE_CONNECTION=sync
+
+# File System
+FILESYSTEM_DISK=local
+
+# Redis
+REDIS_CLIENT=phpredis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+# Mail
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.yourmailserver.com
+MAIL_PORT=587
+MAIL_USERNAME=your_email@example.com
+MAIL_PASSWORD=your_email_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=no-reply@banking.cashbez.com
+MAIL_FROM_NAME="${APP_NAME}"
+
+# AWS S3 (optional)
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=
+AWS_USE_PATH_STYLE_ENDPOINT=false
+
+# Vite
+VITE_APP_NAME="${APP_NAME}"
+VITE_URL=https://banking.cashbez.com
+
+# BunnyCDN Edge Storage
+BUNNY_STORAGE_API_KEY=02299cd7-2fca-4b4e-9f4ac8863cee-6df7-4766
+BUNNY_STORAGE_ZONE=bharatuploads
+BUNNY_STORAGE_REGION=
+BUNNY_CDN_HOSTNAME=bharatuploads.b-cdn.net
+
+# Bunny.net Stream Configuration (for AEPS Video KYC)
+BUNNY_STREAM_API_KEY=7ac0820d-c4f6-4db6-ace8af452bbc-f57b-45e3
+BUNNY_LIBRARY_ID=715091
+BUNNY_STREAM_HOSTNAME=vz-027a545b-f59.b-cdn.net
+
+DIGILOCKER_CLIENT_ID=RS56373D03234654
+DIGILOCKER_CLIENT_SECRET=f7a79cfba564867jokhuidoh2c6cf0cb6f7
+DIGILOCKER_REDIRECT_URI=https://banking.shopy.com/api/digilocker-webhook
+DIGILOCKER_APP_REDIRECT=https://banking.cashbez.com/signup
+DIGILOCKER_BASE_URL=https://digilocker.meripehchaan.gov.in
