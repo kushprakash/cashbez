@@ -633,29 +633,47 @@ class VaController extends Controller
                                             
 
                                             if ($is_api_partner == true) {
+
                                                 $setting = Setting::where('user_id', $credit_user_id)->first();
                                                 if ($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
                                                     try {
-                                                        $data['id']=$eventData['id'];
-                                                        $data['virtual_account_id']=$virtualAccountId;
+
                                                         $postData = [
                                                             "type" => "vpa_transaction",
                                                             "data" => DB::table('vpa_transaction')->where('id', $id)->first()
                                                         ];
-
+                                                        
                                                         $ch = curl_init($setting->call_back_url);
-                                                        $payload = json_encode($postData);
-
-                                                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                                        curl_setopt($ch, CURLOPT_POST, true);
-                                                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                                            'Content-Type: application/json',
-                                                            'Content-Length: ' . strlen($payload)
+                                                        curl_setopt_array($ch, [
+                                                            CURLOPT_RETURNTRANSFER => true,
+                                                            CURLOPT_POST           => true,
+                                                            CURLOPT_POSTFIELDS     => json_encode($postData),
+                                                            CURLOPT_HTTPHEADER     => [
+                                                                "Content-Type: application/json",
+                                                                "Accept: application/json"
+                                                            ],
+                                                            CURLOPT_TIMEOUT        => 60,
+                                                            CURLOPT_CONNECTTIMEOUT => 20
                                                         ]);
-                                                        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-
-                                                        curl_exec($ch);
+                                                        $res = curl_exec($ch);
                                                         curl_close($ch);
+
+
+                                                        DB::table('logs')->insert([
+                                                            'mid' => $adminData->mid,
+                                                            'type' => 'VPA Webhook Sent',
+                                                            'platform' => 'API',
+                                                            'headers' => NULL,
+                                                            'request_data' => json_encode(DB::table('vpa_transaction')->where('id', $id)->first()),
+                                                            'response_data' => $res,
+                                                            'url' => $setting->call_back_url,
+                                                            'txnid' => rand(999999999, 111111111),
+                                                            'status' => 0,
+                                                            'timestamp' => now(),
+                                                            'created_at' => now()->format('Y-m-d H:i:s'),
+                                                        ]);
+
+
                                                     } catch (\Exception $e) {
                                                         \Log::error('Callback to API partner failed: ' . $e->getMessage());
                                                     }
