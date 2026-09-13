@@ -510,26 +510,32 @@ class VaController extends Controller
         
                 $response = $request->all();
 
+                $eventData=$response['data'] ?? [];
 
-
-                  DB::table('logs')->insert([
-                        'mid' => null,
-                        'type' => 'Bharatpay Callback',
-                        'platform' => 'Webhook',
-                        'headers' => NULL,
-                        'request_data' => json_encode($response),
-                        'url' => 'VPA Callback',
-                        'txnid' => rand(999999999, 111111111),
-                        'status' => 0,
-                        'timestamp' => now(),
-                        'created_at' => now()->format('Y-m-d H:i:s'),
-                    ]);
+                DB::table('logs')->insert([
+                    'mid' => null,
+                    'type' => 'Bharatpay Callback',
+                    'platform' => 'Webhook',
+                    'headers' => NULL,
+                    'request_data' => json_encode($response),
+                    'url' => 'VPA Callback',
+                    'txnid' => rand(999999999, 111111111),
+                    'status' => 0,
+                    'timestamp' => now(),
+                    'created_at' => now()->format('Y-m-d H:i:s'),
+                ]);
 
                 
                 if($response['type'] =='vpa_transaction'){
                    
+                    // $eventData keys => `id`, `mid`, `vpa_account_id`,
+                    //  `txn_id`, `remitter_full_name`, `remitter_account_number`, 
+                    // `remitter_account_ifsc`, `remitter_phone_number`, `utr`,
+                    //  `payment_mode`, `amount`, `service_charge`, `gst_amount`,
+                    //  `service_charge_with_gst`, `narration`, `status`, `vpa_id`,
+                    //  `created_at`, `updated_at`
 
-                    $virtualAccountId = $response['data']['virtual_account_id'] ?? null;
+                    $virtualAccountId = $eventData['vpa_account_id'] ?? null;
                     if (!$virtualAccountId) {
                         return response()->json(['status' => 0, 'message' => 'Virtual Account ID missing in callback data'], 200);
                     }
@@ -541,7 +547,7 @@ class VaController extends Controller
                     if ($vpa_data) {
                         $data = [];
                     
-                        $txnId = $eventData['id'] ?? null;
+                        $txnId = $eventData['txn_id'] ?? null;
                         if ($txnId) {
                             $record = DB::table('vpa_transaction')->where('txn_id', $txnId)->first();
                             if ($record) {
@@ -553,6 +559,7 @@ class VaController extends Controller
                                 $data['remitter_account_ifsc'] = $eventData['remitter_account_ifsc'] ?? null;
                                 $data['remitter_phone_number'] = $eventData['remitter_phone_number'] ?? null;
                                 $data['payment_mode'] = $eventData['payment_mode'] ?? null;
+                                $data['narration'] = $eventData['narration'] ?? null;
                                 $data['amount'] = $eventData['amount'] ?? 0;
                                 $data['service_charge'] = $eventData['service_charge'] ?? 0;
                                 $data['gst_amount'] = $eventData['gst_amount'] ?? 0;
@@ -560,8 +567,10 @@ class VaController extends Controller
                                 $data['vpa_id'] = $vpa_data->id;
                                 $data['mid'] = $vpa_data->mid;
                                 $data['txn_id'] = $txnId;
+                                $data['status'] = $eventData['status'] ?? 'Pending';
                                 $data['utr'] = $eventData['utr'] ?? null;
                                 $data['created_at'] = date('Y-m-d H:i:s');
+                                $data['vpa_account_id'] = $virtualAccountId;
 
                                 $id = DB::table('vpa_transaction')->insertGetId($data);
 
@@ -588,7 +597,7 @@ class VaController extends Controller
                                             'category_code' => 'DEPOSIT'
                                         ];
 
-                                        if ($data['status'] == 'SUCCESS') {
+                                        if ($eventData['status'] == 'SUCCESS') {
 
                                             $transactionData = createTransaction($transactionData1);
 
@@ -631,7 +640,7 @@ class VaController extends Controller
                                                         $data['virtual_account_id']=$virtualAccountId;
                                                         $postData = [
                                                             "type" => "vpa_transaction",
-                                                            "data" => $data
+                                                            "data" => DB::table('vpa_transaction')->where('id', $id)->first()
                                                         ];
 
                                                         $ch = curl_init($setting->call_back_url);
