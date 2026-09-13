@@ -1925,7 +1925,7 @@ class MerchantController extends Controller
             $response = curl_exec($ch);
 
 
-             DB::table('logs')->insert([
+            $logId=DB::table('logs')->insertGetId([
                 'mid'          => $existingUser->mid ?? '',
                 'type'         => '2FA',
                 'platform'     => 'WEB',
@@ -1953,6 +1953,15 @@ class MerchantController extends Controller
                 $existingUser->save();
 
 
+                DB::table('logs')
+                ->where('id', $logId)
+                ->update([
+                    'status'        => 1,
+                    'updated_at'    => now()->format('Y-m-d H:i:s'),
+                ]);
+
+
+
                 $is_api_partner = false;
                 $adminData = User::where('id',$existingUser->admin_id)->select("id","is_api_partner")->first();
                 if($adminData && $adminData->is_api_partner==true) {
@@ -1964,79 +1973,81 @@ class MerchantController extends Controller
                 }
 
 
-                $account = Account::where('user_id', $credit_user_id)->where('primary_status', true)->first();
-                if ($account) {
+                $count = DB::table('logs')->where("mid", $existingUser->mid)->where("type", "2FA Request")->where("status", 1)->count();
+                if ($count >= 2) {
+                    $account = Account::where('user_id', $credit_user_id)->where('primary_status', true)->first();
+                    if ($account) {
 
-                    // Resolve category_id from category_code if provided
-                    $categoryId = null;
-                    $category = TxnCategory::where('code', strtoupper('AEPS'))->first();
-                    $categoryId = $category ? $category->id : null;
+                        // Resolve category_id from category_code if provided
+                        $categoryId = null;
+                        $category = TxnCategory::where('code', strtoupper('AEPS'))->first();
+                        $categoryId = $category ? $category->id : null;
 
-                    // Create passbook entry
-                    $passbookData = [
-                        'account_id' => $account->id,
-                        'transaction_id' => '2FA' . rand(111111, 999999),
-                        'type' => 'DR',
-                        'pre_balance' => $account->balance,
-                        'amount' => 1,
-                        'balance' => $account->balance - 1,
-                        'description' => '2FA Charge - ' . $existingUser->phone,
-                        'category_id' => $categoryId,
-                        'created_by' => $credit_user_id,
-                        'admin_id' => $existingUser->admin_id,
-                        'user_id' => $credit_user_id,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ];
-                    
-                    // Create the passbook entry
-                    $passbook = Passbook::create($passbookData);
-                    
-                    
-                    
-                    // Send callback to partner URL
-                    if($is_api_partner == true) {
-                        $setting = Setting::where('user_id', $credit_user_id)->first();
-                        if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
-                            try {
-                                $postData = [
-                                    "type" => "2fa",
-                                    "data" => [
-                                        "outletId" => $existingUser->mid,
-                                        "charge" => 1,
-                                        "timestamp" => date('Y-m-d H:i:s'),
-                                        "message" => 'AEPS 2FA Charge - ' . $existingUser->mobile,
-                                    ]
-                                ];
+                        // Create passbook entry
+                        $passbookData = [
+                            'account_id' => $account->id,
+                            'transaction_id' => '2FA' . rand(111111, 999999),
+                            'type' => 'DR',
+                            'pre_balance' => $account->balance,
+                            'amount' => 1,
+                            'balance' => $account->balance - 1,
+                            'description' => '2FA Charge - ' . $existingUser->phone,
+                            'category_id' => $categoryId,
+                            'created_by' => $credit_user_id,
+                            'admin_id' => $existingUser->admin_id,
+                            'user_id' => $credit_user_id,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ];
+                        
+                        // Create the passbook entry
+                        $passbook = Passbook::create($passbookData);
+                        
+                        
+                        
+                        // Send callback to partner URL
+                        if($is_api_partner == true) {
+                            $setting = Setting::where('user_id', $credit_user_id)->first();
+                            if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
+                                try {
+                                    $postData = [
+                                        "type" => "2fa",
+                                        "data" => [
+                                            "outletId" => $existingUser->mid,
+                                            "charge" => 1,
+                                            "timestamp" => date('Y-m-d H:i:s'),
+                                            "message" => 'AEPS 2FA Charge - ' . $existingUser->mobile,
+                                        ]
+                                    ];
 
-                                // Initialize cURL
-                                $ch = curl_init($setting->call_back_url);
+                                    // Initialize cURL
+                                    $ch = curl_init($setting->call_back_url);
 
-                                // Encode POST data as JSON
-                                $payload = json_encode($postData);
+                                    // Encode POST data as JSON
+                                    $payload = json_encode($postData);
 
-                                // Set cURL options
-                                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                                curl_setopt($ch, CURLOPT_POST, true);
-                                curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                    'Content-Type: application/json',
-                                    'Content-Length: ' . strlen($payload)
-                                ]);
-                                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+                                    // Set cURL options
+                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                    curl_setopt($ch, CURLOPT_POST, true);
+                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                        'Content-Type: application/json',
+                                        'Content-Length: ' . strlen($payload)
+                                    ]);
+                                    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
 
-                                // Execute and get response
-                                $response = curl_exec($ch);
-                                
-                            } catch (\Exception $e) {
-                                \Log::error('Callback to API partner failed: ' . $e->getMessage());
-                            }   
+                                    // Execute and get response
+                                    $response = curl_exec($ch);
+                                    
+                                } catch (\Exception $e) {
+                                    \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                                }   
 
+                            }
                         }
+                        
                     }
-                    
+
                 }
-
-
 
                 return response()->json([
                     'status'  => 1,
