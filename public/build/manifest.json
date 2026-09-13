@@ -20,7 +20,7 @@
     "src": "node_modules/boxicons/fonts/boxicons.woff2"
   },
   "node_modules/canvg/lib/index.es.js": {
-    "file": "assets/index.es-AuSuO6rk.js",
+    "file": "assets/index.es-08FJJl_-.js",
     "name": "index.es",
     "src": "node_modules/canvg/lib/index.es.js",
     "isDynamicEntry": true,
@@ -39,7 +39,7 @@
     "src": "public/assets/images/users/avatar-1.jpg"
   },
   "resources/js/app.jsx": {
-    "file": "assets/app-CyLknaOr.js",
+    "file": "assets/app-CE8RRxXZ.js",
     "name": "app",
     "src": "resources/js/app.jsx",
     "isEntry": true,
@@ -71,7 +71,7 @@
     ]
   },
   "resources/js/banking/BankingDashboard.jsx": {
-    "file": "assets/BankingDashboard-BhD1A7M_.js",
+    "file": "assets/BankingDashboard-22X_D0VQ.js",
     "name": "BankingDashboard",
     "src": "resources/js/banking/BankingDashboard.jsx",
     "isDynamicEntry": true,
@@ -108,7 +108,7 @@
     "src": "resources/js/banking/startup-india.webp"
   },
   "resources/js/crm/CRMDashboard.jsx": {
-    "file": "assets/CRMDashboard-B8pGw_gQ.js",
+    "file": "assets/CRMDashboard-Ded1tq2_.js",
     "name": "CRMDashboard",
     "src": "resources/js/crm/CRMDashboard.jsx",
     "isDynamicEntry": true,
@@ -117,7 +117,7 @@
     ]
   },
   "resources/js/hrms/HRMDashboard.jsx": {
-    "file": "assets/HRMDashboard-DSDQewBZ.js",
+    "file": "assets/HRMDashboard-B-TGJ6O-.js",
     "name": "HRMDashboard",
     "src": "resources/js/hrms/HRMDashboard.jsx",
     "isDynamicEntry": true,
@@ -130,7 +130,7 @@
     "src": "resources/js/online_service/download/Digital_India_logo.png"
   },
   "resources/js/pages/MasterDashboard.jsx": {
-    "file": "assets/MasterDashboard-BXKvYy4h.js",
+    "file": "assets/MasterDashboard-BZe6mzfv.js",
     "name": "MasterDashboard",
     "src": "resources/js/pages/MasterDashboard.jsx",
     "isDynamicEntry": true,

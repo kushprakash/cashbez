@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AgentFinancialController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\ModuleController;
@@ -64,7 +65,9 @@ use App\Http\Controllers\Api\ComplaintController;
 use App\Http\Controllers\Api\ChatController;
 use App\Http\Controllers\Api\PushNotificationController;
 use App\Http\Controllers\Api\DigiLockerOnboarding;
+use App\Http\Controllers\Api\FinancialMasterController;
 use App\Http\Controllers\VaController;
+
 
 
 // ==========================================
@@ -1169,5 +1172,76 @@ Route::middleware('api.token.auth')->group(function () {
         Route::get('/application-report-filter-lists', [\App\Http\Controllers\OnlineService\PanCardController::class, 'getPanFilterLists']);
     });
 
+    // ==========================================
+    // Financial Master Routes
+    // ==========================================
+    Route::prefix('financial')->group(function () {
+        Route::get('master/summary', [FinancialMasterController::class, 'getSummary']);
+        Route::get('settings', [FinancialMasterController::class, 'getSettings']);
+        Route::post('settings', [FinancialMasterController::class, 'updateSettings']);
+        Route::put('settings', [FinancialMasterController::class, 'updateSettings']);
+
+        Route::get('super-admin/admins-list', [FinancialMasterController::class, 'getTenantAdmins']);
+
+        Route::get('membership-plans', [FinancialMasterController::class, 'getMembershipPlans']);
+        Route::post('membership-plans', [FinancialMasterController::class, 'storeMembershipPlan']);
+        Route::put('membership-plans/{id}', [FinancialMasterController::class, 'updateMembershipPlan']);
+        Route::delete('membership-plans/{id}', [FinancialMasterController::class, 'deleteMembershipPlan']);
+
+        Route::get('plans', [FinancialMasterController::class, 'getPlans']);
+        Route::post('plans', [FinancialMasterController::class, 'storePlan']);
+        Route::put('plans/{id}', [FinancialMasterController::class, 'updatePlan']);
+        Route::delete('plans/{id}', [FinancialMasterController::class, 'deletePlan']);
+
+        Route::get('charges-penalties', [FinancialMasterController::class, 'getChargesPenalties']);
+        Route::post('charges-penalties', [FinancialMasterController::class, 'storeChargePenalty']);
+        Route::put('charges-penalties/{id}', [FinancialMasterController::class, 'updateChargePenalty']);
+        Route::delete('charges-penalties/{id}', [FinancialMasterController::class, 'deleteChargePenalty']);
+    });
+
+    // ==========================================
+    // Agent Financial Portal Routes
+    // ==========================================
+    Route::prefix('agent/financial')->group(function () {
+        Route::get('dashboard', [AgentFinancialController::class, 'getDashboardSummary']);
+        
+        // Member Routes
+        Route::get('members', [AgentFinancialController::class, 'getMembers']);
+        Route::post('members', [AgentFinancialController::class, 'createMember']);
+        Route::get('members/{id}', [AgentFinancialController::class, 'getMemberDetails']);
+        Route::put('members/{id}', [AgentFinancialController::class, 'updateMember']);
+
+        // KYC Routes
+        Route::get('kyc-pending', [AgentFinancialController::class, 'getKycPendingList']);
+        Route::post('kyc-submit/{id}', [AgentFinancialController::class, 'submitMemberKyc']);
+        Route::post('kyc/send-aadhaar-otp', [AgentFinancialController::class, 'sendMemberAadhaarOtp']);
+        Route::post('kyc/verify-aadhaar-otp', [AgentFinancialController::class, 'verifyMemberAadhaarOtp']);
+
+        // Saving Account Routes
+        Route::get('saving/accounts', [AgentFinancialController::class, 'getSavingAccounts']);
+        Route::post('saving/open', [AgentFinancialController::class, 'openSavingAccount']);
+        Route::post('saving/deposit', [AgentFinancialController::class, 'depositSaving']);
+        Route::post('saving/send-withdrawal-otp', [AgentFinancialController::class, 'sendWithdrawalOtp']);
+        Route::post('saving/withdraw', [AgentFinancialController::class, 'withdrawSaving']);
+
+        // DD, RD, FD, MIS Account Routes
+        Route::get('accounts/{type}', [AgentFinancialController::class, 'getAccountsByType']);
+        Route::post('accounts/open', [AgentFinancialController::class, 'openFinancialAccount']);
+        Route::post('accounts/collect', [AgentFinancialController::class, 'collectInstallment']);
+        Route::get('fd-certificate/{id}', [AgentFinancialController::class, 'getFdCertificate']);
+
+        // Maturity Center Routes
+        Route::get('maturities', [AgentFinancialController::class, 'getMaturityList']);
+
+        // Passbook & Reports
+        Route::get('passbook', [AgentFinancialController::class, 'getPassbookStatement']);
+        Route::get('reports', [AgentFinancialController::class, 'getAgentReports']);
+
+        // Daily Closing Routes
+        Route::get('daily-closing', [AgentFinancialController::class, 'getDailyClosingInfo']);
+        Route::post('daily-closing', [AgentFinancialController::class, 'submitDailyClosing']);
+    });
+
 });
+
 

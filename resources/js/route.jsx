@@ -301,6 +301,25 @@ import PanApplicationReport from './online_service/pancard/PanApplicationReport'
 // Guest Payment Gateway
 import GuestPaymentGateway from './pages/pg/GuestPaymentGateway';
 
+// Financial Master Center
+import FinancialMasterHub from './financial/FinancialMasterHub';
+
+// Agent Financial Portal
+import AgentFinancialDashboard from './agent/AgentFinancialDashboard';
+import MemberManagementView from './agent/members/MemberManagementView';
+import KycPendingView from './agent/kyc/KycPendingView';
+import SavingAccountView from './agent/saving/SavingAccountView';
+import DdAccountView from './agent/dd/DdAccountView';
+import RdAccountView from './agent/rd/RdAccountView';
+import FdAccountView from './agent/fd/FdAccountView';
+import MisAccountView from './agent/mis/MisAccountView';
+import CollectionCenterView from './agent/collection/CollectionCenterView';
+import MaturityCenterView from './agent/maturity/MaturityCenterView';
+import PassbookStatementView from './agent/statements/PassbookStatementView';
+import AgentReportsView from './agent/reports/AgentReportsView';
+import DailyClosingView from './agent/closing/DailyClosingView';
+
+
 
 
 
@@ -709,8 +728,27 @@ const AppRoutes = () => (
             <Route path="pancard/admin/fund-requests" element={<AdminFundRequests />} />
             <Route path="pancard/admin/application-report" element={<PanApplicationReport />} />
 
+            {/* Financial Master Center */}
+            <Route path="financial/master" element={<FinancialMasterHub />} />
+            <Route path="financial-master" element={<FinancialMasterHub />} />
+
+            {/* Agent Financial Portal Routes */}
+            <Route path="agent/financial-dashboard" element={<AgentFinancialDashboard />} />
+            <Route path="agent/members" element={<MemberManagementView />} />
+            <Route path="agent/kyc-pending" element={<KycPendingView />} />
+            <Route path="agent/saving-accounts" element={<SavingAccountView />} />
+            <Route path="agent/dd-accounts" element={<DdAccountView />} />
+            <Route path="agent/rd-accounts" element={<RdAccountView />} />
+            <Route path="agent/fd-accounts" element={<FdAccountView />} />
+            <Route path="agent/mis-accounts" element={<MisAccountView />} />
+            <Route path="agent/collection-center" element={<CollectionCenterView />} />
+            <Route path="agent/maturity-center" element={<MaturityCenterView />} />
+            <Route path="agent/passbook-statement" element={<PassbookStatementView />} />
+            <Route path="agent/reports" element={<AgentReportsView />} />
+            <Route path="agent/daily-closing" element={<DailyClosingView />} />
 
         </Route>
+
 
 
         <Route path="testing" element={<Testing />} />
