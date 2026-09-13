@@ -46,7 +46,7 @@ class BeneficiaryController extends Controller
                     ->forUser($user->id)
                     ->orderBy('latest_payouts.last_payment_date', 'desc')
                     ->orderBy('beneficiaries.created_at', 'desc')
-                    ->where('beneficiaries.type', '<', 3);
+                    ->where('beneficiaries.type', '<', 5);
 
                 // Apply search filter
                 if ($request->filled('search')) {
