@@ -303,53 +303,83 @@ const KycPendingView = () => {
 
                                 {/* Step 3: Verified Data Preview */}
                                 {verifiedData ? (
-                                    <div className="card border border-success bg-success bg-opacity-10 p-3 rounded-3">
-                                        <div className="d-flex align-items-center justify-content-between border-bottom border-success pb-2 mb-3">
-                                            <h6 className="fw-bold text-success mb-0">
-                                                <i className="bx bx-check-circle me-1 fs-5"></i> Step 2: Verified Aadhaar Information
-                                            </h6>
-                                            <span className="badge bg-success">Verified</span>
+                                    <div className="card border shadow-sm rounded-3 mb-3 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#198754' }}>
+                                        {/* Card Header Bar */}
+                                        <div className="d-flex align-items-center justify-content-between p-3 border-bottom" style={{ backgroundColor: '#f8f9fa' }}>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <i className="bx bxs-check-circle text-success fs-4"></i>
+                                                <div>
+                                                    <h6 className="fw-bold text-dark mb-0">Step 2: Verified Aadhaar Information</h6>
+                                                    <small className="text-muted">UIDAI Aadhaar Verification Details</small>
+                                                </div>
+                                            </div>
+                                            <span className="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-semibold">
+                                                <i className="bx bx-check me-1"></i> VERIFIED
+                                            </span>
                                         </div>
 
-                                        <div className="row g-3">
-                                            {verifiedData.photo && (
-                                                <div className="col-md-3 text-center">
-                                                    <img
-                                                        src={verifiedData.photo}
-                                                        alt="Aadhaar Photo"
-                                                        className="img-thumbnail rounded shadow-sm mb-1"
-                                                        style={{ maxHeight: '120px' }}
-                                                    />
-                                                    <small className="d-block text-muted">Aadhaar Photo</small>
-                                                </div>
-                                            )}
-                                            <div className={verifiedData.photo ? "col-md-9" : "col-md-12"}>
-                                                <div className="row g-2">
-                                                    <div className="col-6">
-                                                        <span className="text-muted small d-block">Aadhaar Name:</span>
-                                                        <strong className="text-dark">{verifiedData.name || 'N/A'}</strong>
-                                                    </div>
-                                                    <div className="col-6">
-                                                        <span className="text-muted small d-block">Date of Birth:</span>
-                                                        <strong className="text-dark">{verifiedData.dob || 'N/A'}</strong>
-                                                    </div>
-                                                    {verifiedData.care_of && (
-                                                        <div className="col-12">
-                                                            <span className="text-muted small d-block">Care Of / Father Name:</span>
-                                                            <strong className="text-dark">{verifiedData.care_of}</strong>
+                                        {/* Card Body Content */}
+                                        <div className="p-3" style={{ backgroundColor: '#ffffff' }}>
+                                            <div className="row g-3">
+                                                {verifiedData.photo && (
+                                                    <div className="col-md-3 text-center border-end pe-md-3">
+                                                        <div className="position-relative d-inline-block">
+                                                            <img
+                                                                src={verifiedData.photo}
+                                                                alt="Aadhaar Photo"
+                                                                className="img-thumbnail rounded-3 shadow-sm mb-2"
+                                                                style={{ width: '110px', height: '130px', objectFit: 'cover', border: '2px solid #198754' }}
+                                                            />
                                                         </div>
-                                                    )}
-                                                    <div className="col-6">
-                                                        <span className="text-muted small d-block">Gender:</span>
-                                                        <strong className="text-dark text-capitalize">{verifiedData.gender || 'N/A'}</strong>
+                                                        <small className="d-block text-muted fw-medium">Aadhaar Photo</small>
                                                     </div>
-                                                    <div className="col-6">
-                                                        <span className="text-muted small d-block">Aadhaar Number:</span>
-                                                        <strong className="text-primary">{aadharNumber}</strong>
-                                                    </div>
-                                                    <div className="col-12 mt-2">
-                                                        <span className="text-muted small d-block">Address:</span>
-                                                        <span className="fw-medium text-dark">{verifiedData.address || `${verifiedData.state || ''} ${verifiedData.pincode || ''}`}</span>
+                                                )}
+
+                                                <div className={verifiedData.photo ? "col-md-9 ps-md-3" : "col-md-12"}>
+                                                    <div className="row g-2">
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Aadhaar Name</span>
+                                                                <strong className="text-dark fs-6">{verifiedData.name || 'N/A'}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Date of Birth</span>
+                                                                <strong className="text-dark fs-6">{verifiedData.dob || 'N/A'}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        {verifiedData.care_of && (
+                                                            <div className="col-md-12">
+                                                                <div className="p-2 rounded bg-light border">
+                                                                    <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Care Of / Father Name</span>
+                                                                    <strong className="text-dark">{verifiedData.care_of}</strong>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Gender</span>
+                                                                <strong className="text-dark text-capitalize">{verifiedData.gender || 'N/A'}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Aadhaar Number</span>
+                                                                <strong className="text-primary fs-6">{aadharNumber}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="col-md-12">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Full Address</span>
+                                                                <span className="fw-medium text-dark small d-block">{verifiedData.address || `${verifiedData.state || ''} ${verifiedData.pincode || ''}`}</span>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>

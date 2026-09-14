@@ -438,6 +438,99 @@ const MemberManagementView = () => {
                                     </div>
                                 </div>
 
+                                {/* Verified Aadhaar Details Section */}
+                                {selectedMember.kyc_status === 'APPROVED' ? (
+                                    <div className="card border shadow-sm rounded-3 mb-4 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#198754' }}>
+                                        {/* Card Header Bar */}
+                                        <div className="d-flex align-items-center justify-content-between p-3 border-bottom" style={{ backgroundColor: '#f8f9fa' }}>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <i className="bx bxs-check-circle text-success fs-4"></i>
+                                                <div>
+                                                    <h6 className="fw-bold text-dark mb-0">Verified Aadhaar Details</h6>
+                                                    <small className="text-muted">Aadhaar OTP Verified Member Profile</small>
+                                                </div>
+                                            </div>
+                                            <span className="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fw-semibold">
+                                                <i className="bx bx-check me-1"></i> AADHAAR VERIFIED
+                                            </span>
+                                        </div>
+
+                                        {/* Card Body Content */}
+                                        <div className="p-3" style={{ backgroundColor: '#ffffff' }}>
+                                            <div className="row g-3">
+                                                {selectedMember.photo && (
+                                                    <div className="col-md-3 text-center border-end pe-md-3">
+                                                        <div className="position-relative d-inline-block">
+                                                            <img
+                                                                src={selectedMember.photo}
+                                                                alt="Aadhaar Photo"
+                                                                className="img-thumbnail rounded-3 shadow-sm mb-2"
+                                                                style={{ width: '110px', height: '130px', objectFit: 'cover', border: '2px solid #198754' }}
+                                                            />
+                                                        </div>
+                                                        <small className="d-block text-muted fw-medium">Aadhaar Photo</small>
+                                                    </div>
+                                                )}
+
+                                                <div className={selectedMember.photo ? "col-md-9 ps-md-3" : "col-md-12"}>
+                                                    <div className="row g-2">
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Aadhaar Name</span>
+                                                                <strong className="text-dark fs-6">{selectedMember.name || 'N/A'}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Date of Birth</span>
+                                                                <strong className="text-dark fs-6">{selectedMember.dob || 'N/A'}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        {selectedMember.father_name && (
+                                                            <div className="col-md-12">
+                                                                <div className="p-2 rounded bg-light border">
+                                                                    <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Care Of / Father Name</span>
+                                                                    <strong className="text-dark">{selectedMember.father_name}</strong>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Gender</span>
+                                                                <strong className="text-dark text-capitalize">{selectedMember.gender || 'N/A'}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="col-md-6">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Aadhaar Number</span>
+                                                                <strong className="text-primary fs-6">{selectedMember.aadhar_number || 'N/A'}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="col-md-12">
+                                                            <div className="p-2 rounded bg-light border">
+                                                                <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Full Address</span>
+                                                                <span className="fw-medium text-dark small d-block">{selectedMember.address || `${selectedMember.state || ''} ${selectedMember.pincode || ''}`}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="alert alert-warning d-flex align-items-center py-2 px-3 mb-4 rounded-3">
+                                        <i className="bx bx-error-circle fs-4 me-2"></i>
+                                        <div>
+                                            <strong>Aadhaar Verification Pending</strong> — Complete Aadhaar OTP verification in KYC Queue to view verified Aadhaar data.
+                                        </div>
+                                    </div>
+                                )}
+
                                 <h6 className="fw-bold text-primary border-bottom pb-2 mb-3">Linked Accounts</h6>
                                 {selectedMember.accounts?.length > 0 ? (
                                     <div className="table-responsive mb-4">
