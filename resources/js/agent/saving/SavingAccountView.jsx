@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import ApiService from '../../core/services/ApiService';
 import MpinModal from '../../components/MpinModal';
 import MemberSelectSearch from '../../components/MemberSelectSearch';
+import BankAccountBondModal from '../../components/BankAccountBondModal';
 
 const getPlanMinAmount = (p) => {
     if (!p) return 0;
@@ -16,6 +17,368 @@ const getPlanMaxAmount = (p) => {
     return max ? parseFloat(max) : null;
 };
 
+/* ─────────────────────────────────────────────────────────────
+   Saving Account Details & Member Profile Modal
+───────────────────────────────────────────────────────────── */
+const AccountDetailsModal = ({ isOpen, account, onClose }) => {
+    if (!isOpen || !account) return null;
+
+    const {
+        account_number,
+        opening_amount,
+        current_balance,
+        interest_rate = 4.0,
+        status = 'ACTIVE',
+        created_at,
+        member,
+        nominee_name,
+        nominee_relation,
+    } = account;
+
+    const openingDate = created_at ? new Date(created_at).toLocaleDateString('en-IN') : 'N/A';
+
+    return (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }}>
+            <div className="modal-dialog modal-lg modal-dialog-centered">
+                <div className="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                    <div className="modal-header bg-primary text-white py-3 px-4">
+                        <h5 className="modal-title fw-bold d-flex align-items-center gap-2">
+                            <i className="bx bx-id-card fs-4"></i>
+                            <span>Saving Account Details & Member Profile</span>
+                        </h5>
+                        <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
+                    </div>
+                    <div className="modal-body p-4 bg-light">
+
+                        {/* Account Overview Header */}
+                        <div className="card border-0 shadow-sm rounded-3 p-3 mb-3 bg-white">
+                            <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div>
+                                    <span className="text-muted small d-block">Saving Account No</span>
+                                    <h4 className="fw-bold text-primary mb-0">{account_number}</h4>
+                                </div>
+                                <div className="text-end">
+                                    <span className="badge bg-success-subtle text-success border border-success-subtle fs-6 px-3 py-1">
+                                        <i className="bx bx-check-circle me-1"></i>{status}
+                                    </span>
+                                    <small className="text-muted d-block mt-1">Opened on: {openingDate}</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="row g-3">
+                            {/* Member Details */}
+                            <div className="col-md-6">
+                                <div className="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white">
+                                    <h6 className="fw-bold text-primary border-bottom pb-2 mb-3">
+                                        <i className="bx bx-user me-2"></i>Member Profile
+                                    </h6>
+                                    <div className="mb-2">
+                                        <small className="text-muted d-block">Full Name</small>
+                                        <strong className="text-dark fs-6">{member?.name || 'N/A'}</strong>
+                                    </div>
+                                    <div className="mb-2">
+                                        <small className="text-muted d-block">Member Code / ID</small>
+                                        <strong className="text-dark">{member?.member_code || member?.id || 'N/A'}</strong>
+                                    </div>
+                                    <div className="mb-2">
+                                        <small className="text-muted d-block">Mobile Contact</small>
+                                        <strong className="text-dark">{member?.mobile || member?.phone || 'N/A'}</strong>
+                                    </div>
+                                    <div className="mb-2">
+                                        <small className="text-muted d-block">Address</small>
+                                        <span className="text-dark small">{member?.address || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Financial Details */}
+                            <div className="col-md-6">
+                                <div className="card border-0 shadow-sm rounded-3 p-3 h-100 bg-white">
+                                    <h6 className="fw-bold text-success border-bottom pb-2 mb-3">
+                                        <i className="bx bx-money me-2"></i>Saving Account Details
+                                    </h6>
+                                    <div className="mb-2">
+                                        <small className="text-muted d-block">Opening Deposit Amount</small>
+                                        <strong className="text-dark fs-6">₹{parseFloat(opening_amount || 0).toLocaleString('en-IN')}</strong>
+                                    </div>
+                                    <div className="mb-2">
+                                        <small className="text-muted d-block">Current Available Balance</small>
+                                        <strong className="text-success fs-5">₹{parseFloat(current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                                    </div>
+                                    <div className="mb-2">
+                                        <small className="text-muted d-block">Interest Rate</small>
+                                        <strong className="text-primary">{interest_rate}% p.a.</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Nominee Details */}
+                            <div className="col-12">
+                                <div className="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                                    <h6 className="fw-bold text-secondary border-bottom pb-2 mb-2">
+                                        <i className="bx bx-group me-2"></i>Nominee Details
+                                    </h6>
+                                    <div className="row">
+                                        <div className="col-6">
+                                            <small className="text-muted d-block">Nominee Name</small>
+                                            <strong className="text-dark">{nominee_name || member?.nominee_name || 'N/A'}</strong>
+                                        </div>
+                                        <div className="col-6">
+                                            <small className="text-muted d-block">Relationship</small>
+                                            <strong className="text-dark">{nominee_relation || member?.nominee_relation || 'N/A'}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div className="modal-footer bg-white border-0 py-3 px-4">
+                        <button type="button" className="btn btn-secondary px-4 fw-bold" onClick={onClose}>Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+import DepositReceiptModal from '../../components/DepositReceiptModal';
+
+/* ─────────────────────────────────────────────────────────────
+   Saving Account Statement Modal
+───────────────────────────────────────────────────────────── */
+const AccountStatementModal = ({ isOpen, account, onClose }) => {
+    const api = ApiService();
+    const [loading, setLoading] = useState(true);
+    const [txns, setTxns] = useState([]);
+    const [fromDate, setFromDate] = useState('');
+    const [toDate, setToDate] = useState('');
+    const [receiptData, setReceiptData] = useState(null);
+
+    useEffect(() => {
+        if (isOpen && account) {
+            setFromDate('');
+            setToDate('');
+            fetchStatement('', '');
+        }
+    }, [isOpen, account]);
+
+    const fetchStatement = async (fDate = fromDate, tDate = toDate) => {
+        try {
+            setLoading(true);
+            let url = `/api/agent/financial/passbook?account_number=${encodeURIComponent(account.account_number)}&account_id=${account.id}`;
+            if (fDate) url += `&from_date=${fDate}`;
+            if (tDate) url += `&to_date=${tDate}`;
+
+            const res = await api.vGet(url);
+            if (res.data && res.data.status === 1) {
+                setTxns(res.data.data?.data || res.data.data || []);
+            }
+        } catch (e) {
+            console.error('Failed to fetch statement', e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleFilter = (e) => {
+        e.preventDefault();
+        fetchStatement(fromDate, toDate);
+    };
+
+    const handleReset = () => {
+        setFromDate('');
+        setToDate('');
+        fetchStatement('', '');
+    };
+
+    const handlePrintPassbook = () => {
+        window.print();
+    };
+
+    const handlePrintTxnReceipt = (t) => {
+        const typeStr = String(t.type || t.transaction_type || t.txn_type || '').toUpperCase();
+        const narrationStr = String(t.narration || t.description || '').toLowerCase();
+        
+        const isWithdrawal = typeStr.includes('DEBIT') || typeStr.includes('WITHDRAW') || typeStr === 'DR' || narrationStr.includes('withdraw') || narrationStr.includes('debit');
+        const isCredit = !isWithdrawal;
+
+        const receiptObj = {
+            transaction_id: t.transaction_id || t.reference_no || `TXN#${t.id}`,
+            created_at: t.created_at || new Date().toISOString(),
+            member_name: account.member?.name || 'N/A',
+            member_id: account.member?.member_code || account.member?.id || 'N/A',
+            account_number: account.account_number,
+            service_type: account.service_type || 'SAVING',
+            amount: t.amount,
+            balance_before: t.balance_before ?? t.pre_balance ?? (isCredit ? (parseFloat(t.balance_after || t.post_balance || 0) - parseFloat(t.amount || 0)) : (parseFloat(t.balance_after || t.post_balance || 0) + parseFloat(t.amount || 0))),
+            balance_after: t.balance_after ?? t.post_balance ?? account.current_balance,
+            narration: t.narration || t.description || (isWithdrawal ? 'Withdrawal Transaction' : 'Deposit Transaction'),
+            txn_type: isWithdrawal ? 'WITHDRAWAL' : 'DEPOSIT',
+            type: isWithdrawal ? 'DEBIT' : 'CREDIT',
+            receipt_type: isWithdrawal ? 'WITHDRAWAL' : 'DEPOSIT',
+            isWithdrawal: isWithdrawal,
+            status: 'SUCCESS'
+        };
+        setReceiptData(receiptObj);
+    };
+
+    if (!isOpen || !account) return null;
+
+    return (
+        <>
+            <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1050 }}>
+                <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                    <div className="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                        <div className="modal-header bg-info text-white py-3 px-4 no-print d-flex justify-content-between align-items-center">
+                            <div className="d-flex align-items-center gap-2">
+                                <i className="bx bx-book-open fs-4"></i>
+                                <span className="fw-bold fs-5 text-white">Saving Account Statement ({account.account_number})</span>
+                            </div>
+                            <div className="d-flex gap-2">
+                                <button type="button" className="btn btn-light btn-sm fw-bold text-dark" onClick={handlePrintPassbook}>
+                                    <i className="bx bx-printer me-1"></i> Print Passbook
+                                </button>
+                                <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
+                            </div>
+                        </div>
+
+                        <div className="modal-body p-4 bg-white" id="printable-passbook-statement">
+                            <style>{`
+                                @media print {
+                                    body * { visibility: hidden !important; }
+                                    #printable-passbook-statement, #printable-passbook-statement * { visibility: visible !important; }
+                                    #printable-passbook-statement { position: fixed !important; left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; padding: 20px !important; margin: 0 !important; background: white !important; }
+                                    .no-print { display: none !important; }
+                                }
+                            `}</style>
+
+                            {/* Date Range Filter Bar */}
+                            <div className="no-print card border-0 bg-light p-3 mb-3 rounded-3 border">
+                                <form onSubmit={handleFilter} className="row g-2 align-items-end">
+                                    <div className="col-md-4">
+                                        <label className="form-label small fw-bold text-muted mb-1">From Date</label>
+                                        <input
+                                            type="date"
+                                            className="form-control form-control-sm"
+                                            value={fromDate}
+                                            onChange={(e) => setFromDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="col-md-4">
+                                        <label className="form-label small fw-bold text-muted mb-1">To Date</label>
+                                        <input
+                                            type="date"
+                                            className="form-control form-control-sm"
+                                            value={toDate}
+                                            onChange={(e) => setToDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="col-md-4 d-flex gap-2">
+                                        <button type="submit" className="btn btn-sm btn-primary fw-bold flex-fill">
+                                            <i className="bx bx-filter-alt me-1"></i> Filter
+                                        </button>
+                                        <button type="button" className="btn btn-sm btn-outline-secondary fw-bold" onClick={handleReset}>
+                                            Reset
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            {/* Statement Header Card */}
+                            <div className="border rounded-3 p-3 mb-3 bg-light">
+                                <div className="row g-2">
+                                    <div className="col-6">
+                                        <small className="text-muted d-block">Member Name</small>
+                                        <strong className="text-dark">{account.member?.name || 'N/A'}</strong>
+                                    </div>
+                                    <div className="col-6 text-end">
+                                        <small className="text-muted d-block">Current Balance</small>
+                                        <strong className="text-success fs-5">₹{parseFloat(account.current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Statement Table */}
+                            {loading ? (
+                                <div className="text-center py-4 text-muted">
+                                    <i className="bx bx-loader-alt bx-spin fs-3"></i>
+                                    <p className="mt-2 mb-0">Loading account statement...</p>
+                                </div>
+                            ) : txns.length > 0 ? (
+                                <div className="table-responsive border rounded-3">
+                                    <table className="table table-striped table-hover align-middle mb-0 text-sm">
+                                        <thead className="table-light">
+                                            <tr>
+                                                <th>Date & Time</th>
+                                                <th>Transaction ID / Ref</th>
+                                                <th>Type</th>
+                                                <th>Narration / Details</th>
+                                                <th className="text-end">Amount</th>
+                                                <th className="text-end">Balance After</th>
+                                                <th className="text-center no-print">Receipt</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {txns.map((t, i) => (
+                                                <tr key={t.id || i}>
+                                                    <td>{t.created_at ? new Date(t.created_at).toLocaleString('en-IN') : 'N/A'}</td>
+                                                    <td className="fw-mono text-muted small">{t.transaction_id || t.reference_no || `#${t.id}`}</td>
+                                                    <td>
+                                                        <span className={`badge ${t.type === 'CREDIT' || t.transaction_type === 'CREDIT' || t.txn_type === 'DEPOSIT' ? 'bg-success' : 'bg-danger'}`}>
+                                                            {t.type || t.transaction_type || t.txn_type || 'TXN'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="small">{t.narration || t.description || 'Deposit / Transaction'}</td>
+                                                    <td className={`text-end fw-bold ${t.type === 'CREDIT' || t.transaction_type === 'CREDIT' || t.txn_type === 'DEPOSIT' ? 'text-success' : 'text-danger'}`}>
+                                                        {t.type === 'CREDIT' || t.transaction_type === 'CREDIT' || t.txn_type === 'DEPOSIT' ? '+' : '-'}₹{parseFloat(t.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="text-end fw-semibold">
+                                                        ₹{parseFloat(t.balance_after || t.post_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="text-center no-print">
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-xs btn-sm btn-outline-primary fw-bold py-1 px-2"
+                                                            onClick={() => handlePrintTxnReceipt(t)}
+                                                            title="Print Transaction Receipt"
+                                                        >
+                                                            <i className="bx bx-printer me-1"></i> Receipt
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-4 text-muted border rounded-3 bg-light">
+                                    <i className="bx bx-info-circle fs-3 d-block mb-1"></i>
+                                    No transactions found for this account.
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="modal-footer bg-light border-0 py-3 px-4 no-print">
+                            <button type="button" className="btn btn-secondary px-4 fw-bold" onClick={onClose}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <DepositReceiptModal
+                isOpen={Boolean(receiptData)}
+                onClose={() => setReceiptData(null)}
+                data={receiptData}
+            />
+        </>
+    );
+};
+
+/* ─────────────────────────────────────────────────────────────
+   Saving Account View Component
+───────────────────────────────────────────────────────────── */
 const SavingAccountView = () => {
     const api = ApiService();
     const [accounts, setAccounts] = useState([]);
@@ -25,18 +388,15 @@ const SavingAccountView = () => {
 
     // Modals
     const [showOpenModal, setShowOpenModal] = useState(false);
-    const [showDepositModal, setShowDepositModal] = useState(false);
-    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [selectedDetailsAccount, setSelectedDetailsAccount] = useState(null);
+    const [selectedStatementAccount, setSelectedStatementAccount] = useState(null);
+    const [selectedBondAccount, setSelectedBondAccount] = useState(null);
     const [showMpinModal, setShowMpinModal] = useState(false);
 
-    // MPIN action type tracker ('OPEN_ACCOUNT', 'DEPOSIT', 'WITHDRAW')
-    const [mpinActionType, setMpinActionType] = useState(null);
-    const [mpinAmount, setMpinAmount] = useState(0);
     const [submitting, setSubmitting] = useState(false);
-
     const [plans, setPlans] = useState([]);
 
-    // Form States
+    // Form State
     const [openForm, setOpenForm] = useState({
         member_id: '',
         plan_id: '',
@@ -44,27 +404,6 @@ const SavingAccountView = () => {
         opening_amount: '',
         min_amount: 0,
         max_amount: null,
-    });
-
-    const [depositForm, setDepositForm] = useState({
-        account_id: '',
-        account_number: '',
-        member_name: '',
-        amount: '',
-        narration: ''
-    });
-
-    const [withdrawForm, setWithdrawForm] = useState({
-        account_id: '',
-        account_number: '',
-        member_name: '',
-        member_mobile: '',
-        member_kyc: '',
-        amount: '',
-        otp: '',
-        otpSent: false,
-        sendingOtp: false,
-        narration: ''
     });
 
     const fetchSavingAccounts = async () => {
@@ -152,135 +491,27 @@ const SavingAccountView = () => {
             return toast.error(`Opening deposit amount cannot exceed ₹${openForm.max_amount}.`);
         }
 
-        setMpinAmount(amount);
-        setMpinActionType('OPEN_ACCOUNT');
         setShowMpinModal(true);
     };
 
-    // Deposit MPIN Trigger
-    const handleDepositClick = (e) => {
-        e.preventDefault();
-        const amount = parseFloat(depositForm.amount || 0);
-        if (amount <= 0) return toast.error('Please enter a valid deposit amount.');
-        setMpinAmount(amount);
-        setMpinActionType('DEPOSIT');
-        setShowMpinModal(true);
-    };
-
-    // Withdrawal Step 1: Send OTP to Member's Mobile
-    const handleSendWithdrawalOtp = async () => {
-        const amount = parseFloat(withdrawForm.amount || 0);
-        if (amount <= 0) return toast.error('Please enter a valid withdrawal amount.');
-
-        try {
-            setWithdrawForm(prev => ({ ...prev, sendingOtp: true }));
-            const res = await api.vPost('/api/agent/financial/saving/send-withdrawal-otp', {
-                account_id: withdrawForm.account_id,
-                amount: amount
-            });
-
-            if (res.data && res.data.status === 1) {
-                toast.success(res.data.message);
-                setWithdrawForm(prev => ({ ...prev, otpSent: true, sendingOtp: false }));
-            } else {
-                toast.error(res.data?.message || 'Failed to send OTP.');
-                setWithdrawForm(prev => ({ ...prev, sendingOtp: false }));
-            }
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to send OTP.');
-            setWithdrawForm(prev => ({ ...prev, sendingOtp: false }));
-        }
-    };
-
-    // Withdrawal Step 2: Member OTP Entered -> Trigger MPIN Modal
-    const handleWithdrawWithOtpClick = (e) => {
-        e.preventDefault();
-        if (!withdrawForm.otp || withdrawForm.otp.length !== 6) {
-            return toast.error('Please enter the 6-digit OTP sent to member mobile.');
-        }
-        setMpinAmount(parseFloat(withdrawForm.amount));
-        setMpinActionType('WITHDRAW');
-        setShowMpinModal(true);
-    };
-
-    // Consolidated MPIN Callback
+    // Open Account MPIN Callback
     const handleMpinConfirm = async (mpinCode) => {
         setSubmitting(true);
         try {
-            if (mpinActionType === 'OPEN_ACCOUNT') {
-                const res = await api.vPost('/api/agent/financial/saving/open', { ...openForm, mpin: mpinCode });
-                if (res.data && res.data.status === 1) {
-                    toast.success(res.data.message);
-                    setShowOpenModal(false);
-                    setShowMpinModal(false);
-                    fetchSavingAccounts();
-                } else {
-                    toast.error(res.data?.message || 'Account opening failed.');
-                }
-            } else if (mpinActionType === 'DEPOSIT') {
-                const res = await api.vPost('/api/agent/financial/saving/deposit', {
-                    account_id: depositForm.account_id,
-                    amount: depositForm.amount,
-                    narration: depositForm.narration,
-                    mpin: mpinCode
-                });
-                if (res.data && res.data.status === 1) {
-                    toast.success(res.data.message);
-                    setShowDepositModal(false);
-                    setShowMpinModal(false);
-                    fetchSavingAccounts();
-                } else {
-                    toast.error(res.data?.message || 'Deposit failed.');
-                }
-            } else if (mpinActionType === 'WITHDRAW') {
-                const res = await api.vPost('/api/agent/financial/saving/withdraw', {
-                    account_id: withdrawForm.account_id,
-                    amount: withdrawForm.amount,
-                    otp: withdrawForm.otp,
-                    narration: withdrawForm.narration,
-                    mpin: mpinCode
-                });
-                if (res.data && res.data.status === 1) {
-                    toast.success(res.data.message);
-                    setShowWithdrawModal(false);
-                    setShowMpinModal(false);
-                    fetchSavingAccounts();
-                } else {
-                    toast.error(res.data?.message || 'Withdrawal failed.');
-                }
+            const res = await api.vPost('/api/agent/financial/saving/open', { ...openForm, mpin: mpinCode });
+            if (res.data && res.data.status === 1) {
+                toast.success(res.data.message);
+                setShowOpenModal(false);
+                setShowMpinModal(false);
+                fetchSavingAccounts();
+            } else {
+                toast.error(res.data?.message || 'Account opening failed.');
             }
         } catch (err) {
             toast.error(err.response?.data?.message || 'Transaction failed.');
         } finally {
             setSubmitting(false);
         }
-    };
-
-    const openDepositModalForAccount = (acc) => {
-        setDepositForm({
-            account_id: acc.id,
-            account_number: acc.account_number,
-            member_name: acc.member?.name || 'N/A',
-            amount: '',
-            narration: ''
-        });
-        setShowDepositModal(true);
-    };
-
-    const openWithdrawModalForAccount = (acc) => {
-        setWithdrawForm({
-            account_id: acc.id,
-            account_number: acc.account_number,
-            member_name: acc.member?.name || 'N/A',
-            member_mobile: acc.member?.mobile || '',
-            member_kyc: acc.member?.kyc_status || 'PENDING',
-            amount: '',
-            otp: '',
-            otpSent: false,
-            sendingOtp: false,
-            narration: ''
-        });
-        setShowWithdrawModal(true);
     };
 
     return (
@@ -291,7 +522,7 @@ const SavingAccountView = () => {
                     <h3 className="fw-bold text-dark mb-1">
                         <i className="bx bx-wallet-alt text-success me-2"></i> Saving Account Management
                     </h3>
-                    <p className="text-muted mb-0">Open saving accounts, process deposits & perform mobile OTP withdrawals</p>
+                    <p className="text-muted mb-0">View saving accounts, account statements, details, and print bond certificates</p>
                 </div>
                 <div className="d-flex gap-2">
                     <Link to="/agent/financial-dashboard" className="btn btn-secondary fw-bold shadow-sm me-2">
@@ -357,14 +588,41 @@ const SavingAccountView = () => {
                                                 KYC: {acc.member?.kyc_status || 'PENDING'}
                                             </span>
                                         </td>
-                                        <td className="fw-bold text-dark fs-6">₹{parseFloat(acc.current_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                        <td className="fw-bold text-dark fs-6">₹{parseFloat(acc.current_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                                         <td><span className="badge bg-success">{acc.status}</span></td>
                                         <td className="text-end">
-                                            <button className="btn btn-sm btn-primary me-2 fw-bold" onClick={() => openDepositModalForAccount(acc)}>
-                                                <i className="bx bx-down-arrow-circle me-1"></i> Deposit
+                                            <button
+                                                className="btn btn-sm btn-outline-info me-1 fw-semibold"
+                                                onClick={() => setSelectedStatementAccount(acc)}
+                                                title="Account Statement"
+                                            >
+                                                <i className="bx bx-book-open me-1"></i> Statement
                                             </button>
-                                            <button className="btn btn-sm btn-danger fw-bold" onClick={() => openWithdrawModalForAccount(acc)}>
-                                                <i className="bx bx-up-arrow-circle me-1"></i> Mobile OTP Withdraw
+                                            <button
+                                                className="btn btn-sm btn-outline-primary me-1 fw-semibold"
+                                                onClick={() => setSelectedDetailsAccount(acc)}
+                                                title="Account Details"
+                                            >
+                                                <i className="bx bx-info-circle me-1"></i> Account Details
+                                            </button>
+                                            <button
+                                                className="btn btn-sm btn-outline-success fw-semibold"
+                                                onClick={() => setSelectedBondAccount({
+                                                    service_type: 'SAVING',
+                                                    account_number: acc.account_number,
+                                                    opening_amount: acc.opening_amount || acc.current_balance,
+                                                    current_balance: acc.current_balance,
+                                                    interest_rate: acc.interest_rate || 4.0,
+                                                    duration_months: acc.duration_months || 0,
+                                                    status: acc.status || 'ACTIVE',
+                                                    created_at: acc.created_at,
+                                                    member: acc.member,
+                                                    nominee_name: acc.nominee_name || acc.member?.nominee_name,
+                                                    nominee_relation: acc.nominee_relation || acc.member?.nominee_relation
+                                                })}
+                                                title="Print Saving Account Bond"
+                                            >
+                                                <i className="bx bx-file me-1"></i> Saving Account Bond
                                             </button>
                                         </td>
                                     </tr>
@@ -376,6 +634,27 @@ const SavingAccountView = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Account Details & Member Profile Modal */}
+            <AccountDetailsModal
+                isOpen={Boolean(selectedDetailsAccount)}
+                account={selectedDetailsAccount}
+                onClose={() => setSelectedDetailsAccount(null)}
+            />
+
+            {/* Account Statement Modal */}
+            <AccountStatementModal
+                isOpen={Boolean(selectedStatementAccount)}
+                account={selectedStatementAccount}
+                onClose={() => setSelectedStatementAccount(null)}
+            />
+
+            {/* Saving Account Bond Certificate Modal */}
+            <BankAccountBondModal
+                isOpen={Boolean(selectedBondAccount)}
+                bondData={selectedBondAccount}
+                onClose={() => setSelectedBondAccount(null)}
+            />
 
             {/* Open Saving Account Modal */}
             {showOpenModal && (
@@ -451,176 +730,16 @@ const SavingAccountView = () => {
                 </div>
             )}
 
-            {/* Deposit Modal */}
-            {showDepositModal && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content border-0 shadow-lg rounded-4">
-                            <div className="modal-header bg-primary text-white border-0 py-3 rounded-top-4">
-                                <h5 className="modal-title fw-bold"><i className="bx bx-down-arrow-circle me-2"></i> Saving Deposit</h5>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setShowDepositModal(false)}></button>
-                            </div>
-                            <form onSubmit={handleDepositClick}>
-                                <div className="modal-body p-4">
-                                    <div className="bg-light rounded-3 p-3 mb-3">
-                                        <div className="d-flex justify-content-between">
-                                            <span className="text-muted small">Account No:</span>
-                                            <span className="fw-bold text-primary">{depositForm.account_number}</span>
-                                        </div>
-                                        <div className="d-flex justify-content-between mt-1">
-                                            <span className="text-muted small">Member Name:</span>
-                                            <span className="fw-bold text-dark">{depositForm.member_name}</span>
-                                        </div>
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label fw-semibold">Deposit Amount (₹) <span className="text-danger">*</span></label>
-                                        <input
-                                            type="number"
-                                            className="form-control form-control-lg fw-bold"
-                                            placeholder="Enter deposit amount"
-                                            value={depositForm.amount}
-                                            onChange={(e) => setDepositForm({ ...depositForm, amount: e.target.value })}
-                                            min="1"
-                                            required
-                                        />
-                                        <small className="text-muted">Auto-debited from Agent Utility Wallet</small>
-                                    </div>
-                                    <div className="mb-2">
-                                        <label className="form-label fw-semibold">Narration / Remark</label>
-                                        <input
-                                            type="text"
-                                            className="form-control"
-                                            placeholder="e.g. Monthly cash deposit"
-                                            value={depositForm.narration}
-                                            onChange={(e) => setDepositForm({ ...depositForm, narration: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="modal-footer bg-light border-0 py-3 px-4">
-                                    <button type="button" className="btn btn-outline-secondary" onClick={() => setShowDepositModal(false)}>Cancel</button>
-                                    <button type="submit" className="btn btn-primary px-4 fw-bold">
-                                        Proceed to MPIN & Deposit
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Registered Mobile OTP Withdrawal Modal */}
-            {showWithdrawModal && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content border-0 shadow-lg rounded-4">
-                            <div className="modal-header bg-danger text-white border-0 py-3 rounded-top-4">
-                                <h5 className="modal-title fw-bold">
-                                    <i className="bx bx-up-arrow-circle me-2"></i> Saving Withdrawal (Registered Mobile OTP)
-                                </h5>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setShowWithdrawModal(false)}></button>
-                            </div>
-                            <div className="modal-body p-4">
-                                <div className="bg-light rounded-3 p-3 mb-3">
-                                    <div className="d-flex justify-content-between">
-                                        <span className="text-muted small">Account No:</span>
-                                        <span className="fw-bold text-danger">{withdrawForm.account_number}</span>
-                                    </div>
-                                    <div className="d-flex justify-content-between mt-1">
-                                        <span className="text-muted small">Member Name:</span>
-                                        <span className="fw-bold text-dark">{withdrawForm.member_name}</span>
-                                    </div>
-                                    <div className="d-flex justify-content-between mt-1">
-                                        <span className="text-muted small">Member Mobile:</span>
-                                        <span className="fw-bold">{withdrawForm.member_mobile}</span>
-                                    </div>
-                                    <div className="d-flex justify-content-between mt-1">
-                                        <span className="text-muted small">KYC Status:</span>
-                                        <span className={`badge ${withdrawForm.member_kyc === 'APPROVED' ? 'bg-success' : 'bg-warning text-dark'}`}>
-                                            {withdrawForm.member_kyc}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {withdrawForm.member_kyc !== 'APPROVED' && (
-                                    <div className="alert alert-danger py-2 small mb-3">
-                                        <i className="bx bx-error-circle me-1"></i> Warning: Member KYC is NOT Completed.
-                                    </div>
-                                )}
-
-                                <div className="mb-3">
-                                    <label className="form-label fw-semibold">Withdrawal Amount (₹) <span className="text-danger">*</span></label>
-                                    <input
-                                        type="number"
-                                        className="form-control form-control-lg fw-bold"
-                                        placeholder="Enter withdrawal amount"
-                                        value={withdrawForm.amount}
-                                        onChange={(e) => setWithdrawForm({ ...withdrawForm, amount: e.target.value })}
-                                        min="1"
-                                        disabled={withdrawForm.otpSent}
-                                        required
-                                    />
-                                </div>
-
-                                {!withdrawForm.otpSent ? (
-                                    <button
-                                        type="button"
-                                        className="btn btn-outline-danger w-100 py-2 fw-bold mt-2"
-                                        onClick={handleSendWithdrawalOtp}
-                                        disabled={withdrawForm.sendingOtp || !withdrawForm.amount}
-                                    >
-                                        {withdrawForm.sendingOtp ? 'Sending OTP to Member Mobile...' : 'Send OTP to Member Registered Mobile'}
-                                    </button>
-                                ) : (
-                                    <form onSubmit={handleWithdrawWithOtpClick}>
-                                        <div className="mb-3">
-                                            <label className="form-label fw-semibold text-danger">Enter 6-Digit Mobile OTP <span className="text-danger">*</span></label>
-                                            <input
-                                                type="text"
-                                                className="form-control form-control-lg text-center fw-bold fs-3 tracking-wider"
-                                                placeholder="••••••"
-                                                maxLength="6"
-                                                value={withdrawForm.otp}
-                                                onChange={(e) => setWithdrawForm({ ...withdrawForm, otp: e.target.value.replace(/\D/g, '') })}
-                                                autoFocus
-                                                required
-                                            />
-                                            <small className="text-muted">OTP sent to member mobile: {withdrawForm.member_mobile}</small>
-                                        </div>
-                                        <button type="submit" className="btn btn-danger w-100 py-2 fw-bold" disabled={withdrawForm.otp.length !== 6}>
-                                            Confirm OTP & Proceed to MPIN
-                                        </button>
-                                    </form>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* MPIN Verification Modal */}
             <MpinModal
                 isOpen={showMpinModal}
                 onClose={() => setShowMpinModal(false)}
                 onConfirm={handleMpinConfirm}
-                title={
-                    mpinActionType === 'OPEN_ACCOUNT' ? "Confirm & Open Saving Account" :
-                        mpinActionType === 'DEPOSIT' ? "Confirm Saving Account Deposit" : "Confirm Saving Account Withdrawal"
-                }
-                serviceTitle={
-                    mpinActionType === 'OPEN_ACCOUNT' ? "Saving Account Opening" :
-                        mpinActionType === 'DEPOSIT' ? "Saving Account Deposit" : "Saving Account Withdrawal"
-                }
-                planName={mpinActionType === 'OPEN_ACCOUNT' ? (openForm.plan_name || "Sugam Bachat") : null}
-                amount={mpinAmount}
-                memberInfo={
-                    mpinActionType === 'OPEN_ACCOUNT'
-                        ? members.find(m => m.id == openForm.member_id)
-                        : (mpinActionType === 'DEPOSIT' ? depositForm.member_name : withdrawForm.member_name)
-                }
-                accountInfo={
-                    mpinActionType === 'DEPOSIT' ? depositForm.account_number :
-                        mpinActionType === 'WITHDRAW' ? withdrawForm.account_number : null
-                }
+                title="Confirm & Open Saving Account"
+                serviceTitle="Saving Account Opening"
+                planName={openForm.plan_name || "Sugam Bachat"}
+                amount={parseFloat(openForm.opening_amount || 0)}
+                memberInfo={members.find(m => m.id == openForm.member_id)}
                 walletName="Utility Wallet"
                 loading={submitting}
             />

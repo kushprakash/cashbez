@@ -33,6 +33,7 @@ const getInitialForm = (serviceType) => ({
     minimum_installment: 100,
     maximum_installment: 50000,
     installment_frequency: 'MONTHLY',
+    minimum_installments: serviceType === 'DD' ? 300 : serviceType === 'RD' ? 10 : 1,
     minimum_investment: 5000,
     maximum_investment: 1000000,
     maximum_total_investment: 5000000,
@@ -249,6 +250,7 @@ const PlanMasterView = ({ serviceType = 'SAVING', selectedAdminId }) => {
                                     {serviceType === 'DD' && <th>Min Daily Amt</th>}
                                     {serviceType === 'RD' && <th>Installment</th>}
                                     {(serviceType === 'FD' || serviceType === 'MIS') && <th>Min Investment</th>}
+                                    {(serviceType === 'DD' || serviceType === 'RD') && <th>Min EMIs Required</th>}
                                     <th>Duration</th>
                                     <th>Status</th>
                                     <th className="text-end">Actions</th>
@@ -257,7 +259,7 @@ const PlanMasterView = ({ serviceType = 'SAVING', selectedAdminId }) => {
                             <tbody>
                                 {plans.length === 0 ? (
                                     <tr>
-                                        <td colSpan="8" className="text-center py-4 text-muted">
+                                        <td colSpan="9" className="text-center py-4 text-muted">
                                             No {serviceType} plans found. Click "Add New Plan" to configure one.
                                         </td>
                                     </tr>
@@ -271,6 +273,9 @@ const PlanMasterView = ({ serviceType = 'SAVING', selectedAdminId }) => {
                                             {serviceType === 'DD' && <td>₹{parseFloat(p.minimum_daily_deposit || 0).toFixed(2)}</td>}
                                             {serviceType === 'RD' && <td>₹{parseFloat(p.minimum_installment || 0).toFixed(2)} / {p.installment_frequency}</td>}
                                             {(serviceType === 'FD' || serviceType === 'MIS') && <td>₹{parseFloat(p.minimum_investment || 0).toFixed(2)}</td>}
+                                            {(serviceType === 'DD' || serviceType === 'RD') && (
+                                                <td><span className="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">{p.minimum_installments || (p.service_type === 'DD' ? 300 : 10)} {p.service_type === 'DD' ? 'Deposits' : 'EMIs'}</span></td>
+                                            )}
                                             <td>{p.minimum_duration} - {p.maximum_duration} {p.duration_unit}</td>
                                             <td>
                                                 <span className={`badge ${p.status === 'ACTIVE' ? 'bg-success' : 'bg-danger'}`}>
@@ -377,6 +382,24 @@ const PlanMasterView = ({ serviceType = 'SAVING', selectedAdminId }) => {
                                                     </select>
                                                 </div>
                                             </>
+                                        )}
+
+                                        {(serviceType === 'DD' || serviceType === 'RD') && (
+                                            <div className="col-md-6">
+                                                <label className="form-label fw-bold text-danger">Minimum Number of EMI / Installments Required</label>
+                                                <input
+                                                    type="number"
+                                                    className="form-control fw-bold border-danger"
+                                                    name="minimum_installments"
+                                                    value={form.minimum_installments || ''}
+                                                    onChange={handleFormChange}
+                                                    min="1"
+                                                    placeholder={serviceType === 'DD' ? 'e.g. 300 Daily Deposits' : 'e.g. 10 Monthly EMIs'}
+                                                />
+                                                <small className="text-muted d-block mt-1">
+                                                    {serviceType === 'DD' ? 'Min daily deposits required for maturity payout' : 'Min monthly EMIs required for maturity payout'}
+                                                </small>
+                                            </div>
                                         )}
 
                                         {(serviceType === 'FD' || serviceType === 'MIS') && (

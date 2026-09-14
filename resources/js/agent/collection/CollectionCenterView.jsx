@@ -5,6 +5,8 @@ import ApiService from '../../core/services/ApiService';
 import MpinModal from '../../components/MpinModal';
 import MemberSelectSearch from '../../components/MemberSelectSearch';
 
+import DepositReceiptModal from '../../components/DepositReceiptModal';
+
 const CollectionCenterView = () => {
     const api = ApiService();
     const [members, setMembers] = useState([]);
@@ -17,6 +19,10 @@ const CollectionCenterView = () => {
 
     const [showMpinModal, setShowMpinModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+
+    // Receipt Modal State
+    const [showReceiptModal, setShowReceiptModal] = useState(false);
+    const [receiptData, setReceiptData] = useState(null);
 
     const fetchMembersList = async () => {
         try {
@@ -72,8 +78,29 @@ const CollectionCenterView = () => {
             if (res.data && res.data.status === 1) {
                 toast.success(res.data.message);
                 setShowMpinModal(false);
-                setAmount('');
-                setNarration('');
+
+                const txn = res.data.transaction;
+                const accData = res.data.account;
+                const targetAcc = selectedMember?.accounts?.find(a => a.id == accountId);
+
+                const receiptObj = {
+                    transaction_id: txn?.transaction_id || `DEP${Date.now()}`,
+                    created_at: txn?.created_at || new Date().toISOString(),
+                    member_name: selectedMember?.name,
+                    member_id: selectedMember?.member_id,
+                    account_number: targetAcc?.account_number || accData?.account_number,
+                    service_type: targetAcc?.service_type || accData?.service_type || 'DEPOSIT',
+                    amount: amount,
+                    balance_before: txn?.balance_before ?? targetAcc?.current_balance,
+                    balance_after: txn?.balance_after ?? (accData?.current_balance || parseFloat(targetAcc?.current_balance || 0) + parseFloat(amount)),
+                    narration: narration,
+                };
+
+                setReceiptData(receiptObj);
+                setShowReceiptModal(true);
+
+                // Instantly re-fetch member details to update account balance on screen!
+                handleMemberSelect(selectedMemberId);
             } else {
                 toast.error(res.data?.message || 'Collection failed.');
             }
@@ -89,9 +116,9 @@ const CollectionCenterView = () => {
             <div className="d-flex flex-wrap align-items-center justify-content-between mb-4 pb-2 border-bottom">
                 <div>
                     <h3 className="fw-bold text-dark mb-1">
-                        <i className="bx bx-dollar-circle text-success me-2"></i> Field Collection Center
+                        <i className="bx bx-dollar-circle text-success me-2"></i> Deposit
                     </h3>
-                    <p className="text-muted mb-0">Fast collection terminal for Saving, DD, RD, and Other accounts</p>
+                    <p className="text-muted mb-0">Fast deposit for Saving, DD, RD, and Other accounts</p>
                 </div>
                 <Link to="/agent/financial-dashboard" className="btn btn-secondary fw-bold shadow-sm">
                     <i className="bx bx-arrow-back me-1"></i> Back to Financial Dashboard
@@ -102,7 +129,7 @@ const CollectionCenterView = () => {
                 <div className="col-lg-7">
                     <div className="card border-0 shadow-sm rounded-4">
                         <div className="card-header bg-primary text-white py-3 rounded-top-4">
-                            <h6 className="mb-0 fw-bold"><i className="bx bx-paper-plane me-2"></i> Post Field Collection</h6>
+                            <h6 className="mb-0 fw-bold"><i className="bx bx-paper-plane me-2"></i>Deposit</h6>
                         </div>
                         <form onSubmit={handleFormSubmitClick} className="card-body p-4">
                             <div className="mb-3">
@@ -188,6 +215,16 @@ const CollectionCenterView = () => {
                 memberInfo={selectedMember}
                 walletName="Utility Wallet"
                 loading={submitting}
+            />
+
+            <DepositReceiptModal
+                isOpen={showReceiptModal}
+                onClose={() => {
+                    setShowReceiptModal(false);
+                    setAmount('');
+                    setNarration('');
+                }}
+                data={receiptData}
             />
         </div>
     );

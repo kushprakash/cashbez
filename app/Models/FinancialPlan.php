@@ -31,6 +31,7 @@ class FinancialPlan extends Model
         'minimum_installment',
         'maximum_installment',
         'installment_frequency',
+        'minimum_installments',
         'minimum_investment',
         'maximum_investment',
         'maximum_total_investment',
