@@ -1244,7 +1244,7 @@ class AgentFinancialController extends Controller
             
             $transactionData1 = [
                 'account_id' => $Walletaccount->id,
-                'type' => 'DR',
+                'type' => 'CR',
                 'amount' => $amount,
                 'description' => 'Saving Withdrawal from Account '.$account->account_number,
                 'transaction_id' => $txnId,
