@@ -56,134 +56,249 @@ class AgentFinancialController extends Controller
                     break;
             }
 
-            $memberQuery = FinancialMember::where('user_id', $user->id)->where('admin_id', $adminId);
-            $totalMembers  = (clone $memberQuery)->count();
-            $activeMembers = (clone $memberQuery)->where('status', 'ACTIVE')->count();
-            $kycPending    = (clone $memberQuery)->whereIn('kyc_status', ['PENDING', 'SUBMITTED'])->count();
-            $kycApproved   = (clone $memberQuery)->where('kyc_status', 'APPROVED')->count();
-
-            $accountQuery   = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId);
-            $savingAccounts = (clone $accountQuery)->where('service_type', 'SAVING')->count();
-            $ddAccounts     = (clone $accountQuery)->where('service_type', 'DD')->count();
-            $rdAccounts     = (clone $accountQuery)->where('service_type', 'RD')->count();
-            $fdAccounts     = (clone $accountQuery)->where('service_type', 'FD')->count();
-            $misAccounts    = (clone $accountQuery)->where('service_type', 'MIS')->count();
-            $totalAccounts  = (clone $accountQuery)->count();
-
-            // ── All-time txn base query ───────────────────────────────────────────
-            $txnAll = FinancialTransaction::where('user_id', $user->id)->where('admin_id', $adminId);
-
-            // ── Period-scoped txn base query ─────────────────────────────────────
-            $txnPeriod = FinancialTransaction::where('user_id', $user->id)
+            // ── Single aggregate query for member stats ─────────────────────────────
+            $memberStats = FinancialMember::where('user_id', $user->id)
                 ->where('admin_id', $adminId)
-                ->whereBetween('created_at', [$periodStart, $periodEnd]);
+                ->selectRaw("
+                    COUNT(id) as total_members,
+                    SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_members,
+                    SUM(CASE WHEN kyc_status IN ('PENDING', 'SUBMITTED') THEN 1 ELSE 0 END) as kyc_pending,
+                    SUM(CASE WHEN kyc_status = 'APPROVED' THEN 1 ELSE 0 END) as kyc_approved
+                ")->first();
 
-            // All-time totals
-            $today            = Carbon::today()->toDateString();
-            $todayDeposit     = (clone $txnAll)->whereDate('created_at', $today)->where('txn_type', 'DEPOSIT')->sum('amount');
-            $todayWithdrawal  = (clone $txnAll)->whereDate('created_at', $today)->where('txn_type', 'WITHDRAWAL')->sum('amount');
-            $totalDepositsSum = (clone $txnAll)->where('txn_type', 'DEPOSIT')->sum('amount');
-            $totalTxnCount    = (clone $txnAll)->count();
+            $totalMembers  = intval($memberStats->total_members ?? 0);
+            $activeMembers = intval($memberStats->active_members ?? 0);
+            $kycPending    = intval($memberStats->kyc_pending ?? 0);
+            $kycApproved   = intval($memberStats->kyc_approved ?? 0);
 
-            // ── Period-scoped deposits & txn count ───────────────────────────────
-            $periodDepositsSum = floatval((clone $txnPeriod)->where('txn_type', 'DEPOSIT')->sum('amount'));
-            $periodTxnCount    = (clone $txnPeriod)->count();
+            // ── Single aggregate query for account stats ────────────────────────────
+            $accountStats = FinancialAccount::where('user_id', $user->id)
+                ->where('admin_id', $adminId)
+                ->selectRaw("
+                    COUNT(id) as total_accounts,
+                    SUM(CASE WHEN service_type = 'SAVING' THEN 1 ELSE 0 END) as saving_accounts,
+                    SUM(CASE WHEN service_type = 'DD' THEN 1 ELSE 0 END) as dd_accounts,
+                    SUM(CASE WHEN service_type = 'RD' THEN 1 ELSE 0 END) as rd_accounts,
+                    SUM(CASE WHEN service_type = 'FD' THEN 1 ELSE 0 END) as fd_accounts,
+                    SUM(CASE WHEN service_type = 'MIS' THEN 1 ELSE 0 END) as mis_accounts
+                ")->first();
 
-            // ── Commission breakdown by service_type via charges column ───────────
-            // Member Commission = MEMBERSHIP type txn charges OR 50% of membership fee
-            $memberComm = floatval((clone $txnPeriod)->where('service_type', 'MEMBERSHIP')->sum('charges'));
+            $savingAccounts = intval($accountStats->saving_accounts ?? 0);
+            $ddAccounts     = intval($accountStats->dd_accounts ?? 0);
+            $rdAccounts     = intval($accountStats->rd_accounts ?? 0);
+            $fdAccounts     = intval($accountStats->fd_accounts ?? 0);
+            $misAccounts    = intval($accountStats->mis_accounts ?? 0);
+            $totalAccounts  = intval($accountStats->total_accounts ?? 0);
+
+            // ── Single query for all-time totals and today's stats ──────────────────
+            $today = Carbon::today()->toDateString();
+            $txnStats = FinancialTransaction::where('user_id', $user->id)
+                ->where('admin_id', $adminId)
+                ->selectRaw("
+                    COUNT(id) as total_transactions_count,
+                    SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as total_deposits_sum,
+                    SUM(CASE WHEN txn_type = 'DEPOSIT' AND DATE(created_at) = ? THEN amount ELSE 0 END) as today_deposit,
+                    SUM(CASE WHEN txn_type = 'WITHDRAWAL' AND DATE(created_at) = ? THEN amount ELSE 0 END) as today_withdrawal
+                ", [$today, $today])->first();
+
+            $todayDeposit     = floatval($txnStats->today_deposit ?? 0);
+            $todayWithdrawal  = floatval($txnStats->today_withdrawal ?? 0);
+            $totalDepositsSum = floatval($txnStats->total_deposits_sum ?? 0);
+            $totalTxnCount    = intval($txnStats->total_transactions_count ?? 0);
+
+            // ── Single query for period-scoped deposits, count, and commissions ─────
+            $periodStats = FinancialTransaction::where('user_id', $user->id)
+                ->where('admin_id', $adminId)
+                ->whereBetween('created_at', [$periodStart, $periodEnd])
+                ->selectRaw("
+                    COUNT(id) as period_txn_count,
+                    SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as period_deposits_sum,
+                    SUM(CASE WHEN service_type = 'MEMBERSHIP' THEN charges ELSE 0 END) as member_comm,
+                    SUM(CASE WHEN service_type = 'MEMBERSHIP' THEN amount ELSE 0 END) as member_fee_sum,
+                    SUM(CASE WHEN service_type = 'SAVING' THEN charges ELSE 0 END) as saving_comm,
+                    SUM(CASE WHEN service_type = 'DD' THEN charges ELSE 0 END) as dd_comm,
+                    SUM(CASE WHEN service_type = 'RD' THEN charges ELSE 0 END) as rd_comm,
+                    SUM(CASE WHEN service_type = 'FD' THEN charges ELSE 0 END) as fd_comm,
+                    SUM(CASE WHEN service_type = 'MIS' THEN charges ELSE 0 END) as mis_comm
+                ")->first();
+
+            $periodDepositsSum = floatval($periodStats->period_deposits_sum ?? 0);
+            $periodTxnCount    = intval($periodStats->period_txn_count ?? 0);
+
+            $memberComm = floatval($periodStats->member_comm ?? 0);
             if ($memberComm == 0) {
-                $memberFeeSum = floatval((clone $txnPeriod)->where('service_type', 'MEMBERSHIP')->sum('amount'));
+                $memberFeeSum = floatval($periodStats->member_fee_sum ?? 0);
                 $memberComm   = round($memberFeeSum * 0.5, 2);
             }
 
-            $savingComm = floatval((clone $txnPeriod)->where('service_type', 'SAVING')->sum('charges'));
-            $ddComm     = floatval((clone $txnPeriod)->where('service_type', 'DD')->sum('charges'));
-            $rdComm     = floatval((clone $txnPeriod)->where('service_type', 'RD')->sum('charges'));
-            $fdComm     = floatval((clone $txnPeriod)->where('service_type', 'FD')->sum('charges'));
-            $misComm    = floatval((clone $txnPeriod)->where('service_type', 'MIS')->sum('charges'));
+            $savingComm = floatval($periodStats->saving_comm ?? 0);
+            $ddComm     = floatval($periodStats->dd_comm ?? 0);
+            $rdComm     = floatval($periodStats->rd_comm ?? 0);
+            $fdComm     = floatval($periodStats->fd_comm ?? 0);
+            $misComm    = floatval($periodStats->mis_comm ?? 0);
 
             $totalEarnings = $memberComm + $savingComm + $ddComm + $rdComm + $fdComm + $misComm;
 
-            $recentTransactions = (clone $txnAll)
+            $recentTransactions = FinancialTransaction::where('user_id', $user->id)
+                ->where('admin_id', $adminId)
                 ->with(['member:id,name,member_id', 'account:id,account_number'])
                 ->orderBy('id', 'desc')
                 ->take(10)
                 ->get();
 
-            $recentMembers = (clone $memberQuery)->orderBy('id', 'desc')->take(5)->get();
+            $recentMembers = FinancialMember::where('user_id', $user->id)
+                ->where('admin_id', $adminId)
+                ->orderBy('id', 'desc')
+                ->take(5)
+                ->get();
 
             $utilityWallet = FinancialScopeService::getUtilityWallet($user);
 
-            // ── Monthly Trend (12 months) with txn count + member count ──────────
+            // ── Monthly Trend (Past 12 months) in 2 single GROUP BY queries ─────────
+            $twelveMonthsAgo = Carbon::now()->subMonths(11)->startOfMonth();
+            $nowEnd          = Carbon::now()->endOfMonth();
+
+            $monthlyTxnRows = FinancialTransaction::where('user_id', $user->id)
+                ->where('admin_id', $adminId)
+                ->whereBetween('created_at', [$twelveMonthsAgo, $nowEnd])
+                ->selectRaw("
+                    DATE_FORMAT(created_at, '%Y-%m') as ym,
+                    SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as deposit,
+                    SUM(charges) as commission,
+                    COUNT(id) as txn_count
+                ")
+                ->groupBy(DB::raw("DATE_FORMAT(created_at, '%Y-%m')"))
+                ->get()
+                ->keyBy('ym');
+
+            $monthlyMemberRows = FinancialMember::where('user_id', $user->id)
+                ->where('admin_id', $adminId)
+                ->whereBetween('created_at', [$twelveMonthsAgo, $nowEnd])
+                ->selectRaw("
+                    DATE_FORMAT(created_at, '%Y-%m') as ym,
+                    COUNT(id) as new_members
+                ")
+                ->groupBy(DB::raw("DATE_FORMAT(created_at, '%Y-%m')"))
+                ->get()
+                ->keyBy('ym');
+
             $monthlyTrend = [];
             for ($i = 11; $i >= 0; $i--) {
                 $monthDate = Carbon::now()->subMonths($i);
-                $mStart    = (clone $monthDate)->startOfMonth();
-                $mEnd      = (clone $monthDate)->endOfMonth();
-
-                $mDep      = floatval((clone $txnAll)->whereBetween('created_at', [$mStart, $mEnd])->where('txn_type', 'DEPOSIT')->sum('amount'));
-                $mComm     = floatval((clone $txnAll)->whereBetween('created_at', [$mStart, $mEnd])->sum('charges'));
-                $mTxnCount = (clone $txnAll)->whereBetween('created_at', [$mStart, $mEnd])->count();
-                $mMembers  = FinancialMember::where('user_id', $user->id)
-                                ->where('admin_id', $adminId)
-                                ->whereBetween('created_at', [$mStart, $mEnd])
-                                ->count();
+                $ym        = $monthDate->format('Y-m');
+                $tRow      = $monthlyTxnRows->get($ym);
+                $mRow      = $monthlyMemberRows->get($ym);
 
                 $monthlyTrend[] = [
                     'month'       => $monthDate->format('M'),
-                    'deposit'     => $mDep,
-                    'commission'  => $mComm,
-                    'txn_count'   => $mTxnCount,
-                    'new_members' => $mMembers,
+                    'deposit'     => floatval($tRow->deposit ?? 0),
+                    'commission'  => floatval($tRow->commission ?? 0),
+                    'txn_count'   => intval($tRow->txn_count ?? 0),
+                    'new_members' => intval($mRow->new_members ?? 0),
                 ];
             }
 
-            // ── Period-specific trend (daily breakdown for Today/Week, monthly for Month/Year)
+            // ── Period-specific trend in 1 single grouped query ────────────────────
             $periodTrend = [];
             if ($period === 'Today') {
-                // Hourly breakdown for today (0-23)
-                for ($h = 0; $h < 24; $h += 2) { // Every 2 hours = 12 points
-                    $hStart = $periodStart->copy()->addHours($h);
-                    $hEnd   = $hStart->copy()->addHours(2)->subSecond();
-                    $hDep   = floatval((clone $txnAll)->whereBetween('created_at', [$hStart, $hEnd])->where('txn_type', 'DEPOSIT')->sum('amount'));
-                    $hComm  = floatval((clone $txnAll)->whereBetween('created_at', [$hStart, $hEnd])->sum('charges'));
-                    $hTxn   = (clone $txnAll)->whereBetween('created_at', [$hStart, $hEnd])->count();
-                    $periodTrend[] = ['label' => $hStart->format('H:i'), 'deposit' => $hDep, 'commission' => $hComm, 'txn_count' => $hTxn];
+                $hourlyTxnRows = FinancialTransaction::where('user_id', $user->id)
+                    ->where('admin_id', $adminId)
+                    ->whereBetween('created_at', [$periodStart, $periodEnd])
+                    ->selectRaw("
+                        FLOOR(HOUR(created_at) / 2) * 2 as h_bucket,
+                        SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as deposit,
+                        SUM(charges) as commission,
+                        COUNT(id) as txn_count
+                    ")
+                    ->groupBy(DB::raw("FLOOR(HOUR(created_at) / 2) * 2"))
+                    ->get()
+                    ->keyBy('h_bucket');
+
+                for ($h = 0; $h < 24; $h += 2) {
+                    $row    = $hourlyTxnRows->get($h);
+                    $hLabel = sprintf('%02d:00', $h);
+                    $periodTrend[] = [
+                        'label'      => $hLabel,
+                        'deposit'    => floatval($row->deposit ?? 0),
+                        'commission' => floatval($row->commission ?? 0),
+                        'txn_count'  => intval($row->txn_count ?? 0),
+                    ];
                 }
             } elseif ($period === 'This Week') {
-                // Daily for this week (7 days)
+                $dailyTxnRows = FinancialTransaction::where('user_id', $user->id)
+                    ->where('admin_id', $adminId)
+                    ->whereBetween('created_at', [$periodStart, $periodEnd])
+                    ->selectRaw("
+                        DATE(created_at) as d_date,
+                        SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as deposit,
+                        SUM(charges) as commission,
+                        COUNT(id) as txn_count
+                    ")
+                    ->groupBy(DB::raw("DATE(created_at)"))
+                    ->get()
+                    ->keyBy('d_date');
+
                 for ($d = 0; $d < 7; $d++) {
                     $dayDate = $periodStart->copy()->addDays($d);
-                    $dStart  = $dayDate->copy()->startOfDay();
-                    $dEnd    = $dayDate->copy()->endOfDay();
-                    $dDep    = floatval((clone $txnAll)->whereBetween('created_at', [$dStart, $dEnd])->where('txn_type', 'DEPOSIT')->sum('amount'));
-                    $dComm   = floatval((clone $txnAll)->whereBetween('created_at', [$dStart, $dEnd])->sum('charges'));
-                    $dTxn    = (clone $txnAll)->whereBetween('created_at', [$dStart, $dEnd])->count();
-                    $periodTrend[] = ['label' => $dayDate->format('D'), 'deposit' => $dDep, 'commission' => $dComm, 'txn_count' => $dTxn];
+                    $dKey    = $dayDate->toDateString();
+                    $row     = $dailyTxnRows->get($dKey);
+                    $periodTrend[] = [
+                        'label'      => $dayDate->format('D'),
+                        'deposit'    => floatval($row->deposit ?? 0),
+                        'commission' => floatval($row->commission ?? 0),
+                        'txn_count'  => intval($row->txn_count ?? 0),
+                    ];
                 }
             } elseif ($period === 'This Month') {
-                // Daily for this month
+                $dailyTxnRows = FinancialTransaction::where('user_id', $user->id)
+                    ->where('admin_id', $adminId)
+                    ->whereBetween('created_at', [$periodStart, $periodEnd])
+                    ->selectRaw("
+                        DATE(created_at) as d_date,
+                        SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as deposit,
+                        SUM(charges) as commission,
+                        COUNT(id) as txn_count
+                    ")
+                    ->groupBy(DB::raw("DATE(created_at)"))
+                    ->get()
+                    ->keyBy('d_date');
+
                 $daysInMonth = $now->daysInMonth;
                 for ($d = 1; $d <= $daysInMonth; $d++) {
                     $dayDate = $periodStart->copy()->addDays($d - 1);
-                    $dStart  = $dayDate->copy()->startOfDay();
-                    $dEnd    = $dayDate->copy()->endOfDay();
-                    $dDep    = floatval((clone $txnAll)->whereBetween('created_at', [$dStart, $dEnd])->where('txn_type', 'DEPOSIT')->sum('amount'));
-                    $dComm   = floatval((clone $txnAll)->whereBetween('created_at', [$dStart, $dEnd])->sum('charges'));
-                    $dTxn    = (clone $txnAll)->whereBetween('created_at', [$dStart, $dEnd])->count();
-                    $periodTrend[] = ['label' => $dayDate->format('d'), 'deposit' => $dDep, 'commission' => $dComm, 'txn_count' => $dTxn];
+                    $dKey    = $dayDate->toDateString();
+                    $row     = $dailyTxnRows->get($dKey);
+                    $periodTrend[] = [
+                        'label'      => $dayDate->format('d'),
+                        'deposit'    => floatval($row->deposit ?? 0),
+                        'commission' => floatval($row->commission ?? 0),
+                        'txn_count'  => intval($row->txn_count ?? 0),
+                    ];
                 }
             } else {
-                // Monthly for this year (same as monthlyTrend but only current year)
+                // This Year
+                $monthlyYearRows = FinancialTransaction::where('user_id', $user->id)
+                    ->where('admin_id', $adminId)
+                    ->whereBetween('created_at', [$periodStart, $periodEnd])
+                    ->selectRaw("
+                        MONTH(created_at) as m_num,
+                        SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as deposit,
+                        SUM(charges) as commission,
+                        COUNT(id) as txn_count
+                    ")
+                    ->groupBy(DB::raw("MONTH(created_at)"))
+                    ->get()
+                    ->keyBy('m_num');
+
                 for ($m = 1; $m <= 12; $m++) {
                     $monthDate = $periodStart->copy()->month($m);
-                    $mStart    = $monthDate->copy()->startOfMonth();
-                    $mEnd      = $monthDate->copy()->endOfMonth();
-                    $mDep2     = floatval((clone $txnAll)->whereBetween('created_at', [$mStart, $mEnd])->where('txn_type', 'DEPOSIT')->sum('amount'));
-                    $mComm2    = floatval((clone $txnAll)->whereBetween('created_at', [$mStart, $mEnd])->sum('charges'));
-                    $mTxn2     = (clone $txnAll)->whereBetween('created_at', [$mStart, $mEnd])->count();
-                    $periodTrend[] = ['label' => $monthDate->format('M'), 'deposit' => $mDep2, 'commission' => $mComm2, 'txn_count' => $mTxn2];
+                    $row       = $monthlyYearRows->get($m);
+                    $periodTrend[] = [
+                        'label'      => $monthDate->format('M'),
+                        'deposit'    => floatval($row->deposit ?? 0),
+                        'commission' => floatval($row->commission ?? 0),
+                        'txn_count'  => intval($row->txn_count ?? 0),
+                    ];
                 }
             }
 

@@ -5,9 +5,11 @@ import MpinModal from './MpinModal';
 import MemberSelectSearch from './MemberSelectSearch';
 import DepositReceiptModal from './DepositReceiptModal';
 
+import FinancialDataCache from '../core/services/FinancialDataCache';
+
 const AccountDepositModal = ({ isOpen, serviceType = null, onClose, onSuccess }) => {
     const api = ApiService();
-    const [members, setMembers] = useState([]);
+    const [members, setMembers] = useState(() => FinancialDataCache.getCachedMembers());
     const [selectedMemberId, setSelectedMemberId] = useState('');
     const [selectedMember, setSelectedMember] = useState(null);
 
@@ -27,7 +29,9 @@ const AccountDepositModal = ({ isOpen, serviceType = null, onClose, onSuccess })
 
     useEffect(() => {
         if (isOpen) {
-            fetchMembersList();
+            const cached = FinancialDataCache.getCachedMembers();
+            if (cached.length > 0) setMembers(cached);
+            FinancialDataCache.getMembers(api).then(m => m && setMembers(m));
             resetForm();
         }
     }, [isOpen, serviceType]);
@@ -43,17 +47,6 @@ const AccountDepositModal = ({ isOpen, serviceType = null, onClose, onSuccess })
         setShowMpinModal(false);
         setShowReceiptModal(false);
         setReceiptData(null);
-    };
-
-    const fetchMembersList = async () => {
-        try {
-            const res = await api.vGet('/api/agent/financial/members?per_page=100');
-            if (res.data && res.data.status === 1) {
-                setMembers(res.data.data.data || []);
-            }
-        } catch (err) {
-            console.error('Failed to fetch members list', err);
-        }
     };
 
     const handleMemberSelect = async (memId) => {
@@ -144,6 +137,7 @@ const AccountDepositModal = ({ isOpen, serviceType = null, onClose, onSuccess })
 
             if (res.data && res.data.status === 1) {
                 toast.success(res.data.message || 'Deposit processed successfully!');
+                FinancialDataCache.invalidateSavingAccounts();
                 setShowMpinModal(false);
 
                 const txn = res.data.transaction;

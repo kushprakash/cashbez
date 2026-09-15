@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ApiService from '../core/services/ApiService';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import FinancialDataCache from '../core/services/FinancialDataCache';
 import MpinModal from '../components/MpinModal';
 import MemberSelectSearch from '../components/MemberSelectSearch';
 import OpenDepositAccountModal from '../components/OpenDepositAccountModal';
@@ -94,13 +95,64 @@ const S = {
     }),
 };
 
-/* ─── Link Button ─────────────────────────────────────────── */
-const Btn = ({ to, icon, label, style }) => (
-    <Link to={to} style={style}>
-        <i className={`bx ${icon}`} style={{ fontSize: 16 }}></i>
-        <span>{label}</span>
-    </Link>
-);
+/* ─── Instant Navigation & Action Helpers ─────────────────── */
+const DashboardLink = ({ to, children, style, className = '' }) => {
+    const navigate = useNavigate();
+    return (
+        <a
+            href={to}
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate(to);
+            }}
+            className={className}
+            style={{
+                ...style,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                touchAction: 'manipulation',
+                cursor: 'pointer',
+                transition: 'all 0.12s ease',
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+        >
+            <span style={{ pointerEvents: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}>
+                {children}
+            </span>
+        </a>
+    );
+};
+
+const DashboardBtn = ({ onClick, children, style, className = '', type = 'button' }) => {
+    return (
+        <button
+            type={type}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick && onClick(e);
+            }}
+            className={className}
+            style={{
+                ...style,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                touchAction: 'manipulation',
+                cursor: 'pointer',
+                transition: 'all 0.12s ease',
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.97)'; }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+        >
+            <span style={{ pointerEvents: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', width: '100%' }}>
+                {children}
+            </span>
+        </button>
+    );
+};
 
 /* ─── Convert data array → smooth SVG cubic bezier path ──── */
 const toSvgPath = (values, viewW = 200, viewH = 50, padding = 4) => {
@@ -273,11 +325,12 @@ const CommissionAreaChart = ({ data, labels }) => {
 
 const DashboardCreateMemberModal = ({ isOpen, onClose, onSuccess }) => {
     const api = ApiService();
-    const [plans, setPlans] = useState([]);
+    const [plans, setPlans] = useState(() => FinancialDataCache.getCachedMembershipPlans());
     const [submitting, setSubmitting] = useState(false);
     const [showMpin, setShowMpin] = useState(false);
     const [pendingForm, setPendingForm] = useState(null);
 
+    const initialPlan = plans[0];
     const [form, setForm] = useState({
         name: '',
         father_name: '',
@@ -287,36 +340,35 @@ const DashboardCreateMemberModal = ({ isOpen, onClose, onSuccess }) => {
         email: '',
         address: '',
         pincode: '',
-        membership_plan_id: '',
-        membership_fee: 0,
+        membership_plan_id: initialPlan?.id || '',
+        membership_fee: initialPlan?.total_fee || initialPlan?.membership_fee || 0,
         nominee_name: '',
         nominee_relation: '',
     });
 
     useEffect(() => {
         if (isOpen) {
-            fetchPlans();
-        }
-    }, [isOpen]);
-
-    const fetchPlans = async () => {
-        try {
-            const res = await api.vGet('/api/financial/membership-plans?status=ACTIVE');
-            if (res.data && res.data.status === 1) {
-                const planList = res.data.data || [];
-                setPlans(planList);
-                if (planList.length > 0) {
+            const cached = FinancialDataCache.getCachedMembershipPlans();
+            if (cached.length > 0) {
+                setPlans(cached);
+                setForm(prev => ({
+                    ...prev,
+                    membership_plan_id: prev.membership_plan_id || cached[0].id,
+                    membership_fee: prev.membership_fee || (cached[0].total_fee || cached[0].membership_fee || 0)
+                }));
+            }
+            FinancialDataCache.getMembershipPlans(api).then(planList => {
+                if (planList && planList.length > 0) {
+                    setPlans(planList);
                     setForm(prev => ({
                         ...prev,
-                        membership_plan_id: planList[0].id,
-                        membership_fee: planList[0].total_fee || planList[0].membership_fee || 0
+                        membership_plan_id: prev.membership_plan_id || planList[0].id,
+                        membership_fee: prev.membership_fee || (planList[0].total_fee || planList[0].membership_fee || 0)
                     }));
                 }
-            }
-        } catch (e) {
-            console.error('Failed to load membership plans', e);
+            });
         }
-    };
+    }, [isOpen]);
 
     if (!isOpen) return null;
 
@@ -349,6 +401,7 @@ const DashboardCreateMemberModal = ({ isOpen, onClose, onSuccess }) => {
             setSubmitting(true);
             const res = await api.vPost('/api/agent/financial/members', { ...formData, mpin: mpinCode });
             if (res.data && res.data.status === 1) {
+                FinancialDataCache.invalidateMembers();
                 toast.success(res.data.message || 'Member registered successfully!');
                 setShowMpin(false);
                 onClose();
@@ -467,8 +520,8 @@ const DashboardCreateMemberModal = ({ isOpen, onClose, onSuccess }) => {
 
 const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
     const api = ApiService();
-    const [members, setMembers] = useState([]);
-    const [plans, setPlans] = useState([]);
+    const [members, setMembers] = useState(() => FinancialDataCache.getCachedMembers());
+    const [plans, setPlans] = useState(() => FinancialDataCache.getCachedPlans('SAVING'));
     const [showMpin, setShowMpin] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -483,24 +536,23 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
 
     useEffect(() => {
         if (isOpen) {
-            fetchMembers();
-            fetchPlans();
+            const cachedM = FinancialDataCache.getCachedMembers();
+            const cachedP = FinancialDataCache.getCachedPlans('SAVING');
+            if (cachedM.length > 0) setMembers(cachedM);
+            if (cachedP.length > 0) setPlans(cachedP);
+
+            FinancialDataCache.getMembers(api).then(m => m && setMembers(m));
+            FinancialDataCache.getPlans(api, 'SAVING').then(p => p && setPlans(p));
+            setForm({
+                member_id: '',
+                plan_id: '',
+                plan_name: '',
+                opening_amount: '',
+                min_amount: 0,
+                max_amount: null
+            });
         }
     }, [isOpen]);
-
-    const fetchMembers = async () => {
-        try {
-            const res = await api.vGet('/api/agent/financial/members?per_page=100');
-            if (res.data?.status === 1) setMembers(res.data.data.data || []);
-        } catch (e) { console.error(e); }
-    };
-
-    const fetchPlans = async () => {
-        try {
-            const res = await api.vGet('/api/financial/plans?service_type=SAVING&status=ACTIVE');
-            if (res.data?.status === 1) setPlans(res.data.data || []);
-        } catch (e) { console.error(e); }
-    };
 
     if (!isOpen) return null;
 
@@ -534,6 +586,7 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
             setSubmitting(true);
             const res = await api.vPost('/api/agent/financial/saving/open', { ...form, mpin: pin });
             if (res.data?.status === 1) {
+                FinancialDataCache.invalidateSavingAccounts();
                 toast.success(res.data.message || 'Saving Account Opened Successfully!');
                 setShowMpin(false);
                 onClose();
@@ -649,26 +702,55 @@ const calculateMaturity = (serviceType, amountStr, durationStr, rateStr) => {
 
 /* ═══════════════════════════════════════════════════════════ */
 const AgentFinancialDashboard = () => {
-    const api = ApiService();
+    const api = useMemo(() => ApiService(), []);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [summary, setSummary] = useState(null);
     const [timeFilter, setTimeFilter] = useState('Today');
     const [activeModal, setActiveModal] = useState(null); // 'CREATE_MEMBER' | 'OPEN_SAVING' | 'OPEN_DD' | 'OPEN_RD' | 'OPEN_FD' | 'OPEN_MIS'
     const [bondModalData, setBondModalData] = useState(null);
+    const summaryCache = useRef({});
 
-    const fetchSummary = useCallback(async (period) => {
+    const fetchSummary = useCallback(async (period, force = false) => {
+        if (!force && summaryCache.current[period]) {
+            setSummary(summaryCache.current[period]);
+            setRefreshing(true);
+        } else {
+            if (!summary) setLoading(true);
+            else setRefreshing(true);
+        }
         try {
-            setLoading(true);
             const res = await api.vGet(`/api/agent/financial/dashboard?period=${encodeURIComponent(period)}`);
-            if (res?.data?.status === 1) setSummary(res.data.data);
+            if (res?.data?.status === 1) {
+                summaryCache.current[period] = res.data.data;
+                setSummary(res.data.data);
+            }
         } catch (e) {
             console.error('Dashboard fetch failed', e);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
-    }, []);
+    }, [api, summary]);
 
-    useEffect(() => { fetchSummary(timeFilter); }, [timeFilter]);
+    useEffect(() => { fetchSummary(timeFilter); }, [timeFilter, fetchSummary]);
+
+    useEffect(() => {
+        // Preload common caches in background for instant modal opens
+        FinancialDataCache.getMembers(api);
+        FinancialDataCache.getMembershipPlans(api);
+        FinancialDataCache.getPlans(api, 'SAVING');
+        FinancialDataCache.getPlans(api, 'DD');
+        FinancialDataCache.getPlans(api, 'RD');
+        FinancialDataCache.getPlans(api, 'FD');
+        FinancialDataCache.getPlans(api, 'MIS');
+        FinancialDataCache.getSavingAccounts(api);
+    }, [api]);
+
+    const handleModalSuccess = useCallback(() => {
+        summaryCache.current = {};
+        fetchSummary(timeFilter, true);
+    }, [fetchSummary, timeFilter]);
 
     const kpis        = summary?.kpis || {};
     const wallet      = summary?.utility_wallet;
@@ -719,176 +801,234 @@ const AgentFinancialDashboard = () => {
                 <div style={S.productCard}>
                     <div style={S.cardTitle}>Member</div>
                     <div style={S.btnRow}>
-                        <button type="button" onClick={() => setActiveModal('CREATE_MEMBER')} style={S.btnPrimary}>
+                        <DashboardBtn onClick={() => setActiveModal('CREATE_MEMBER')} style={S.btnPrimary}>
                             <i className="bx bx-user-plus" style={{ fontSize: 16 }}></i>
                             <span>Create Member</span>
-                        </button>
-                        <Link to="/agent/members" style={S.btnLight}><i className="bx bx-list-ul" style={{ fontSize: 16 }}></i><span>Member List</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/members" style={S.btnLight}>
+                            <i className="bx bx-list-ul" style={{ fontSize: 16 }}></i>
+                            <span>Member List</span>
+                        </DashboardLink>
                     </div>
                     <div style={S.btnRowLast}>
-                        <Link to="/agent/members" style={{ ...S.btnGreen, fontSize: '11.5px' }}><i className="bx bx-shield-quarter" style={{ fontSize: 16 }}></i><span>KYC Approved Member</span></Link>
-                        <Link to="/agent/kyc-pending" style={{ ...S.btnAmber, fontSize: '11.5px' }}><i className="bx bx-time-five" style={{ fontSize: 16 }}></i><span>KYC Pending Member</span></Link>
+                        <DashboardLink to="/agent/members" style={{ ...S.btnGreen, fontSize: '11.5px' }}>
+                            <i className="bx bx-shield-quarter" style={{ fontSize: 16 }}></i>
+                            <span>KYC Approved Member</span>
+                        </DashboardLink>
+                        <DashboardLink to="/agent/kyc-pending" style={{ ...S.btnAmber, fontSize: '11.5px' }}>
+                            <i className="bx bx-time-five" style={{ fontSize: 16 }}></i>
+                            <span>KYC Pending Member</span>
+                        </DashboardLink>
                     </div>
                 </div>
 
                 <div style={S.productCard}>
                     <div style={S.cardTitle}>Saving</div>
                     <div style={S.btnRow}>
-                        <button type="button" onClick={() => setActiveModal('OPEN_SAVING')} style={S.btnPrimary}>
+                        <DashboardBtn onClick={() => setActiveModal('OPEN_SAVING')} style={S.btnPrimary}>
                             <i className="bx bx-buildings" style={{ fontSize: 16 }}></i>
                             <span>Open Account</span>
-                        </button>
-                        <Link to="/agent/saving-accounts" style={S.btnLight}><i className="bx bx-list-ul" style={{ fontSize: 16 }}></i><span>Account List</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/saving-accounts" style={S.btnLight}>
+                            <i className="bx bx-list-ul" style={{ fontSize: 16 }}></i>
+                            <span>Account List</span>
+                        </DashboardLink>
                     </div>
                     <div style={S.btnRowLast}>
-                        <button type="button" onClick={() => setActiveModal('DEPOSIT_SAVING')} style={{ ...S.btnGreen, border: 'none', cursor: 'pointer' }}>
+                        <DashboardBtn onClick={() => setActiveModal('DEPOSIT_SAVING')} style={{ ...S.btnGreen, border: 'none' }}>
                             <i className="bx bx-money" style={{ fontSize: 16 }}></i>
                             <span>Deposit</span>
-                        </button>
-                        <button type="button" onClick={() => setActiveModal('WITHDRAW_SAVING')} style={{ ...S.btnGreen, background: '#ecfdf5', border: 'none', cursor: 'pointer' }}>
+                        </DashboardBtn>
+                        <DashboardBtn onClick={() => setActiveModal('WITHDRAW_SAVING')} style={{ ...S.btnGreen, background: '#ecfdf5', border: 'none' }}>
                             <i className="bx bx-wallet" style={{ fontSize: 16 }}></i>
                             <span>Withdrawal</span>
-                        </button>
+                        </DashboardBtn>
                     </div>
                 </div>
 
                 <div style={S.productCard}>
                     <div style={S.cardTitle}>Daily Deposit</div>
                     <div style={S.btnRow}>
-                        <button type="button" onClick={() => setActiveModal('OPEN_DD')} style={S.btnPrimary}>
+                        <DashboardBtn onClick={() => setActiveModal('OPEN_DD')} style={S.btnPrimary}>
                             <i className="bx bx-plus-circle" style={{ fontSize: 16 }}></i>
                             <span>Open Account</span>
-                        </button>
-                        <Link to="/agent/dd-accounts" style={S.btnLight}><i className="bx bx-list-ul" style={{ fontSize: 16 }}></i><span>Account List</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/dd-accounts" style={S.btnLight}>
+                            <i className="bx bx-list-ul" style={{ fontSize: 16 }}></i>
+                            <span>Account List</span>
+                        </DashboardLink>
                     </div>
                     <div style={S.btnRowLast}>
-                        <button type="button" onClick={() => setActiveModal('DEPOSIT_DD')} style={{ ...S.btnGreen, border: 'none', cursor: 'pointer' }}>
+                        <DashboardBtn onClick={() => setActiveModal('DEPOSIT_DD')} style={{ ...S.btnGreen, border: 'none' }}>
                             <i className="bx bx-transfer" style={{ fontSize: 16 }}></i>
                             <span>Deposit</span>
-                        </button>
-                        <Link to="/agent/maturity-center" style={{ ...S.btnGreen, fontSize: '11.5px' }}><i className="bx bx-calendar-check" style={{ fontSize: 16 }}></i><span>Maturity Accounts</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/maturity-center" style={{ ...S.btnGreen, fontSize: '11.5px' }}>
+                            <i className="bx bx-calendar-check" style={{ fontSize: 16 }}></i>
+                            <span>Maturity Accounts</span>
+                        </DashboardLink>
                     </div>
                 </div>
 
                 <div style={S.productCard}>
                     <div style={S.cardTitle}>Recurring Deposit</div>
                     <div style={S.btnRow}>
-                        <button type="button" onClick={() => setActiveModal('OPEN_RD')} style={S.btnPrimary}>
+                        <DashboardBtn onClick={() => setActiveModal('OPEN_RD')} style={S.btnPrimary}>
                             <i className="bx bx-time" style={{ fontSize: 16 }}></i>
                             <span>Open Account</span>
-                        </button>
-                        <Link to="/agent/rd-accounts" style={S.btnLight}><i className="bx bx-list-ul" style={{ fontSize: 16 }}></i><span>Account List</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/rd-accounts" style={S.btnLight}>
+                            <i className="bx bx-list-ul" style={{ fontSize: 16 }}></i>
+                            <span>Account List</span>
+                        </DashboardLink>
                     </div>
                     <div style={S.btnRowLast}>
-                        <button type="button" onClick={() => setActiveModal('DEPOSIT_RD')} style={{ ...S.btnGreen, border: 'none', cursor: 'pointer' }}>
+                        <DashboardBtn onClick={() => setActiveModal('DEPOSIT_RD')} style={{ ...S.btnGreen, border: 'none' }}>
                             <i className="bx bx-money-withdraw" style={{ fontSize: 16 }}></i>
                             <span>Deposit</span>
-                        </button>
-                        <Link to="/agent/maturity-center" style={{ ...S.btnGreen, fontSize: '11.5px' }}><i className="bx bx-refresh" style={{ fontSize: 16 }}></i><span>Maturity Accounts</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/maturity-center" style={{ ...S.btnGreen, fontSize: '11.5px' }}>
+                            <i className="bx bx-refresh" style={{ fontSize: 16 }}></i>
+                            <span>Maturity Accounts</span>
+                        </DashboardLink>
                     </div>
                 </div>
 
                 <div style={S.productCard}>
                     <div style={S.cardTitle}>Fixed Deposit</div>
                     <div style={S.btnRow}>
-                        <button type="button" onClick={() => setActiveModal('OPEN_FD')} style={S.btnPrimary}>
+                        <DashboardBtn onClick={() => setActiveModal('OPEN_FD')} style={S.btnPrimary}>
                             <i className="bx bx-lock-alt" style={{ fontSize: 16 }}></i>
                             <span>Open Account</span>
-                        </button>
-                        <Link to="/agent/fd-accounts" style={S.btnLight}><i className="bx bx-list-ul" style={{ fontSize: 16 }}></i><span>Account List</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/fd-accounts" style={S.btnLight}>
+                            <i className="bx bx-list-ul" style={{ fontSize: 16 }}></i>
+                            <span>Account List</span>
+                        </DashboardLink>
                     </div>
                     <div style={S.btnRowLast}>
-                        <Link to="/agent/maturity-center" style={S.btnGreenFull}><i className="bx bx-layer-plus" style={{ fontSize: 16 }}></i><span>Maturity Accounts</span></Link>
+                        <DashboardLink to="/agent/maturity-center" style={S.btnGreenFull}>
+                            <i className="bx bx-layer-plus" style={{ fontSize: 16 }}></i>
+                            <span>Maturity Accounts</span>
+                        </DashboardLink>
                     </div>
                 </div>
 
                 <div style={S.productCard}>
                     <div style={S.cardTitle}>MIS</div>
                     <div style={S.btnRow}>
-                        <button type="button" onClick={() => setActiveModal('OPEN_MIS')} style={S.btnPrimary}>
+                        <DashboardBtn onClick={() => setActiveModal('OPEN_MIS')} style={S.btnPrimary}>
                             <i className="bx bx-percent" style={{ fontSize: 16 }}></i>
                             <span>Open Account</span>
-                        </button>
-                        <Link to="/agent/mis-accounts" style={S.btnLight}><i className="bx bx-list-ul" style={{ fontSize: 16 }}></i><span>Account List</span></Link>
+                        </DashboardBtn>
+                        <DashboardLink to="/agent/mis-accounts" style={S.btnLight}>
+                            <i className="bx bx-list-ul" style={{ fontSize: 16 }}></i>
+                            <span>Account List</span>
+                        </DashboardLink>
                     </div>
                     <div style={S.btnRowLast}>
-                        <Link to="/agent/maturity-center" style={S.btnGreenFull}><i className="bx bx-calendar" style={{ fontSize: 16 }}></i><span>Maturity Accounts</span></Link>
+                        <DashboardLink to="/agent/maturity-center" style={S.btnGreenFull}>
+                            <i className="bx bx-calendar" style={{ fontSize: 16 }}></i>
+                            <span>Maturity Accounts</span>
+                        </DashboardLink>
                     </div>
                 </div>
 
             </div>
 
-            {/* Render Dashboard Modals */}
-            <DashboardCreateMemberModal
-                isOpen={activeModal === 'CREATE_MEMBER'}
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-            />
-            <DashboardOpenSavingModal
-                isOpen={activeModal === 'OPEN_SAVING'}
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-            />
-            <OpenDepositAccountModal
-                serviceType="DD"
-                isOpen={activeModal === 'OPEN_DD'}
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-                onOpenBond={(bondData) => setBondModalData(bondData)}
-            />
-            <OpenDepositAccountModal
-                serviceType="RD"
-                isOpen={activeModal === 'OPEN_RD'}
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-                onOpenBond={(bondData) => setBondModalData(bondData)}
-            />
-            <OpenDepositAccountModal
-                serviceType="FD"
-                isOpen={activeModal === 'OPEN_FD'}
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-                onOpenBond={(bondData) => setBondModalData(bondData)}
-            />
-            <OpenDepositAccountModal
-                serviceType="MIS"
-                isOpen={activeModal === 'OPEN_MIS'}
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-                onOpenBond={(bondData) => setBondModalData(bondData)}
-            />
-            <SavingWithdrawalModal
-                isOpen={activeModal === 'WITHDRAW_SAVING'}
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-            />
+            {/* Render Dashboard Modals — Lazy conditional mounting for maximum performance */}
+            {activeModal === 'CREATE_MEMBER' && (
+                <DashboardCreateMemberModal
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                />
+            )}
+            {activeModal === 'OPEN_SAVING' && (
+                <DashboardOpenSavingModal
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                />
+            )}
+            {activeModal === 'OPEN_DD' && (
+                <OpenDepositAccountModal
+                    serviceType="DD"
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                    onOpenBond={(bondData) => setBondModalData(bondData)}
+                />
+            )}
+            {activeModal === 'OPEN_RD' && (
+                <OpenDepositAccountModal
+                    serviceType="RD"
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                    onOpenBond={(bondData) => setBondModalData(bondData)}
+                />
+            )}
+            {activeModal === 'OPEN_FD' && (
+                <OpenDepositAccountModal
+                    serviceType="FD"
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                    onOpenBond={(bondData) => setBondModalData(bondData)}
+                />
+            )}
+            {activeModal === 'OPEN_MIS' && (
+                <OpenDepositAccountModal
+                    serviceType="MIS"
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                    onOpenBond={(bondData) => setBondModalData(bondData)}
+                />
+            )}
+            {activeModal === 'WITHDRAW_SAVING' && (
+                <SavingWithdrawalModal
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                />
+            )}
 
             {/* Deposit Modals */}
-            <AccountDepositModal
-                isOpen={activeModal === 'DEPOSIT_SAVING'}
-                serviceType="SAVING"
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-            />
-            <AccountDepositModal
-                isOpen={activeModal === 'DEPOSIT_DD'}
-                serviceType="DD"
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-            />
-            <AccountDepositModal
-                isOpen={activeModal === 'DEPOSIT_RD'}
-                serviceType="RD"
-                onClose={() => setActiveModal(null)}
-                onSuccess={() => fetchSummary(timeFilter)}
-            />
+            {activeModal === 'DEPOSIT_SAVING' && (
+                <AccountDepositModal
+                    isOpen={true}
+                    serviceType="SAVING"
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                />
+            )}
+            {activeModal === 'DEPOSIT_DD' && (
+                <AccountDepositModal
+                    isOpen={true}
+                    serviceType="DD"
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                />
+            )}
+            {activeModal === 'DEPOSIT_RD' && (
+                <AccountDepositModal
+                    isOpen={true}
+                    serviceType="RD"
+                    onClose={() => setActiveModal(null)}
+                    onSuccess={handleModalSuccess}
+                />
+            )}
 
             {/* Bank Account Bond Certificate Modal */}
-            <BankAccountBondModal
-                isOpen={Boolean(bondModalData)}
-                bondData={bondModalData}
-                onClose={() => setBondModalData(null)}
-            />
+            {bondModalData && (
+                <BankAccountBondModal
+                    isOpen={true}
+                    bondData={bondModalData}
+                    onClose={() => setBondModalData(null)}
+                />
+            )}
 
 
 
@@ -901,6 +1041,11 @@ const AgentFinancialDashboard = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                             <i className="bx bx-trending-up" style={{ fontSize: 20, color: '#2563eb' }}></i>
                             <span style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>Business Analytics</span>
+                            {refreshing && (
+                                <span style={{ fontSize: 11, color: '#2563eb', display: 'flex', alignItems: 'center', gap: 3, fontWeight: 500 }}>
+                                    <i className="bx bx-loader-alt bx-spin"></i>
+                                </span>
+                            )}
                         </div>
                         <div style={S.pillGroup}>
                             {['Today', 'This Week', 'This Month', 'This Year'].map(p => (
@@ -911,13 +1056,13 @@ const AgentFinancialDashboard = () => {
                         </div>
                     </div>
 
-                    {loading ? (
+                    {loading && !summary ? (
                         <div style={{ textAlign: 'center', padding: '30px 0', color: '#94a3b8' }}>
                             <i className="bx bx-loader-alt bx-spin" style={{ fontSize: 28 }}></i>
                             <div style={{ marginTop: 8, fontSize: 13 }}>Loading data...</div>
                         </div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, opacity: refreshing ? 0.75 : 1, transition: 'opacity 0.15s ease' }}>
 
                             {/* Total Deposits — wave line from period_trend deposits */}
                             <div style={S.metricCard}>
@@ -1003,7 +1148,7 @@ const AgentFinancialDashboard = () => {
                                 Total Earnings ({timeFilter})
                             </div>
                             <div style={{ fontWeight: 900, fontSize: 20, color: '#fff', marginBottom: 12 }}>
-                                {loading
+                                {loading && !summary
                                     ? <i className="bx bx-loader-alt bx-spin"></i>
                                     : `₹${fmt(totalEarnings)}`
                                 }
@@ -1016,7 +1161,7 @@ const AgentFinancialDashboard = () => {
                                             {r.label}
                                         </span>
                                         <strong style={{ fontSize: 10.5, color: '#fff' }}>
-                                            {loading ? '—' : `₹${fmt(r.val)}`}
+                                            {loading && !summary ? '—' : `₹${fmt(r.val)}`}
                                         </strong>
                                     </div>
                                 ))}
@@ -1031,7 +1176,7 @@ const AgentFinancialDashboard = () => {
                                     {timeFilter} <i className="bx bx-chevron-down" style={{ fontSize: 12 }}></i>
                                 </span>
                             </div>
-                            {loading ? (
+                            {loading && !summary ? (
                                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
                                     <i className="bx bx-loader-alt bx-spin" style={{ fontSize: 24 }}></i>
                                 </div>

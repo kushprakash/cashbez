@@ -34,10 +34,12 @@ export const calculateMaturity = (serviceType, amountStr, durationStr, rateStr) 
     return { principal: P, interest: 0, maturity: P, monthlyPayout: 0 };
 };
 
+import FinancialDataCache from '../core/services/FinancialDataCache';
+
 const OpenDepositAccountModal = ({ serviceType, isOpen, onClose, onSuccess, onOpenBond }) => {
     const api = ApiService();
-    const [members, setMembers] = useState([]);
-    const [plans, setPlans] = useState([]);
+    const [members, setMembers] = useState(() => FinancialDataCache.getCachedMembers());
+    const [plans, setPlans] = useState(() => FinancialDataCache.getCachedPlans(serviceType));
     const [showMpin, setShowMpin] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -64,8 +66,15 @@ const OpenDepositAccountModal = ({ serviceType, isOpen, onClose, onSuccess, onOp
 
     useEffect(() => {
         if (isOpen) {
-            fetchMembers();
-            fetchPlans();
+            const cachedM = FinancialDataCache.getCachedMembers();
+            const cachedP = FinancialDataCache.getCachedPlans(serviceType);
+            if (cachedM.length > 0) setMembers(cachedM);
+            if (cachedP.length > 0) setPlans(cachedP);
+
+            // Background fetch / sync
+            FinancialDataCache.getMembers(api).then(m => m && setMembers(m));
+            FinancialDataCache.getPlans(api, serviceType).then(p => p && setPlans(p));
+
             setForm({
                 member_id: '',
                 plan_id: '',
@@ -81,20 +90,6 @@ const OpenDepositAccountModal = ({ serviceType, isOpen, onClose, onSuccess, onOp
             });
         }
     }, [isOpen, serviceType]);
-
-    const fetchMembers = async () => {
-        try {
-            const res = await api.vGet('/api/agent/financial/members?per_page=100');
-            if (res.data?.status === 1) setMembers(res.data.data.data || []);
-        } catch (e) { console.error(e); }
-    };
-
-    const fetchPlans = async () => {
-        try {
-            const res = await api.vGet(`/api/financial/plans?service_type=${serviceType}&status=ACTIVE`);
-            if (res.data?.status === 1) setPlans(res.data.data || []);
-        } catch (e) { console.error(e); }
-    };
 
     if (!isOpen) return null;
 
@@ -149,6 +144,7 @@ const OpenDepositAccountModal = ({ serviceType, isOpen, onClose, onSuccess, onOp
             });
             if (res.data?.status === 1) {
                 toast.success(res.data.message || `${serviceMeta.name} Account Opened Successfully!`);
+                FinancialDataCache.invalidateSavingAccounts();
                 setShowMpin(false);
                 onClose();
                 if (onSuccess) onSuccess();

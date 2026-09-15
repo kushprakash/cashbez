@@ -130,19 +130,31 @@ const SavingAccountSelectSearch = ({ accounts = [], value, onChange, placeholder
     );
 };
 
+import FinancialDataCache from '../core/services/FinancialDataCache';
+
 /* ─────────────────────────────────────────────────────────────
    Saving Withdrawal Modal Main Component
 ───────────────────────────────────────────────────────────── */
 const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
     const api = ApiService();
-    const [accounts, setAccounts] = useState([]);
-    const [loadingAccounts, setLoadingAccounts] = useState(false);
+    const [accounts, setAccounts] = useState(() => FinancialDataCache.getCachedSavingAccounts());
+    const [loadingAccounts, setLoadingAccounts] = useState(() => !FinancialDataCache.getCachedSavingAccounts().length);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
 
     useEffect(() => {
         if (isOpen) {
-            fetchAccounts();
+            const cached = FinancialDataCache.getCachedSavingAccounts();
+            if (cached.length > 0) {
+                setAccounts(cached);
+                setLoadingAccounts(false);
+            }
+            FinancialDataCache.getSavingAccounts(api).then(accs => {
+                if (accs) {
+                    setAccounts(accs);
+                    setLoadingAccounts(false);
+                }
+            });
             setShowReceiptModal(false);
             setReceiptData(null);
             setForm({
@@ -160,20 +172,6 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
             });
         }
     }, [isOpen]);
-
-    const fetchAccounts = async () => {
-        try {
-            setLoadingAccounts(true);
-            const res = await api.vGet('/api/agent/financial/saving/accounts?per_page=100');
-            if (res.data?.status === 1) {
-                setAccounts(res.data.data?.data || res.data.data || []);
-            }
-        } catch (e) {
-            console.error('Failed to fetch saving accounts', e);
-        } finally {
-            setLoadingAccounts(false);
-        }
-    };
 
     if (!isOpen && !showReceiptModal) return null;
 
@@ -278,6 +276,7 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
                     isWithdrawal: true
                 };
 
+                FinancialDataCache.invalidateSavingAccounts();
                 setReceiptData(receiptObj);
                 setShowReceiptModal(true);
                 if (onSuccess) onSuccess();
