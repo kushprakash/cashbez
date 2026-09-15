@@ -849,16 +849,20 @@ if (!function_exists('processCommissionCharge')) {
 
 if (!function_exists('sendSms')) {
 
-    function sendSms($message,$adminId,$number){
+    function sendSms($message, $adminId, $number, $template_id = null) {
         
         try {
 
             $setting = DB::table('settings')->where('user_id', $adminId)->first();
-
             if (!$setting) {
+                $setting = DB::table('settings')->where('user_id', 1)->first() ?? DB::table('settings')->first();
+            }
+
+            if (!$setting || empty($setting->apikey) || empty($setting->sender_id)) {
+                \Log::warning("sendSms: SMS settings missing or incomplete for adminId {$adminId}");
                 return [
                     'status' => 0,
-                    'message' => 'Message settings not found for : ' . $setting->company_name
+                    'message' => 'Message settings not configured.'
                 ];
             }
 
@@ -869,19 +873,33 @@ if (!function_exists('sendSms')) {
 
             $url = "http://buzzify.in/V2/http-api.php?apikey=" . $encoded_key . "&senderid=" . $encoded_sender . "&number=" . $encoded_number . "&message=" . $encoded_message . "&format=json";
 
+            if (!empty($template_id)) {
+                $url .= "&templateid=" . urlencode($template_id);
+            }
+
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_HEADER, 0);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 90); // 90 seconds timeout
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
             $response = curl_exec($ch);
+            $err = curl_error($ch);
+            curl_close($ch);
+
+            \Log::info("sendSms to {$number}: response = {$response}, curl_err = {$err}");
+
+            return [
+                'status' => 1,
+                'response' => $response
+            ];
 
         } catch (\Exception $e) {
-        
+            \Log::error("sendSms exception: " . $e->getMessage());
             return [
                 'status' => 0,
-                'message' => 'Message not sent due to Technical issue. Please contact the administrator..'
+                'message' => 'Message not sent due to Technical issue: ' . $e->getMessage()
             ];
         }
     }

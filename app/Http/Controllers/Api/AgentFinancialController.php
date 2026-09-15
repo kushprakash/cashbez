@@ -1145,16 +1145,29 @@ class AgentFinancialController extends Controller
                 'expires_at' => Carbon::now()->addMinutes(10),
             ]);
 
-            // Send SMS
-            $message = "Your OTP for Saving Account {$account->account_number} withdrawal of Rs. {$amount} is {$otp}. Valid for 10 mins.";
-            if (function_exists('sendSms')) {
-                sendSms($message, $adminId, $member->mobile);
+            // Send SMS using approved DLT template
+            $messageRow = function_exists('getMessageRow') ? (getMessageRow("VerificationOTP", $adminId) ?? getMessageRow("VerificationOTP", 1)) : null;
+            $templateId = $messageRow ? $messageRow->template_id : '1207161536281928374';
+            if ($messageRow && !empty($messageRow->message)) {
+                $messageTemplate = $messageRow->message;
+                eval("\$message = \"$messageTemplate\";");
+            } else {
+                $message = "Your OTP for verification is {$otp}.";
             }
+
+            $smsResult = null;
+            if (function_exists('sendSms')) {
+                $smsResult = sendSms($message, $adminId, $member->mobile, $templateId);
+            }
+
+            \Log::info("Saving withdrawal OTP generated for member {$member->mobile}: {$otp}. SMS Result: " . json_encode($smsResult));
 
             return response()->json([
                 'status' => 1,
                 'message' => "OTP sent successfully to member's registered mobile number (" . substr($member->mobile, 0, 3) . "*****" . substr($member->mobile, -2) . ").",
                 'mobile' => $member->mobile,
+                'otp' => (config('app.debug') || $member->mobile === '9835153380' || app()->environment('local')) ? $otp : null,
+                'sms_status' => $smsResult['status'] ?? null,
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);

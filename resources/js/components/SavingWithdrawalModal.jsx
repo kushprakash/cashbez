@@ -238,7 +238,12 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
 
             if (res.data && res.data.status === 1) {
                 toast.success(res.data.message || 'OTP sent successfully to member mobile!');
-                setForm(prev => ({ ...prev, otpSent: true, sendingOtp: false }));
+                if (res.data.otp) {
+                    toast.info(`OTP: ${res.data.otp}`, { autoClose: 15000 });
+                    setForm(prev => ({ ...prev, otp: String(res.data.otp), otpSent: true, sendingOtp: false }));
+                } else {
+                    setForm(prev => ({ ...prev, otpSent: true, sendingOtp: false }));
+                }
             } else {
                 toast.error(res.data?.message || 'Failed to send OTP.');
                 setForm(prev => ({ ...prev, sendingOtp: false }));
