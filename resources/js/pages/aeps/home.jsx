@@ -775,10 +775,54 @@ const Home = () => {
         // Show e-KYC OTP modal
         setShowEkycOtpModal(true);
       } else {
-        toast.error(response.data.message || 'Onboarding failed');
+        const resData = response.data;
+        const msg = resData?.message || resData?.data?.message || '';
+        const pendingStatus = resData?.data?.pending_status;
+        const isEmailNotVerified = 
+          msg === "Email not verified" ||
+          resData?.data?.message === "Email not verified" ||
+          pendingStatus === 3 ||
+          (typeof msg === 'string' && msg.toLowerCase() === 'email not verified');
+
+        if (isEmailNotVerified) {
+          toast.warning(msg || 'Email not verified. Please verify your email.');
+          setShowOnboardingModal(false);
+          setOtpReferenceData(null);
+          setVerificationForm(prev => ({
+            ...prev,
+            otp: '',
+            email: prev.email || verificationData?.email || ''
+          }));
+          setCurrentVerificationStep('email');
+          setShowVerificationModal(true);
+        } else {
+          toast.error(msg || 'Onboarding failed');
+        }
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Onboarding failed');
+      const errData = error.response?.data;
+      const errMsg = errData?.message || errData?.data?.message || '';
+      const pendingStatus = errData?.data?.pending_status;
+      const isEmailNotVerified = 
+        errMsg === "Email not verified" ||
+        errData?.data?.message === "Email not verified" ||
+        pendingStatus === 3 ||
+        (typeof errMsg === 'string' && errMsg.toLowerCase() === 'email not verified');
+
+      if (isEmailNotVerified) {
+        toast.warning(errMsg || 'Email not verified. Please verify your email.');
+        setShowOnboardingModal(false);
+        setOtpReferenceData(null);
+        setVerificationForm(prev => ({
+          ...prev,
+          otp: '',
+          email: prev.email || verificationData?.email || ''
+        }));
+        setCurrentVerificationStep('email');
+        setShowVerificationModal(true);
+      } else {
+        toast.error(errMsg || error.response?.data?.message || 'Onboarding failed');
+      }
     } finally {
       setOnboardingLoading(false);
     }
