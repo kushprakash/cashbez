@@ -141,6 +141,22 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
     const [loadingAccounts, setLoadingAccounts] = useState(() => !FinancialDataCache.getCachedSavingAccounts().length);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
+    const [showMpin, setShowMpin] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+
+    const [form, setForm] = useState({
+        account_id: '',
+        account_number: '',
+        member_name: '',
+        member_mobile: '',
+        member_kyc: 'PENDING',
+        available_balance: 0,
+        amount: '',
+        otp: '',
+        otpSent: false,
+        sendingOtp: false,
+        narration: ''
+    });
 
     useEffect(() => {
         if (isOpen) {
