@@ -1189,7 +1189,6 @@ class AgentFinancialController extends Controller
                 'account_id' => 'required|exists:financial_accounts,id',
                 'amount' => 'required|numeric|min:1',
                 'otp' => 'required|string|size:6',
-                'mpin' => 'required|string|size:4',
                 'narration' => 'nullable|string|max:255',
             ]);
 
@@ -1225,40 +1224,8 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => "Insufficient available balance in account."], 400);
             }
 
-            // 2. Verify Agent MPIN against Utility Wallet
-            $Walletaccount = Account::where('user_id', $user->id)->where('primary_status', false)->first();
 
-            if (!$Walletaccount) {
-                return response()->json(['status' => 0, 'message' => 'Agent Utility Wallet not found.'], 400);
-            }
-
-            $txnId = FinancialScopeService::generateTxnId();
-            // Step 1: Prepare transaction data
-            // ✅ Step 3: Prepare transaction data & debit wallet
-            $transactionData = [
-                'account_id' => $Walletaccount->id,
-                'mpin' => $request->mpin,
-                'type' => 'DR',
-                'amount' => $request->amount,
-                'transaction_amount' => $request->amount,
-                'description' => 'Saving Withdrawal from Account '.$account->account_number,
-                'transaction_id' => $txnId,
-                'category_code' => 'SAVING_WITHDRAWAL'
-            ];
-
-            // Debit transaction
-            $transactionData = processTransaction($request, $transactionData);
-
-            if (empty($transactionData['status']) || $transactionData['status'] != 1) {
-                return response()->json([
-                    'status' => 0,
-                    'message' => $transactionData['message'] ?? 'Withdrawal Transaction failed',
-                    'data' => null
-                ], 200);
-            }
-
-
-            // 3. Strict Backend KYC Check
+            // 2. Strict Backend KYC Check
             $setting = FinancialSetting::where('admin_id', $adminId)->first();
             $kycMandatory = $setting ? ($setting->kyc_required_at_withdrawal ?? true) : true;
 
@@ -1266,9 +1233,34 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => 'Withdrawal Rejected: Member KYC is not approved.'], 400);
             }
 
-            
+            $Walletaccount = Account::where('user_id', $user->id)->where('primary_status', false)->first();
 
-            DB::transaction(function() use ($account, $amount, $user, $adminId, $request, $otpRecord) {
+            if (!$Walletaccount) {
+                return response()->json(['status' => 0, 'message' => 'Agent Utility Wallet not found.'], 400);
+            }
+
+            $txnId = FinancialScopeService::generateTxnId();
+            
+            $transactionData1 = [
+                'account_id' => $Walletaccount->id,
+                'type' => 'DR',
+                'amount' => $amount,
+                'description' => 'Saving Withdrawal from Account '.$account->account_number,
+                'transaction_id' => $txnId,
+                'created_by' => $Walletaccount->user_id,
+                'admin_id' => $Walletaccount->admin_id,
+                'user_id' => $Walletaccount->user_id,
+                'category_code' => 'SAVING_WITHDRAWAL'
+            ];
+
+            // Create the wallet transaction
+            $transaction = createTransaction($transactionData1);
+            if (isset($transaction['status']) && $transaction['status'] != 1) {
+                return response()->json(['status' => 0, 'message' => $transaction['message'] ?? 'Wallet transaction failed.'], 400);
+            }
+
+            $financialTxn = null;
+            DB::transaction(function() use ($account, $amount, $user, $adminId, $request, $otpRecord, $txnId, &$financialTxn) {
                 $otpRecord->update(['is_used' => true]);
 
                 $balanceBefore = $account->current_balance;
@@ -1279,7 +1271,7 @@ class AgentFinancialController extends Controller
                     'available_balance' => $balanceAfter,
                 ]);
 
-                FinancialTransaction::create([
+                $financialTxn = FinancialTransaction::create([
                     'transaction_id' => $txnId,
                     'account_id' => $account->id,
                     'member_id' => $account->member_id,
@@ -1301,6 +1293,8 @@ class AgentFinancialController extends Controller
             return response()->json([
                 'status' => 1,
                 'message' => "Withdrawal of ₹{$amount} from Account {$account->account_number} completed successfully!",
+                'transaction' => $financialTxn,
+                'transaction_id' => $txnId,
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);

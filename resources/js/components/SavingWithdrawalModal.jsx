@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import ApiService from '../core/services/ApiService';
-import MpinModal from './MpinModal';
 import DepositReceiptModal from './DepositReceiptModal';
 
 /* ─────────────────────────────────────────────────────────────
@@ -141,7 +140,6 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
     const [loadingAccounts, setLoadingAccounts] = useState(() => !FinancialDataCache.getCachedSavingAccounts().length);
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [receiptData, setReceiptData] = useState(null);
-    const [showMpin, setShowMpin] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
     const [form, setForm] = useState({
@@ -254,15 +252,16 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
         }
     };
 
-    const handleSubmitOtp = (e) => {
-        e.preventDefault();
+    const handleWithdraw = async (e) => {
+        if (e) e.preventDefault();
+        if (!form.account_id) return toast.error('Please select a Saving Account.');
+        const amt = parseFloat(form.amount || 0);
+        if (amt <= 0) return toast.error('Please enter a valid withdrawal amount.');
+        if (amt > form.available_balance) return toast.error(`Insufficient balance. Maximum available: ₹${form.available_balance}`);
         if (!form.otp || form.otp.length !== 6) {
             return toast.error('Please enter the 6-digit OTP sent to member mobile.');
         }
-        setShowMpin(true);
-    };
 
-    const handleMpinConfirm = async (pin) => {
         try {
             setSubmitting(true);
             const res = await api.vPost('/api/agent/financial/saving/withdraw', {
@@ -270,18 +269,16 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
                 amount: form.amount,
                 otp: form.otp,
                 narration: form.narration,
-                mpin: pin
             });
 
             if (res.data && res.data.status === 1) {
                 toast.success(res.data.message || 'Withdrawal completed successfully!');
-                setShowMpin(false);
                 
                 const txn = res.data.transaction;
                 const selAcc = accounts.find(a => a.id == form.account_id);
 
                 const receiptObj = {
-                    transaction_id: txn?.transaction_id || `WTH${Date.now()}`,
+                    transaction_id: txn?.transaction_id || res.data.transaction_id || `WTH${Date.now()}`,
                     created_at: txn?.created_at || new Date().toISOString(),
                     member_name: form.member_name,
                     member_id: selAcc?.member?.member_code || selAcc?.member?.id || 'N/A',
@@ -328,7 +325,7 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
                             </h5>
                             <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
                         </div>
-                        <form onSubmit={handleSubmitOtp}>
+                        <form onSubmit={handleWithdraw}>
                             <div className="modal-body p-4">
                                 <div className="mb-3">
                                     <label className="form-label fw-semibold">Select Member / Saving Account <span className="text-danger">*</span></label>
@@ -442,10 +439,18 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
                                 )}
                             </div>
                             <div className="modal-footer bg-light border-0 py-3 px-4">
-                                <button type="button" className="btn-close-white btn btn-outline-secondary" onClick={onClose}>Cancel</button>
+                                <button type="button" className="btn btn-outline-secondary" onClick={onClose} disabled={submitting}>Cancel</button>
                                 {form.otpSent && (
-                                    <button type="submit" className="btn btn-danger px-4 fw-bold">
-                                        Step 2: Proceed to MPIN & Withdraw
+                                    <button type="submit" className="btn btn-danger px-4 fw-bold" disabled={submitting}>
+                                        {submitting ? (
+                                            <>
+                                                <i className="bx bx-loader-alt bx-spin me-2"></i> Processing Withdrawal...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <i className="bx bx-check-circle me-2"></i> Proceed to Withdrawal
+                                            </>
+                                        )}
                                     </button>
                                 )}
                             </div>
@@ -453,18 +458,6 @@ const SavingWithdrawalModal = ({ isOpen, onClose, onSuccess }) => {
                     </div>
                 </div>
             </div>
-
-            <MpinModal
-                isOpen={showMpin}
-                onClose={() => setShowMpin(false)}
-                onConfirm={handleMpinConfirm}
-                title="Confirm Saving Account Withdrawal"
-                serviceTitle="Saving Account Cash Withdrawal"
-                accountInfo={form.account_number}
-                amount={parseFloat(form.amount || 0)}
-                walletName="Saving Account Balance"
-                loading={submitting}
-            />
 
             <DepositReceiptModal
                 isOpen={showReceiptModal}
