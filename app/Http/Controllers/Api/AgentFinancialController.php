@@ -1220,15 +1220,43 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => 'Invalid or expired OTP. Please try again.'], 400);
             }
 
+            $amount = floatval($request->amount);
+            if ($account->available_balance < $amount) {
+                return response()->json(['status' => 0, 'message' => "Insufficient available balance in account."], 400);
+            }
+
             // 2. Verify Agent MPIN against Utility Wallet
-            $wallet = FinancialScopeService::getUtilityWallet($user);
-            if (!$wallet) {
+            $Walletaccount = Account::where('user_id', $user->id)->where('primary_status', false)->first();
+
+            if (!$Walletaccount) {
                 return response()->json(['status' => 0, 'message' => 'Agent Utility Wallet not found.'], 400);
             }
 
-            if (!$wallet->verifyMpin($request->mpin)) {
-                return response()->json(['status' => 0, 'message' => 'Invalid Agent MPIN entered.'], 400);
+            $txnId = FinancialScopeService::generateTxnId();
+            // Step 1: Prepare transaction data
+            // ✅ Step 3: Prepare transaction data & debit wallet
+            $transactionData = [
+                'account_id' => $Walletaccount->id,
+                'mpin' => $request->mpin,
+                'type' => 'DR',
+                'amount' => $request->amount,
+                'transaction_amount' => $request->amount,
+                'description' => 'Saving Withdrawal from Account '.$account->account_number,
+                'transaction_id' => $txnId,
+                'category_code' => 'SAVING_WITHDRAWAL'
+            ];
+
+            // Debit transaction
+            $transactionData = processTransaction($request, $transactionData);
+
+            if (empty($transactionData['status']) || $transactionData['status'] != 1) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $transactionData['message'] ?? 'Withdrawal Transaction failed',
+                    'data' => null
+                ], 200);
             }
+
 
             // 3. Strict Backend KYC Check
             $setting = FinancialSetting::where('admin_id', $adminId)->first();
@@ -1238,14 +1266,9 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => 'Withdrawal Rejected: Member KYC is not approved.'], 400);
             }
 
-            $amount = floatval($request->amount);
-            if ($account->available_balance < $amount) {
-                return response()->json(['status' => 0, 'message' => "Insufficient available balance in account."], 400);
-            }
+            
 
-            $txnId = FinancialScopeService::generateTxnId();
-
-            DB::transaction(function() use ($account, $amount, $txnId, $user, $adminId, $request, $otpRecord) {
+            DB::transaction(function() use ($account, $amount, $user, $adminId, $request, $otpRecord) {
                 $otpRecord->update(['is_used' => true]);
 
                 $balanceBefore = $account->current_balance;
