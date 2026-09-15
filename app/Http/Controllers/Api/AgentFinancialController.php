@@ -1166,7 +1166,7 @@ class AgentFinancialController extends Controller
                 'status' => 1,
                 'message' => "OTP sent successfully to member's registered mobile number (" . substr($member->mobile, 0, 3) . "*****" . substr($member->mobile, -2) . ").",
                 'mobile' => $member->mobile,
-                'otp' => (config('app.debug') || $member->mobile === '9835153380' || app()->environment('local')) ? $otp : null,
+                'otp' =>  null,
                 'sms_status' => $smsResult['status'] ?? null,
             ]);
         } catch (\Exception $e) {
