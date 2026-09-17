@@ -16,21 +16,19 @@ class FinancialMasterService
      */
     public function getSettings($user, $filterAdminId = null)
     {
-        $targetUserId = $user->id;
-        $targetAdminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
+        $targetAdminId = ($user->role == 2) ? $user->id : ($user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : ($user->admin_id ?? $user->id));
 
-        if (($user->id == 1 || $user->role == 1) && $filterAdminId) {
-            $targetAdminId = $filterAdminId;
-            $targetUserId = $filterAdminId;
+        if (($user->id == 1 || $user->role == 1)) {
+            $targetAdminId = $filterAdminId ? (int)$filterAdminId : 1;
         }
 
-        $setting = FinancialSetting::where('user_id', $targetUserId)
-            ->where('admin_id', $targetAdminId)
-            ->first();
+        $setting = FinancialSetting::where(function($q) use ($targetAdminId) {
+            $q->where('admin_id', $targetAdminId)->orWhere('user_id', $targetAdminId);
+        })->first();
 
         if (!$setting) {
             $setting = FinancialSetting::create([
-                'user_id' => $targetUserId,
+                'user_id' => $targetAdminId,
                 'admin_id' => $targetAdminId,
                 'financial_service_name' => 'Financial Services',
                 'financial_service_code' => 'FIN',
@@ -77,20 +75,26 @@ class FinancialMasterService
         if ($isSuperAdmin) {
             if ($filterAdminId) {
                 $queryPlans->where(function($q) use ($filterAdminId) {
-                    $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId);
+                    $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId)->orWhere('created_by', $filterAdminId);
                 });
                 $queryMemberships->where(function($q) use ($filterAdminId) {
-                    $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId);
+                    $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId)->orWhere('created_by', $filterAdminId);
                 });
                 $queryCharges->where(function($q) use ($filterAdminId) {
-                    $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId);
+                    $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId)->orWhere('created_by', $filterAdminId);
                 });
             }
         } else {
-            $adminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
-            $queryPlans->where('user_id', $user->id)->where('admin_id', $adminId);
-            $queryMemberships->where('user_id', $user->id)->where('admin_id', $adminId);
-            $queryCharges->where('user_id', $user->id)->where('admin_id', $adminId);
+            $adminId = ($user->role == 2) ? $user->id : ($user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : ($user->admin_id ?? $user->id));
+            $queryPlans->where(function($q) use ($adminId) {
+                $q->where('admin_id', $adminId)->orWhere('user_id', $adminId)->orWhere('created_by', $adminId);
+            });
+            $queryMemberships->where(function($q) use ($adminId) {
+                $q->where('admin_id', $adminId)->orWhere('user_id', $adminId)->orWhere('created_by', $adminId);
+            });
+            $queryCharges->where(function($q) use ($adminId) {
+                $q->where('admin_id', $adminId)->orWhere('user_id', $adminId)->orWhere('created_by', $adminId);
+            });
         }
 
         $settings = $this->getSettings($user, $filterAdminId);

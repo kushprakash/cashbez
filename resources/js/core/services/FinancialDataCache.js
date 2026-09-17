@@ -12,7 +12,7 @@ let savingAccountsCache = null;
 export const FinancialDataCache = {
     // ── Members ──────────────────────────────────────────────────────────
     getMembers: async (api, force = false) => {
-        if (membersCache && !force) return membersCache;
+        if (membersCache && membersCache.length > 0 && !force) return membersCache;
         try {
             const res = await api.vGet('/api/agent/financial/members?per_page=100');
             if (res.data?.status === 1) {
@@ -29,7 +29,7 @@ export const FinancialDataCache = {
 
     // ── Membership Plans (for Member Registration) ───────────────────────
     getMembershipPlans: async (api, force = false) => {
-        if (membershipPlansCache && !force) return membershipPlansCache;
+        if (membershipPlansCache && membershipPlansCache.length > 0 && !force) return membershipPlansCache;
         try {
             const res = await api.vGet('/api/financial/membership-plans?status=ACTIVE');
             if (res.data?.status === 1) {
@@ -46,7 +46,7 @@ export const FinancialDataCache = {
 
     // ── Service Plans (SAVING, DD, RD, FD, MIS) ──────────────────────────
     getPlans: async (api, serviceType, force = false) => {
-        if (plansCache[serviceType] && !force) return plansCache[serviceType];
+        if (plansCache[serviceType] && plansCache[serviceType].length > 0 && !force) return plansCache[serviceType];
         try {
             const res = await api.vGet(`/api/financial/plans?service_type=${serviceType}&status=ACTIVE`);
             if (res.data?.status === 1) {
@@ -63,7 +63,7 @@ export const FinancialDataCache = {
 
     // ── Saving Accounts ──────────────────────────────────────────────────
     getSavingAccounts: async (api, force = false) => {
-        if (savingAccountsCache && !force) return savingAccountsCache;
+        if (savingAccountsCache && savingAccountsCache.length > 0 && !force) return savingAccountsCache;
         try {
             const res = await api.vGet('/api/agent/financial/saving/accounts?per_page=100');
             if (res.data?.status === 1) {

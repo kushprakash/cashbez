@@ -919,6 +919,7 @@ class AgentFinancialController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'member_id' => 'required|exists:financial_members,id',
+                'plan_id' => 'nullable|exists:financial_plans,id',
                 'opening_amount' => 'required|numeric|min:0',
                 'mpin' => 'required|string|size:4',
                 'nominee_name' => 'nullable|string|max:255',
@@ -960,6 +961,7 @@ class AgentFinancialController extends Controller
                 'member_id' => $member->id,
                 'user_id' => $user->id,
                 'admin_id' => $adminId,
+                'plan_id' => $request->plan_id ?? null,
                 'created_by' => $user->id,
                 'service_type' => 'SAVING',
                 'current_balance' => $openingAmount,

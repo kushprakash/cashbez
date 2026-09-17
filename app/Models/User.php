@@ -64,6 +64,24 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasOne(User::class, 'mid', 'admin_mid');
     }
 
+    // Accessor: Get effective admin_id
+    public function getAdminIdAttribute()
+    {
+        if ($this->role == 1 || $this->id == 1) {
+            return 1;
+        }
+        if ($this->role == 2) {
+            return $this->id;
+        }
+        if (!empty($this->admin_mid)) {
+            $adminUser = User::where('mid', $this->admin_mid)->first();
+            if ($adminUser) {
+                return $adminUser->id;
+            }
+        }
+        return $this->attributes['admin_id'] ?? $this->id;
+    }
+
     // Relationship: Get user role permissions
     public function userRolePermissions()
     {

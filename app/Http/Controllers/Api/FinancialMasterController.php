@@ -123,6 +123,36 @@ class FinancialMasterController extends Controller
         }
     }
 
+    /**
+     * Resolve the effective Admin ID for a user.
+     * Super Admin (role 1 or id 1) -> null or custom filter if provided
+     * Admin (role 2) -> user's own id
+     * Agent / Subordinate -> Admin's id looked up via admin_mid
+     */
+    protected function resolveAdminId($user, $filterAdminId = null)
+    {
+        if ($user->id == 1 || $user->role == 1) {
+            return $filterAdminId ? (int)$filterAdminId : null;
+        }
+
+        if ($user->role == 2) {
+            return $user->id;
+        }
+
+        if (!empty($user->admin_mid)) {
+            $adminUser = User::where('mid', $user->admin_mid)->first();
+            if ($adminUser) {
+                return $adminUser->id;
+            }
+        }
+
+        if (!empty($user->admin_id)) {
+            return $user->admin_id;
+        }
+
+        return $user->id;
+    }
+
     // ==========================================
     // MEMBERSHIP PLANS CRUD
     // ==========================================
@@ -137,15 +167,14 @@ class FinancialMasterController extends Controller
 
             $query = MembershipPlan::query();
 
-            if (($user->id == 1 || $user->role == 1)) {
-                if ($filterAdminId) {
-                    $query->where(function($q) use ($filterAdminId) {
-                        $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId);
-                    });
-                }
-            } else {
-                $adminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
-                $query->where('user_id', $user->id)->where('admin_id', $adminId);
+            $adminId = $this->resolveAdminId($user, $filterAdminId);
+
+            if ($adminId) {
+                $query->where(function($q) use ($adminId) {
+                    $q->where('admin_id', $adminId)
+                      ->orWhere('user_id', $adminId)
+                      ->orWhere('created_by', $adminId);
+                });
             }
 
             if ($search) {
@@ -160,6 +189,29 @@ class FinancialMasterController extends Controller
             }
 
             $plans = $query->orderBy('id', 'desc')->get();
+
+            // Fallback for agent if specific admin has no membership plans
+            if ($plans->isEmpty() && $adminId && $adminId != 1) {
+                $fallbackQuery = MembershipPlan::query();
+                $fallbackQuery->where(function($q) {
+                    $q->where('admin_id', 1)
+                      ->orWhere('user_id', 1)
+                      ->orWhere('created_by', 1);
+                });
+                if ($search) {
+                    $fallbackQuery->where(function($q) use ($search) {
+                        $q->where('membership_name', 'like', "%{$search}%")
+                          ->orWhere('membership_code', 'like', "%{$search}%");
+                    });
+                }
+                if ($status) {
+                    $fallbackQuery->where('status', $status);
+                }
+                $fallbackPlans = $fallbackQuery->orderBy('id', 'desc')->get();
+                if ($fallbackPlans->isNotEmpty()) {
+                    $plans = $fallbackPlans;
+                }
+            }
 
             return response()->json([
                 'status' => 1,
@@ -178,7 +230,8 @@ class FinancialMasterController extends Controller
     {
         try {
             $user = $request->user ?? auth()->user();
-            $adminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
+            $adminId = $this->resolveAdminId($user);
+            if (!$adminId) $adminId = $user->id;
 
             $request->validate([
                 'membership_name' => 'required|string|max:255',
@@ -276,15 +329,14 @@ class FinancialMasterController extends Controller
 
             $query = FinancialPlan::query();
 
-            if (($user->id == 1 || $user->role == 1)) {
-                if ($filterAdminId) {
-                    $query->where(function($q) use ($filterAdminId) {
-                        $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId);
-                    });
-                }
-            } else {
-                $adminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
-                $query->where('user_id', $user->id)->where('admin_id', $adminId);
+            $adminId = $this->resolveAdminId($user, $filterAdminId);
+
+            if ($adminId) {
+                $query->where(function($q) use ($adminId) {
+                    $q->where('admin_id', $adminId)
+                      ->orWhere('user_id', $adminId)
+                      ->orWhere('created_by', $adminId);
+                });
             }
 
             if ($serviceType) {
@@ -304,6 +356,33 @@ class FinancialMasterController extends Controller
 
             $plans = $query->orderBy('id', 'desc')->get();
 
+            // Fallback: If agent's admin has not created specific plans for this service type,
+            // check if super admin (id = 1) has active system default plans
+            if ($plans->isEmpty() && $adminId && $adminId != 1) {
+                $fallbackQuery = FinancialPlan::query();
+                $fallbackQuery->where(function($q) {
+                    $q->where('admin_id', 1)
+                      ->orWhere('user_id', 1)
+                      ->orWhere('created_by', 1);
+                });
+                if ($serviceType) {
+                    $fallbackQuery->where('service_type', strtoupper($serviceType));
+                }
+                if ($search) {
+                    $fallbackQuery->where(function($q) use ($search) {
+                        $q->where('plan_name', 'like', "%{$search}%")
+                          ->orWhere('plan_code', 'like', "%{$search}%");
+                    });
+                }
+                if ($status) {
+                    $fallbackQuery->where('status', $status);
+                }
+                $fallbackPlans = $fallbackQuery->orderBy('id', 'desc')->get();
+                if ($fallbackPlans->isNotEmpty()) {
+                    $plans = $fallbackPlans;
+                }
+            }
+
             return response()->json([
                 'status' => 1,
                 'message' => 'Financial plans fetched successfully',
@@ -321,7 +400,8 @@ class FinancialMasterController extends Controller
     {
         try {
             $user = $request->user ?? auth()->user();
-            $adminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
+            $adminId = $this->resolveAdminId($user);
+            if (!$adminId) $adminId = $user->id;
 
             $request->validate([
                 'service_type' => 'required|string|in:SAVING,DD,RD,FD,MIS',
@@ -404,15 +484,14 @@ class FinancialMasterController extends Controller
 
             $query = FinancialChargePenalty::query();
 
-            if (($user->id == 1 || $user->role == 1)) {
-                if ($filterAdminId) {
-                    $query->where(function($q) use ($filterAdminId) {
-                        $q->where('user_id', $filterAdminId)->orWhere('admin_id', $filterAdminId);
-                    });
-                }
-            } else {
-                $adminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
-                $query->where('user_id', $user->id)->where('admin_id', $adminId);
+            $adminId = $this->resolveAdminId($user, $filterAdminId);
+
+            if ($adminId) {
+                $query->where(function($q) use ($adminId) {
+                    $q->where('admin_id', $adminId)
+                      ->orWhere('user_id', $adminId)
+                      ->orWhere('created_by', $adminId);
+                });
             }
 
             if ($category) {
@@ -424,6 +503,25 @@ class FinancialMasterController extends Controller
             }
 
             $items = $query->orderBy('id', 'desc')->get();
+
+            if ($items->isEmpty() && $adminId && $adminId != 1) {
+                $fallbackQuery = FinancialChargePenalty::query();
+                $fallbackQuery->where(function($q) {
+                    $q->where('admin_id', 1)
+                      ->orWhere('user_id', 1)
+                      ->orWhere('created_by', 1);
+                });
+                if ($category) {
+                    $fallbackQuery->where('category', strtoupper($category));
+                }
+                if ($search) {
+                    $fallbackQuery->where('name', 'like', "%{$search}%");
+                }
+                $fallbackItems = $fallbackQuery->orderBy('id', 'desc')->get();
+                if ($fallbackItems->isNotEmpty()) {
+                    $items = $fallbackItems;
+                }
+            }
 
             return response()->json([
                 'status' => 1,
@@ -442,7 +540,8 @@ class FinancialMasterController extends Controller
     {
         try {
             $user = $request->user ?? auth()->user();
-            $adminId = $user->admin_mid ? (User::where('mid', $user->admin_mid)->value('id') ?? $user->id) : $user->id;
+            $adminId = $this->resolveAdminId($user);
+            if (!$adminId) $adminId = $user->id;
 
             $request->validate([
                 'name' => 'required|string|max:255',

@@ -541,8 +541,8 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
             if (cachedM.length > 0) setMembers(cachedM);
             if (cachedP.length > 0) setPlans(cachedP);
 
-            FinancialDataCache.getMembers(api).then(m => m && setMembers(m));
-            FinancialDataCache.getPlans(api, 'SAVING').then(p => p && setPlans(p));
+            FinancialDataCache.getMembers(api, true).then(m => m && setMembers(m));
+            FinancialDataCache.getPlans(api, 'SAVING', true).then(p => p && setPlans(p));
             setForm({
                 member_id: '',
                 plan_id: '',

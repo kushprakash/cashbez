@@ -72,8 +72,8 @@ const OpenDepositAccountModal = ({ serviceType, isOpen, onClose, onSuccess, onOp
             if (cachedP.length > 0) setPlans(cachedP);
 
             // Background fetch / sync
-            FinancialDataCache.getMembers(api).then(m => m && setMembers(m));
-            FinancialDataCache.getPlans(api, serviceType).then(p => p && setPlans(p));
+            FinancialDataCache.getMembers(api, true).then(m => m && setMembers(m));
+            FinancialDataCache.getPlans(api, serviceType, true).then(p => p && setPlans(p));
 
             setForm({
                 member_id: '',
