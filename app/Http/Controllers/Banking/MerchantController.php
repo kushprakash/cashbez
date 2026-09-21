@@ -1271,7 +1271,7 @@ class MerchantController extends Controller
                 return response()->json([
                     'status'  => 0,
                     'pending_status'  => 3,
-                    'message' => 'Email not verified',
+                    'message' => 'Email not verifieds- '.$existingUser->email_verified_at,
                 ], 200);
             }
 
