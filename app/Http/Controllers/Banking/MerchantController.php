@@ -1271,7 +1271,7 @@ class MerchantController extends Controller
                 return response()->json([
                     'status'  => 0,
                     'pending_status'  => 3,
-                    'message' => 'Email not verifieds- '.$existingUser->email_verified_at,
+                    'message' => 'Email not verified',
                 ], 200);
             }
 
@@ -1306,6 +1306,7 @@ class MerchantController extends Controller
                 "aeps_draft_id" => $existingUser->bid,
                 "outletId"      => $existingUser->bmid,
                 "pan_no"        => $existingUser->pan_no,
+                "kyc_done"  => true
             ];
 
             $ch = curl_init($url);
