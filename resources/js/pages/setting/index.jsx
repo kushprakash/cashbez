@@ -16,6 +16,7 @@ const SettingIndex = () => {
         logo: null,
         footer_logo: null,
         favicon: null,
+        sign: null,
         about: '',
         copy_right: '',
         address: '',
@@ -79,6 +80,7 @@ const SettingIndex = () => {
                     logo: null,
                     footer_logo: null,
                     favicon: null,
+                    sign: null,
                     playstore_qr_img: null,
                 }));
             }
@@ -127,7 +129,7 @@ const SettingIndex = () => {
             // Separate file uploads from regular data
             const settingsData = {};
             const filesData = {};
-            const fileFields = ['logo', 'footer_logo', 'favicon', 'playstore_qr_img'];
+            const fileFields = ['logo', 'footer_logo', 'favicon', 'playstore_qr_img', 'sign'];
 
             // Include all non-file fields
             Object.keys(form).forEach(key => {
@@ -307,6 +309,35 @@ const SettingIndex = () => {
                                                             border: '1px solid #ddd',
                                                             borderRadius: '4px',
                                                             padding: '2px',
+                                                            backgroundColor: '#f8f9fa'
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="mb-3 col-md-4">
+                                            <label className="form-label fw-semibold">Authorised Signatory Signature / Stamp</label>
+                                            <input
+                                                type="file"
+                                                className="form-control"
+                                                name="sign"
+                                                onChange={handleChange}
+                                                accept="image/*"
+                                            />
+                                            {existingData?.sign && (
+                                                <div className="mt-2">
+                                                    <small className="text-muted d-block mb-1">Current Signature:</small>
+                                                    <img
+                                                        src={existingData.sign}
+                                                        alt="Current Authorised Signature"
+                                                        style={{
+                                                            maxWidth: '180px',
+                                                            maxHeight: '65px',
+                                                            objectFit: 'contain',
+                                                            border: '1px solid #ddd',
+                                                            borderRadius: '4px',
+                                                            padding: '4px',
                                                             backgroundColor: '#f8f9fa'
                                                         }}
                                                     />

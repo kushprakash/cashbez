@@ -17,6 +17,8 @@ const COMPRESSION_PRESETS = {
     logo: { maxWidth: 400, maxHeight: 400, quality: 0.9, maxSizeKB: 100 },
     favicon: { maxWidth: 64, maxHeight: 64, quality: 0.9, maxSizeKB: 20 },
     footer_logo: { maxWidth: 300, maxHeight: 150, quality: 0.85, maxSizeKB: 80 },
+    sign: { maxWidth: 500, maxHeight: 250, quality: 0.9, maxSizeKB: 100 },
+    signature: { maxWidth: 500, maxHeight: 250, quality: 0.9, maxSizeKB: 100 },
     
     // Popups - medium size, good quality
     popups: { maxWidth: 800, maxHeight: 800, quality: 0.85, maxSizeKB: 300 },

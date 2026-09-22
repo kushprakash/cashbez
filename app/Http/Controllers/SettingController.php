@@ -105,6 +105,11 @@ class SettingController extends Controller
         if ($request->hasFile('playstore_qr_img')) {
             $baseRules['playstore_qr_img'] = 'file|mimes:jpeg,jpg,png,gif,svg,webp|mimetypes:image/jpeg,image/jpg,image/png,image/gif,image/svg+xml,image/webp|max:2048';
         }
+        if ($request->hasFile('sign')) {
+            $baseRules['sign'] = 'file|mimes:jpeg,jpg,png,gif,svg,webp|mimetypes:image/jpeg,image/jpg,image/png,image/gif,image/svg+xml,image/webp|max:2048';
+        } elseif ($request->has('sign')) {
+            $baseRules['sign'] = 'nullable|string';
+        }
        
         $validator = Validator::make($request->all(), $baseRules);
 
@@ -166,6 +171,17 @@ class SettingController extends Controller
                         throw new \Exception('Playstore QR img upload failed: ' . $result['error']);
                     }
                     $data['playstore_qr_img'] = $result['url'];
+                }
+
+                // Authorised Signature
+                if ($request->has('sign') && is_string($request->input('sign')) && filter_var($request->input('sign'), FILTER_VALIDATE_URL)) {
+                    $data['sign'] = $request->input('sign');
+                } elseif ($request->hasFile('sign')) {
+                    $result = $this->bunnyStorage->upload($request->file('sign'), 'settings/signatures');
+                    if (!$result['success']) {
+                        throw new \Exception('Signature upload failed: ' . $result['error']);
+                    }
+                    $data['sign'] = $result['url'];
                 }
 
             $user = $request->get('user');
@@ -258,6 +274,11 @@ class SettingController extends Controller
         }
         if ($request->hasFile('playstore_qr_img')) {
             $baseRules['playstore_qr_img'] = 'file|mimes:jpeg,jpg,png,gif,svg,webp|mimetypes:image/jpeg,image/jpg,image/png,image/gif,image/svg+xml,image/webp|max:2048';
+        }
+        if ($request->hasFile('sign')) {
+            $baseRules['sign'] = 'file|mimes:jpeg,jpg,png,gif,svg,webp|mimetypes:image/jpeg,image/jpg,image/png,image/gif,image/svg+xml,image/webp|max:2048';
+        } elseif ($request->has('sign')) {
+            $baseRules['sign'] = 'nullable|string';
         }
         
         $validator = Validator::make($request->all(), $baseRules);
@@ -364,6 +385,22 @@ class SettingController extends Controller
                     throw new \Exception('Playstore QR upload failed: ' . $result['error']);
                 }
                 $data['playstore_qr_img'] = $result['url'];
+            }
+
+            if ($request->has('sign') && is_string($request->input('sign')) && filter_var($request->input('sign'), FILTER_VALIDATE_URL)) {
+                $data['sign'] = $request->input('sign');
+            } elseif ($request->hasFile('sign')) {
+                if ($setting->sign) {
+                    $oldPath = $this->bunnyStorage->extractPath($setting->sign);
+                    if ($oldPath) {
+                        $this->bunnyStorage->delete($oldPath);
+                    }
+                }
+                $result = $this->bunnyStorage->upload($request->file('sign'), 'settings/signatures');
+                if (!$result['success']) {
+                    throw new \Exception('Signature upload failed: ' . $result['error']);
+                }
+                $data['sign'] = $result['url'];
             }
 
             if ($request->has('playstore_url')) {
@@ -491,6 +528,7 @@ class SettingController extends Controller
                         'theme_color_secondary' => $setting->theme_color_secondary,
                         'currency_code' => $setting->currency_code,
                         'call_back_url' => $setting->call_back_url,
+                        'sign' => $setting->sign,
                     ]
                 ]);
             }
