@@ -683,6 +683,7 @@ class AgentFinancialController extends Controller
             'refid' => 'nullable|string',
             'txnid' => 'nullable|string',
             'aadhar_number' => 'required|string|size:12',
+            'member_id' => 'nullable|integer',
         ]);
 
         if ($validator->fails()) {
@@ -767,6 +768,31 @@ class AgentFinancialController extends Controller
                     }
                 }
 
+                $member = null;
+                // Immediately persist verified Aadhaar so it is never lost even if user logs out or leaves
+                if ($request->filled('member_id')) {
+                    $member = FinancialMember::where('id', $request->member_id)
+                        ->where('user_id', $user->id)
+                        ->first();
+
+                    if ($member) {
+                        $updateData = [
+                            'aadhar_number' => $request->aadhar_number,
+                            'aadhar_verified' => true,
+                        ];
+                        if (!empty($aadhaarInfo['name'])) $updateData['name'] = $aadhaarInfo['name'];
+                        if (!empty($aadhaarInfo['care_of'])) $updateData['father_name'] = $aadhaarInfo['care_of'];
+                        if (!empty($dobFormatted)) $updateData['dob'] = $dobFormatted;
+                        if (!empty($gender)) $updateData['gender'] = $gender;
+                        if (!empty($address)) $updateData['address'] = $address;
+                        if (!empty($split['state'])) $updateData['state'] = $split['state'];
+                        if (!empty($split['pincode'])) $updateData['pincode'] = $split['pincode'];
+                        if (!empty($photo)) $updateData['photo'] = $photo;
+
+                        $member->update($updateData);
+                    }
+                }
+
                 return response()->json([
                     'status' => 1,
                     'message' => 'Aadhaar verified successfully',
@@ -781,7 +807,8 @@ class AgentFinancialController extends Controller
                         'photo' => $photo,
                         'aadhar_number' => $request->aadhar_number,
                         'verified' => true
-                    ]
+                    ],
+                    'member' => $member
                 ]);
             } else {
                 return response()->json([
@@ -795,6 +822,140 @@ class AgentFinancialController extends Controller
             return response()->json([
                 'status' => 0,
                 'message' => 'Verification failed: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Verify Bank Account for Member KYC via /api/v2/verify/bank-account
+     */
+    public function verifyMemberBankAccount(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'member_id' => 'required|integer',
+            'account_number' => 'required|string',
+            'ifsc_code' => 'required|string|size:11',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 0,
+                'message' => $validator->errors()->first()
+            ]);
+        }
+
+        $user = $request->user();
+        if (!$user) {
+            $token = $request->header('Token');
+            $user = User::where('remember_token', $token)->first();
+        }
+        if (!$user) {
+            return response()->json(['status' => 0, 'message' => 'Invalid token'], 401);
+        }
+
+        try {
+            $member = FinancialMember::where('id', $request->member_id)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$member) {
+                return response()->json(['status' => 0, 'message' => 'Member not found'], 404);
+            }
+
+            if (!$member->aadhar_verified) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Please complete Aadhaar verification first before verifying bank account.'
+                ]);
+            }
+
+            $admin = User::where('mid', $user->admin_mid)->select('mid', 'mkey')->first();
+            if (!$admin || !$admin->mid || !$admin->mkey) {
+                $admin = $user;
+            }
+            if (!$admin || !$admin->mid || !$admin->mkey) {
+                $admin = User::whereNotNull('mid')->whereNotNull('mkey')->where('mid', '!=', '')->first();
+            }
+
+            $curl = curl_init();
+            curl_setopt_array($curl, array(
+                CURLOPT_URL => url('') . '/api/v2/verify/bank-account',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_ENCODING => '',
+                CURLOPT_MAXREDIRS => 10,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => json_encode([
+                    "accountno" => $request->account_number,
+                    "ifsccode" => strtoupper($request->ifsc_code)
+                ]),
+                CURLOPT_HTTPHEADER => array(
+                    'Content-Type: application/json',
+                    'mid: ' . ($user ? $user->mid : ''),
+                    'mkey: ' . ($user ? $user->mkey : '')
+                ),
+            ));
+
+            $response = curl_exec($curl);
+            curl_close($curl);
+            $rj = json_decode($response, true);
+
+            if (isset($rj['status']) && $rj['status'] == 1) {
+                $bankData = $rj['data'] ?? [];
+                $accountName = $bankData['AccountName'] ?? ($bankData['account_holder_name'] ?? ($bankData['full_name'] ?? ($bankData['name'] ?? '')));
+
+                $prefixes = [
+                    'Mr. ', 'MR. ', 'Mr ', 'MR ',
+                    'Mrs. ', 'MRS. ', 'Mrs ', 'MRS ',
+                    'Ms. ', 'MS. ', 'Ms ', 'MS ',
+                    'Miss ', 'MISS ',
+                    'Shri. ', 'SHRI. ', 'Shri ', 'SHRI ',
+                    'Sri. ', 'SRI. ', 'Sri ', 'SRI ',
+                    'Smt. ', 'SMT. ', 'Smt ', 'SMT ',
+                    'Dr. ', 'DR. ', 'Prof. ', 'PROF. ',
+                    'Mx. ', 'Master ', 'MASTER '
+                ];
+                $cleanAccountName = trim(str_ireplace($prefixes, '', $accountName));
+                $finalAccountHolder = $cleanAccountName ?: $accountName;
+                $bankName = $bankData['bank_name'] ?? ($bankData['BANK'] ?? '');
+                $branch = $bankData['branch'] ?? ($bankData['BRANCH'] ?? '');
+
+                // Immediately persist bank account data so it is never lost even if user logs out
+                $member->update([
+                    'account_number' => $request->account_number,
+                    'ifsc_code' => strtoupper($request->ifsc_code),
+                    'bank_name' => $bankName,
+                    'bank_branch' => $branch,
+                    'account_holder_name' => $finalAccountHolder,
+                    'account_verified' => true,
+                ]);
+
+                return response()->json([
+                    'status' => 1,
+                    'message' => 'Bank Account verified successfully!',
+                    'bank_data' => [
+                        'account_number' => $request->account_number,
+                        'ifsc_code' => strtoupper($request->ifsc_code),
+                        'account_holder_name' => $finalAccountHolder,
+                        'bank_name' => $bankName,
+                        'branch' => $branch,
+                        'verified' => true,
+                    ],
+                    'member' => $member
+                ]);
+            } else {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $rj['message'] ?? 'Bank Account verification failed. Please check details and try again.'
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Bank Account Verification Error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 0,
+                'message' => 'Bank Account verification failed: ' . $e->getMessage()
             ]);
         }
     }
@@ -815,15 +976,25 @@ class AgentFinancialController extends Controller
                                     ->firstOrFail();
 
             // Require verified Aadhaar data to approve KYC
-            if (!$request->boolean('verified') && !$request->filled('aadhar_number')) {
+            if (!$member->aadhar_verified && !$request->boolean('verified') && !$request->filled('aadhar_number')) {
                 return response()->json([
                     'status' => 0,
                     'message' => 'KYC cannot be approved without completing Aadhaar OTP verification!'
                 ], 422);
             }
 
+            // Require verified Bank Account data to approve KYC
+            if (!$member->account_verified && !$request->boolean('account_verified') && !$request->filled('account_number')) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'KYC cannot be approved without completing Bank Account verification!'
+                ], 422);
+            }
+
             $updateData = [
                 'kyc_status' => 'APPROVED',
+                'aadhar_verified' => true,
+                'account_verified' => true,
             ];
 
             if ($request->filled('aadhar_number')) {
@@ -854,11 +1025,28 @@ class AgentFinancialController extends Controller
                 $updateData['photo'] = $request->photo;
             }
 
+            // Save Bank details if supplied in request
+            if ($request->filled('account_number')) {
+                $updateData['account_number'] = $request->account_number;
+            }
+            if ($request->filled('ifsc_code')) {
+                $updateData['ifsc_code'] = strtoupper($request->ifsc_code);
+            }
+            if ($request->filled('bank_name')) {
+                $updateData['bank_name'] = $request->bank_name;
+            }
+            if ($request->filled('bank_branch')) {
+                $updateData['bank_branch'] = $request->bank_branch;
+            }
+            if ($request->filled('account_holder_name')) {
+                $updateData['account_holder_name'] = $request->account_holder_name;
+            }
+
             $member->update($updateData);
 
             return response()->json([
                 'status' => 1,
-                'message' => 'Member KYC verified & approved successfully!',
+                'message' => 'Member KYC (Aadhaar + Bank Account) verified & approved successfully!',
                 'data' => $member
             ]);
         } catch (\Exception $e) {

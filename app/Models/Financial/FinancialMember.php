@@ -39,6 +39,13 @@ class FinancialMember extends Model
         'status',
         'kyc_status',
         'aadhar_number',
+        'aadhar_verified',
+        'account_number',
+        'ifsc_code',
+        'bank_name',
+        'bank_branch',
+        'account_holder_name',
+        'account_verified',
     ];
 
     public function accounts()

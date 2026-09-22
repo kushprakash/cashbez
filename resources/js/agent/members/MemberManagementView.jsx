@@ -531,6 +531,55 @@ const MemberManagementView = () => {
                                     </div>
                                 )}
 
+                                {/* Verified Bank Account Details Section */}
+                                {selectedMember.account_verified || selectedMember.account_number ? (
+                                    <div className="card border shadow-sm rounded-3 mb-4 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#0d6efd' }}>
+                                        <div className="d-flex align-items-center justify-content-between p-3 border-bottom" style={{ backgroundColor: '#f8f9fa' }}>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <i className="bx bxs-check-circle text-primary fs-4"></i>
+                                                <div>
+                                                    <h6 className="fw-bold text-dark mb-0">Verified Bank Account Details</h6>
+                                                    <small className="text-muted">Penny Drop Verified Bank Account Profile</small>
+                                                </div>
+                                            </div>
+                                            <span className={`badge ${selectedMember.account_verified ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-warning-subtle text-warning border border-warning-subtle'} px-3 py-2 fw-semibold`}>
+                                                <i className={`bx ${selectedMember.account_verified ? 'bx-check' : 'bx-time'} me-1`}></i>
+                                                {selectedMember.account_verified ? 'ACCOUNT VERIFIED' : 'ACCOUNT PENDING'}
+                                            </span>
+                                        </div>
+                                        <div className="p-3" style={{ backgroundColor: '#ffffff' }}>
+                                            <div className="row g-2">
+                                                <div className="col-md-6">
+                                                    <div className="p-2 rounded bg-light border">
+                                                        <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Account Holder Name (From Bank)</span>
+                                                        <strong className="text-dark fs-6">{selectedMember.account_holder_name || selectedMember.name || 'N/A'}</strong>
+                                                    </div>
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <div className="p-2 rounded bg-light border">
+                                                        <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Bank Name</span>
+                                                        <strong className="text-primary fs-6">{selectedMember.bank_name || 'N/A'}</strong>
+                                                    </div>
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <div className="p-2 rounded bg-light border">
+                                                        <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>Bank Account Number</span>
+                                                        <strong className="text-dark font-monospace fs-6">{selectedMember.account_number || 'N/A'}</strong>
+                                                    </div>
+                                                </div>
+                                                <div className="col-md-6">
+                                                    <div className="p-2 rounded bg-light border">
+                                                        <span className="text-muted small d-block text-uppercase fw-semibold" style={{ fontSize: '0.75rem' }}>IFSC Code & Branch</span>
+                                                        <strong className="text-dark font-monospace fs-6">
+                                                            {selectedMember.ifsc_code || 'N/A'} {selectedMember.bank_branch ? `(${selectedMember.bank_branch})` : ''}
+                                                        </strong>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : null}
+
                                 <h6 className="fw-bold text-primary border-bottom pb-2 mb-3">Linked Accounts</h6>
                                 {selectedMember.accounts?.length > 0 ? (
                                     <div className="table-responsive mb-4">

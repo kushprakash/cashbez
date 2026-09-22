@@ -1216,6 +1216,7 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('kyc-submit/{id}', [AgentFinancialController::class, 'submitMemberKyc']);
         Route::post('kyc/send-aadhaar-otp', [AgentFinancialController::class, 'sendMemberAadhaarOtp']);
         Route::post('kyc/verify-aadhaar-otp', [AgentFinancialController::class, 'verifyMemberAadhaarOtp']);
+        Route::post('kyc/verify-bank-account', [AgentFinancialController::class, 'verifyMemberBankAccount']);
 
         // Saving Account Routes
         Route::get('saving/accounts', [AgentFinancialController::class, 'getSavingAccounts']);
