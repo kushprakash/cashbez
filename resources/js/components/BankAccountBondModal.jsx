@@ -82,6 +82,28 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
     matDate.setMonth(matDate.getMonth() + parseInt(duration_months || 12, 10));
     const maturityDateStr = matDate.toLocaleDateString('en-IN');
 
+    // Virtual banking details & QR source resolver
+    const resolvedUpiHandle = virtual_upi_handle || (virtual_account_number ? `${virtual_account_number}@yesbank` : null);
+
+    const qrImageSrc = (() => {
+        if (qrcode_image) {
+            if (qrcode_image.startsWith('data:') || qrcode_image.startsWith('http://') || qrcode_image.startsWith('https://')) {
+                return qrcode_image;
+            }
+            if (qrcode_image.startsWith('/')) {
+                return qrcode_image;
+            }
+            if (qrcode_image.length > 200 || !qrcode_image.includes('.')) {
+                return `data:image/png;base64,${qrcode_image}`;
+            }
+            return `/${qrcode_image}`;
+        }
+        if (resolvedUpiHandle || virtual_account_number) {
+            return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`upi://pay?pa=${resolvedUpiHandle || virtual_account_number}&pn=${encodeURIComponent(memberName || 'Member')}`)}`;
+        }
+        return null;
+    })();
+
     // Calculate maturity amount if not provided
     const P = Number(opening_amount || current_balance || 0);
     const r = Number(interest_rate || 7.5);
@@ -277,9 +299,9 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                                             boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
                                             minWidth: '140px'
                                         }}>
-                                            {qrcode_image ? (
+                                            {qrImageSrc ? (
                                                 <img
-                                                    src={qrcode_image.startsWith('data:') || qrcode_image.startsWith('http') ? qrcode_image : `data:image/png;base64,${qrcode_image}`}
+                                                    src={qrImageSrc}
                                                     alt="Saving Account UPI QR Code"
                                                     style={{ width: '130px', height: '130px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
                                                 />
@@ -321,7 +343,7 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                                                     </tr>
                                                     <tr>
                                                         <td style={{ color: '#475569', fontWeight: 600 }}>UPI ID / VPA Handle:</td>
-                                                        <td style={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace' }}>{virtual_upi_handle || `${account_number}@cashbez`}</td>
+                                                        <td style={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace' }}>{resolvedUpiHandle || `${account_number}@cashbez`}</td>
                                                     </tr>
                                                     <tr>
                                                         <td style={{ color: '#475569', fontWeight: 600 }}>Accepted Channels:</td>

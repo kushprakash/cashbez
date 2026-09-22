@@ -1070,7 +1070,7 @@ class AgentFinancialController extends Controller
             $query = FinancialAccount::where('user_id', $user->id)
                                      ->where('admin_id', $adminId)
                                      ->where('service_type', 'SAVING')
-                                     ->with(['member:id,member_id,name,mobile,kyc_status']);
+                                     ->with(['member']);
 
             if ($request->filled('search')) {
                 $s = trim($request->search);
@@ -1615,7 +1615,7 @@ class AgentFinancialController extends Controller
             $query = FinancialAccount::where('user_id', $user->id)
                                      ->where('admin_id', $adminId)
                                      ->where('service_type', $type)
-                                     ->with(['member:id,member_id,name,mobile,kyc_status']);
+                                     ->with(['member']);
 
             if ($request->filled('search')) {
                 $s = trim($request->search);

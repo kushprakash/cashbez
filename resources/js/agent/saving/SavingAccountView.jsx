@@ -21,7 +21,7 @@ const getPlanMaxAmount = (p) => {
 /* ─────────────────────────────────────────────────────────────
    Saving Account Details & Member Profile Modal
 ───────────────────────────────────────────────────────────── */
-const AccountDetailsModal = ({ isOpen, account, onClose }) => {
+const AccountDetailsModal = ({ isOpen, account, onClose, onOpenBond }) => {
     if (!isOpen || !account) return null;
 
     const {
@@ -87,7 +87,13 @@ const AccountDetailsModal = ({ isOpen, account, onClose }) => {
                                         <div className="bg-white p-2 rounded-3 border shadow-sm d-inline-block">
                                             {qrcode_image ? (
                                                 <img
-                                                    src={qrcode_image.startsWith('data:') || qrcode_image.startsWith('http') ? qrcode_image : `data:image/png;base64,${qrcode_image}`}
+                                                    src={qrcode_image.startsWith('data:') || qrcode_image.startsWith('http') ? qrcode_image : (qrcode_image.startsWith('/') ? qrcode_image : (qrcode_image.length > 200 || !qrcode_image.includes('.') ? `data:image/png;base64,${qrcode_image}` : `/${qrcode_image}`))}
+                                                    alt="Saving UPI QR"
+                                                    style={{ width: '120px', height: '120px', objectFit: 'contain' }}
+                                                />
+                                            ) : (virtual_upi_handle || virtual_account_number) ? (
+                                                <img
+                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`upi://pay?pa=${virtual_upi_handle || virtual_account_number}&pn=${encodeURIComponent(member?.name || 'Member')}`)}`}
                                                     alt="Saving UPI QR"
                                                     style={{ width: '120px', height: '120px', objectFit: 'contain' }}
                                                 />
@@ -201,7 +207,21 @@ const AccountDetailsModal = ({ isOpen, account, onClose }) => {
                         </div>
 
                     </div>
-                    <div className="modal-footer bg-white border-0 py-3 px-4">
+                    <div className="modal-footer bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+                        <div>
+                            {onOpenBond && (
+                                <button
+                                    type="button"
+                                    className="btn btn-success fw-bold d-flex align-items-center gap-1 shadow-sm"
+                                    onClick={() => {
+                                        onClose();
+                                        onOpenBond(account);
+                                    }}
+                                >
+                                    <i className="bx bx-printer"></i> Print Saving Account Bond
+                                </button>
+                            )}
+                        </div>
                         <button type="button" className="btn btn-secondary px-4 fw-bold" onClick={onClose}>Close</button>
                     </div>
                 </div>
@@ -704,6 +724,7 @@ const SavingAccountView = () => {
                                             <button
                                                 className="btn btn-sm btn-outline-success fw-semibold"
                                                 onClick={() => setSelectedBondAccount({
+                                                    ...acc,
                                                     service_type: 'SAVING',
                                                     account_number: acc.account_number,
                                                     opening_amount: acc.opening_amount || acc.current_balance,
@@ -714,7 +735,13 @@ const SavingAccountView = () => {
                                                     created_at: acc.created_at,
                                                     member: acc.member,
                                                     nominee_name: acc.nominee_name || acc.member?.nominee_name,
-                                                    nominee_relation: acc.nominee_relation || acc.member?.nominee_relation
+                                                    nominee_relation: acc.nominee_relation || acc.member?.nominee_relation,
+                                                    virtual_account_id: acc.virtual_account_id,
+                                                    virtual_account_number: acc.virtual_account_number,
+                                                    virtual_ifsc: acc.virtual_ifsc,
+                                                    virtual_upi_handle: acc.virtual_upi_handle,
+                                                    qrcode_image: acc.qrcode_image,
+                                                    qrcode_pdf: acc.qrcode_pdf
                                                 })}
                                                 title="Print Saving Account Bond"
                                             >
@@ -736,6 +763,7 @@ const SavingAccountView = () => {
                 isOpen={Boolean(selectedDetailsAccount)}
                 account={selectedDetailsAccount}
                 onClose={() => setSelectedDetailsAccount(null)}
+                onOpenBond={(acc) => setSelectedBondAccount({ ...acc, service_type: 'SAVING' })}
             />
 
             {/* Account Statement Modal */}
