@@ -1140,6 +1140,27 @@ class AgentFinancialController extends Controller
                 ], 422);
             }
 
+
+
+            $openingAmount = floatval($request->opening_amount);
+            $txnId = FinancialScopeService::generateTxnId();
+
+            // Auto-debit opening amount from Utility Wallet if openingAmount > 0
+            if ($openingAmount > 0) {
+                $debitRes = FinancialScopeService::processUtilityWalletDebit(
+                    $request,
+                    $user,
+                    $request->mpin,
+                    $openingAmount,
+                    "Saving Account Opening ({$member->name})",
+                    $txnId
+                );
+
+                if ($debitRes['status'] == 0) {
+                    return response()->json($debitRes, 400);
+                }
+            }
+
             // 3. Call generate-qr API before opening saving account
             $qrUrl = "https://icchhamatidataservice.com/api/v2/generate-qr";
             $qrPayload = [
@@ -1200,29 +1221,12 @@ class AgentFinancialController extends Controller
             $qrcodeImage         = $qrData['qrcode_image'] ?? null;
             $qrcodePdf           = $qrData['qrcode_pdf'] ?? null;
 
-            $openingAmount = floatval($request->opening_amount);
-            $txnId = FinancialScopeService::generateTxnId();
-
-            // Auto-debit opening amount from Utility Wallet if openingAmount > 0
-            if ($openingAmount > 0) {
-                $debitRes = FinancialScopeService::processUtilityWalletDebit(
-                    $request,
-                    $user,
-                    $request->mpin,
-                    $openingAmount,
-                    "Saving Account Opening ({$member->name})",
-                    $txnId
-                );
-
-                if ($debitRes['status'] == 0) {
-                    return response()->json($debitRes, 400);
-                }
-            }
+           
 
             $accountNumber = FinancialScopeService::generateAccountNumber('SB');
 
             $account = FinancialAccount::create([
-                'account_number'         => $accountNumber,
+                'account_number'         => $virtualAccountNumber,
                 'member_id'              => $member->id,
                 'user_id'                => $user->id,
                 'admin_id'               => $adminId,
