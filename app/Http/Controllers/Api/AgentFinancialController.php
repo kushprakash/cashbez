@@ -10,6 +10,7 @@ use App\Models\Financial\FinancialTransaction;
 use App\Models\Financial\FinancialOtp;
 use App\Models\MembershipPlan;
 use App\Models\Account;
+use App\Models\Va;
 use App\Models\FinancialPlan;
 use App\Models\FinancialSetting;
 use App\Services\FinancialScopeService;
@@ -1123,6 +1124,82 @@ class AgentFinancialController extends Controller
                                     ->where('admin_id', $adminId)
                                     ->firstOrFail();
 
+            // 1. Strict KYC check - Member KYC must be APPROVED
+            if (strtoupper($member->kyc_status ?? '') !== 'APPROVED') {
+                return response()->json([
+                    'status' => 0,
+                    'message' => "Member KYC is not approved (Current status: " . ($member->kyc_status ?? 'PENDING') . "). Saving account can only be opened for KYC APPROVED members."
+                ], 422);
+            }
+
+            // 2. Verified bank account and IFSC check for QR generation
+            if (empty($member->account_number) || empty($member->ifsc_code)) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => "Member's verified bank account and IFSC details are required for QR generation. Please complete member KYC verification."
+                ], 422);
+            }
+
+            // 3. Call generate-qr API before opening saving account
+            $qrUrl = "https://icchhamatidataservice.com/api/v2/generate-qr";
+            $qrPayload = [
+                "name"           => $member->name,
+                "account_number" => $member->account_number,
+                "account_ifsc"   => strtoupper(trim($member->ifsc_code))
+            ];
+
+            $ch = curl_init($qrUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($qrPayload),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: AGENT1475",
+                    "mkey: 8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY"
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $qrRawResponse = curl_exec($ch);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+
+            // Log API call
+            DB::table('logs')->insert([
+                'mid'           => $user->mid ?? null,
+                'type'          => 'Member Saving Account QR Generate',
+                'platform'      => 'API',
+                'headers'       => json_encode(["Content-Type" => "application/json"]),
+                'request_data'  => json_encode($qrPayload),
+                'response_data' => $qrRawResponse ?: $curlErr,
+                'url'           => $qrUrl,
+                'txnid'         => 'QR_GEN_' . time(),
+                'status'        => 0,
+                'timestamp'     => now(),
+                'created_at'    => now()->format('Y-m-d H:i:s'),
+            ]);
+
+            $qrResult = json_decode($qrRawResponse, true);
+
+            if (!isset($qrResult['status']) || $qrResult['status'] != 1 || empty($qrResult['data'])) {
+                $errorMsg = $qrResult['message'] ?? (is_string($qrResult['data'] ?? null) ? $qrResult['data'] : 'Failed to generate QR code from partner bank');
+                return response()->json([
+                    'status' => 0,
+                    'message' => "QR Generation failed: {$errorMsg}. Saving account opening aborted."
+                ], 400);
+            }
+
+            $qrData = $qrResult['data'];
+            $virtualAccountId    = $qrData['virtual_account_id'] ?? null;
+            $virtualAccountNumber = $qrData['virtual_account_number'] ?? null;
+            $virtualIfsc         = $qrData['virtual_ifsc'] ?? null;
+            $virtualUpiHandle    = $qrData['virtual_upi_handle'] ?? null;
+            $qrcodeImage         = $qrData['qrcode_image'] ?? null;
+            $qrcodePdf           = $qrData['qrcode_pdf'] ?? null;
+
             $openingAmount = floatval($request->opening_amount);
             $txnId = FinancialScopeService::generateTxnId();
 
@@ -1145,38 +1222,63 @@ class AgentFinancialController extends Controller
             $accountNumber = FinancialScopeService::generateAccountNumber('SB');
 
             $account = FinancialAccount::create([
-                'account_number' => $accountNumber,
-                'member_id' => $member->id,
-                'user_id' => $user->id,
-                'admin_id' => $adminId,
-                'plan_id' => $request->plan_id ?? null,
-                'created_by' => $user->id,
-                'service_type' => 'SAVING',
-                'current_balance' => $openingAmount,
-                'available_balance' => $openingAmount,
-                'opening_amount' => $openingAmount,
-                'status' => 'ACTIVE',
-                'nominee_name' => $request->nominee_name ?? $member->nominee_name,
-                'nominee_relation' => $request->nominee_relation ?? $member->nominee_relation,
+                'account_number'         => $accountNumber,
+                'member_id'              => $member->id,
+                'user_id'                => $user->id,
+                'admin_id'               => $adminId,
+                'plan_id'                => $request->plan_id ?? null,
+                'created_by'             => $user->id,
+                'service_type'           => 'SAVING',
+                'current_balance'        => $openingAmount,
+                'available_balance'      => $openingAmount,
+                'opening_amount'         => $openingAmount,
+                'status'                 => 'ACTIVE',
+                'nominee_name'           => $request->nominee_name ?? $member->nominee_name,
+                'nominee_relation'       => $request->nominee_relation ?? $member->nominee_relation,
+                'virtual_account_id'     => $virtualAccountId,
+                'virtual_account_number' => $virtualAccountNumber,
+                'virtual_ifsc'           => $virtualIfsc,
+                'virtual_upi_handle'     => $virtualUpiHandle,
+                'qrcode_image'           => $qrcodeImage,
+                'qrcode_pdf'             => $qrcodePdf,
+            ]);
+
+            // Save in `va` table with user_type = 'MEMBER'
+            Va::create([
+                'mid'                    => $user->mid ?? null,
+                'mobile'                 => $member->mobile ?? null,
+                'username'               => $member->name,
+                'account_number'         => $member->account_number,
+                'account_ifsc'           => strtoupper(trim($member->ifsc_code)),
+                'virtual_account_id'     => $virtualAccountId,
+                'virtual_account_number' => $virtualAccountNumber,
+                'virtual_ifsc'           => $virtualIfsc,
+                'virtual_upi_handle'     => $virtualUpiHandle,
+                'qrcode_image'           => $qrcodeImage,
+                'qrcode_pdf'             => $qrcodePdf,
+                'user_type'              => 'MEMBER',
+                'member_id'              => $member->id,
+                'financial_account_id'   => $account->id,
+                'status'                 => 1,
             ]);
 
             if ($openingAmount > 0) {
                 FinancialTransaction::create([
                     'transaction_id' => $txnId,
-                    'account_id' => $account->id,
-                    'member_id' => $member->id,
-                    'user_id' => $user->id,
-                    'admin_id' => $adminId,
-                    'service_type' => 'SAVING',
-                    'txn_type' => 'DEPOSIT',
-                    'amount' => $openingAmount,
-                    'charges' => 0,
-                    'net_amount' => $openingAmount,
+                    'account_id'     => $account->id,
+                    'member_id'      => $member->id,
+                    'user_id'        => $user->id,
+                    'admin_id'       => $adminId,
+                    'service_type'   => 'SAVING',
+                    'txn_type'       => 'DEPOSIT',
+                    'amount'         => $openingAmount,
+                    'charges'        => 0,
+                    'net_amount'     => $openingAmount,
                     'balance_before' => 0,
-                    'balance_after' => $openingAmount,
-                    'payment_mode' => 'UTILITY_WALLET',
-                    'narration' => "Saving Account Opening Deposit for Account {$account->account_number}",
-                    'status' => 'SUCCESS',
+                    'balance_after'  => $openingAmount,
+                    'payment_mode'   => 'UTILITY_WALLET',
+                    'narration'      => "Saving Account Opening Deposit for Account {$account->account_number}",
+                    'status'         => 'SUCCESS',
                 ]);
             }
 

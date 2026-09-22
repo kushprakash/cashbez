@@ -23,7 +23,14 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
         estimated_interest,
         monthly_payout,
         min_tenor_months = service_type === 'DD' ? 300 : 10,
+        virtual_account_number,
+        virtual_ifsc,
+        virtual_upi_handle,
+        qrcode_image,
+        qrcode_pdf,
     } = bondData;
+
+    const isSaving = service_type === 'SAVING' || Boolean(virtual_upi_handle || qrcode_image || virtual_account_number);
 
     const memberName = member?.name || 'Valued Member';
     const memberCode = member?.member_code || member?.id || 'MB-001';
@@ -136,15 +143,19 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                             </div>
 
                             {/* Bond No & Key Meta */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '16px', background: '#eff6ff', padding: '8px 14px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '16px', background: '#eff6ff', padding: '8px 14px', borderRadius: '6px', border: '1px solid #bfdbfe', flexWrap: 'wrap', gap: '6px' }}>
                                 <span>BOND NO: <strong style={{ color: '#1e3a8a' }}>BND-{account_number}</strong></span>
                                 <span>ACCOUNT NO: <strong style={{ color: '#1e3a8a' }}>{account_number}</strong></span>
                                 <span>ISSUE DATE: <strong style={{ color: '#1e3a8a' }}>{openingDate}</strong></span>
-                                <span>MATURITY DATE: <strong style={{ color: '#1e3a8a' }}>{maturityDateStr}</strong></span>
+                                {isSaving ? (
+                                    <span>ACCOUNT TYPE: <strong style={{ color: '#15803d' }}>SAVING ACCOUNT</strong></span>
+                                ) : (
+                                    <span>MATURITY DATE: <strong style={{ color: '#1e3a8a' }}>{maturityDateStr}</strong></span>
+                                )}
                             </div>
 
                             {/* Details Grid */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '18px' }}>
                                 
                                 {/* Member Details */}
                                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -171,35 +182,175 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                                             <tr><td style={{ color: '#64748b', padding: '3px 0' }}>Nominee Name:</td><td style={{ fontWeight: 700, color: '#0f172a' }}>{nominee_name || member?.nominee_name || 'N/A'}</td></tr>
                                             <tr><td style={{ color: '#64748b', padding: '3px 0' }}>Relationship:</td><td style={{ fontWeight: 700, color: '#0f172a' }}>{nominee_relation || member?.nominee_relation || 'N/A'}</td></tr>
                                             <tr><td style={{ color: '#64748b', padding: '3px 0' }}>Selected Plan:</td><td style={{ fontWeight: 700, color: '#0f172a' }}>{plan_name || `${service_type} Plan`}</td></tr>
-                                            <tr><td style={{ color: '#64748b', padding: '3px 0' }}>Minimum Tenor:</td><td style={{ fontWeight: 700, color: '#dc2626' }}>{min_tenor_months} {service_type === 'DD' ? 'Deposits' : 'EMIs'}</td></tr>
+                                            {isSaving ? (
+                                                <tr><td style={{ color: '#64748b', padding: '3px 0' }}>Deposit Type:</td><td style={{ fontWeight: 700, color: '#15803d' }}>Demand Deposit (Daily Liquidity)</td></tr>
+                                            ) : (
+                                                <tr><td style={{ color: '#64748b', padding: '3px 0' }}>Minimum Tenor:</td><td style={{ fontWeight: 700, color: '#dc2626' }}>{min_tenor_months} {service_type === 'DD' ? 'Deposits' : 'EMIs'}</td></tr>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
 
                             </div>
 
+                            {/* Digital Banking & Instant UPI QR Deposit Card (For Saving / QR Accounts) */}
+                            {(isSaving || qrcode_image || virtual_upi_handle || virtual_account_number) && (
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%)',
+                                    padding: '16px',
+                                    borderRadius: '10px',
+                                    border: '2px solid #0284c7',
+                                    marginBottom: '20px',
+                                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.08)'
+                                }}>
+                                    <div style={{
+                                        fontSize: '13.5px',
+                                        fontWeight: 800,
+                                        color: '#0369a1',
+                                        borderBottom: '1.5px solid #bae6fd',
+                                        paddingBottom: '8px',
+                                        marginBottom: '12px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between'
+                                    }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <i className="bx bx-qr-scan" style={{ fontSize: '18px' }}></i>
+                                            DIGITAL BANKING & DIRECT UPI QR DEPOSIT
+                                        </span>
+                                        <span style={{ fontSize: '11px', background: '#0284c7', color: '#fff', padding: '2px 10px', borderRadius: '50px', fontWeight: 700 }}>
+                                            24x7 Real-Time Credit
+                                        </span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                        {/* QR Code Container */}
+                                        <div style={{
+                                            background: '#ffffff',
+                                            padding: '10px',
+                                            borderRadius: '8px',
+                                            border: '1.5px solid #cbd5e1',
+                                            textAlign: 'center',
+                                            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+                                            minWidth: '140px'
+                                        }}>
+                                            {qrcode_image ? (
+                                                <img
+                                                    src={qrcode_image.startsWith('data:') || qrcode_image.startsWith('http') ? qrcode_image : `data:image/png;base64,${qrcode_image}`}
+                                                    alt="Saving Account UPI QR Code"
+                                                    style={{ width: '130px', height: '130px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                                                />
+                                            ) : (
+                                                <div style={{
+                                                    width: '130px',
+                                                    height: '130px',
+                                                    background: '#f8fafc',
+                                                    border: '1.5px dashed #94a3b8',
+                                                    borderRadius: '6px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    textAlign: 'center',
+                                                    padding: '10px',
+                                                    fontSize: '11px',
+                                                    color: '#64748b'
+                                                }}>
+                                                    UPI QR Code
+                                                </div>
+                                            )}
+                                            <div style={{ fontSize: '10px', fontWeight: 800, color: '#0369a1', marginTop: '6px', letterSpacing: '0.5px' }}>
+                                                SCAN & PAY TO DEPOSIT
+                                            </div>
+                                        </div>
+
+                                        {/* Virtual Account Details Table */}
+                                        <div style={{ flex: 1, minWidth: '240px' }}>
+                                            <table style={{ width: '100%', fontSize: '12.5px', borderCollapse: 'separate', borderSpacing: '0 5px' }}>
+                                                <tbody>
+                                                    <tr>
+                                                        <td style={{ color: '#475569', fontWeight: 600, width: '42%' }}>Saving Account No:</td>
+                                                        <td style={{ fontWeight: 800, color: '#0f172a', fontFamily: 'monospace', fontSize: '13.5px' }}>{account_number}</td>
+                                                    </tr>
+                                                    {virtual_account_number && (
+                                                        <tr>
+                                                            <td style={{ color: '#475569', fontWeight: 600 }}>Virtual Account No:</td>
+                                                            <td style={{ fontWeight: 800, color: '#0369a1', fontFamily: 'monospace' }}>{virtual_account_number}</td>
+                                                        </tr>
+                                                    )}
+                                                    <tr>
+                                                        <td style={{ color: '#475569', fontWeight: 600 }}>Virtual IFSC Code:</td>
+                                                        <td style={{ fontWeight: 800, color: '#0f172a', fontFamily: 'monospace' }}>{virtual_ifsc || 'ICCH0000001'}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style={{ color: '#475569', fontWeight: 600 }}>UPI ID / VPA Handle:</td>
+                                                        <td style={{ fontWeight: 800, color: '#16a34a', fontFamily: 'monospace' }}>{virtual_upi_handle || `${account_number}@cashbez`}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style={{ color: '#475569', fontWeight: 600 }}>Accepted Channels:</td>
+                                                        <td style={{ fontWeight: 600, color: '#334155', fontSize: '11.5px' }}>PhonePe, Google Pay, Paytm, BHIM, Cred, IMPS/NEFT</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                            {qrcode_pdf && (
+                                                <div style={{ marginTop: '10px' }} className="no-print">
+                                                    <a
+                                                        href={qrcode_pdf}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            background: '#0284c7',
+                                                            color: '#ffffff',
+                                                            textDecoration: 'none',
+                                                            fontSize: '11.5px',
+                                                            fontWeight: 700,
+                                                            padding: '5px 14px',
+                                                            borderRadius: '6px',
+                                                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                                        }}
+                                                    >
+                                                        <i className="bx bx-file-blank"></i> View Official QR PDF Certificate
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Financial / Maturity Breakdown Table */}
                             <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '8px', border: '1.5px solid #86efac', marginBottom: '20px' }}>
                                 <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#15803d', borderBottom: '1px solid #bbf7d0', paddingBottom: '6px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <i className="bx bx-calculator"></i> MATURITY & INVESTMENT BREAKDOWN
+                                    <i className="bx bx-calculator"></i> {isSaving ? 'ACCOUNT BALANCE & INTEREST SPECIFICATION' : 'MATURITY & INVESTMENT BREAKDOWN'}
                                 </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', textAlign: 'center' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isSaving ? 'repeat(3, 1fr)' : 'repeat(4, 1fr)', gap: '12px', textAlign: 'center' }}>
                                     <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Deposit Amount</div>
+                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{isSaving ? 'Opening Deposit' : 'Deposit Amount'}</div>
                                         <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>₹{Number(opening_amount || current_balance || 0).toLocaleString('en-IN')}</div>
                                     </div>
                                     <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                                         <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Interest Rate</div>
                                         <div style={{ fontSize: '16px', fontWeight: 800, color: '#2563eb' }}>{r}% p.a.</div>
                                     </div>
-                                    <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Tenor (Duration)</div>
-                                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{m} {service_type === 'DD' ? 'Days' : 'Months'}</div>
-                                    </div>
-                                    <div style={{ background: '#166534', color: '#ffffff', padding: '10px', borderRadius: '6px' }}>
-                                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>Est. Maturity Amount</div>
-                                        <div style={{ fontSize: '17px', fontWeight: 900, color: '#ffffff' }}>₹{Number(calcMat || 0).toLocaleString('en-IN')}</div>
-                                    </div>
+                                    {isSaving ? (
+                                        <div style={{ background: '#166534', color: '#ffffff', padding: '10px', borderRadius: '6px' }}>
+                                            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>Current Available Balance</div>
+                                            <div style={{ fontSize: '17px', fontWeight: 900, color: '#ffffff' }}>₹{Number(current_balance || opening_amount || 0).toLocaleString('en-IN')}</div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ background: '#ffffff', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
+                                                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Tenor (Duration)</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{m} {service_type === 'DD' ? 'Days' : 'Months'}</div>
+                                            </div>
+                                            <div style={{ background: '#166534', color: '#ffffff', padding: '10px', borderRadius: '6px' }}>
+                                                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>Est. Maturity Amount</div>
+                                                <div style={{ fontSize: '17px', fontWeight: 900, color: '#ffffff' }}>₹{Number(calcMat || 0).toLocaleString('en-IN')}</div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                                 {monthly_payout > 0 && (
                                     <div style={{ marginTop: '10px', fontSize: '12px', fontWeight: 700, color: '#047857', textAlign: 'right' }}>
@@ -208,13 +359,24 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                                 )}
                             </div>
 
-                            {/* Terms & Pre-Close Policy */}
+                            {/* Terms & Conditions */}
                             <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '8px', padding: '12px', fontSize: '11.5px', color: '#9f1239', marginBottom: '24px' }}>
-                                <strong><i className="bx bx-error-circle"></i> Important Terms & Pre-Closure Rules:</strong>
+                                <strong><i className="bx bx-error-circle"></i> Important Terms & Account Rules:</strong>
                                 <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
-                                    <li>Pre-closure before minimum threshold ({min_tenor_months} {service_type === 'DD' ? 'deposits' : 'EMIs'}) will attract interest rate reduction penalty (-2.0% p.a.).</li>
-                                    <li>Fine & admin processing fee deduction will be applicable on premature closure as per Bank policy.</li>
-                                    <li>Original deposit bond certificate must be surrendered during account settlement or premature closure.</li>
+                                    {isSaving ? (
+                                        <>
+                                            <li>Deposits can be made anytime using the assigned Virtual Account, UPI VPA handle, or QR Code.</li>
+                                            <li>Real-time credit will be reflected in the account upon successful UPI remittance.</li>
+                                            <li>Withdrawals are processed through authorized agent cash payout with secure MPIN confirmation.</li>
+                                            <li>Interest is calculated on daily product balance and credited quarterly as per Nidhi Bank guidelines.</li>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <li>Pre-closure before minimum threshold ({min_tenor_months} {service_type === 'DD' ? 'deposits' : 'EMIs'}) will attract interest rate reduction penalty (-2.0% p.a.).</li>
+                                            <li>Fine & admin processing fee deduction will be applicable on premature closure as per Bank policy.</li>
+                                            <li>Original deposit bond certificate must be surrendered during account settlement or premature closure.</li>
+                                        </>
+                                    )}
                                 </ul>
                             </div>
 

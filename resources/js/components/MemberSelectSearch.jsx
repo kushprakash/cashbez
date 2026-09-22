@@ -93,7 +93,19 @@ const MemberSelectSearch = ({ members = [], value, onChange, placeholder = "Sear
                                     style={{ cursor: 'pointer' }}
                                     onClick={() => handleSelect(m)}
                                 >
-                                    <div className="fw-bold">{m.name}</div>
+                                    <div className="d-flex justify-content-between align-items-center">
+                                        <div className="fw-bold">{m.name}</div>
+                                        <span
+                                            className={`badge rounded-pill ${
+                                                m.kyc_status === 'APPROVED' 
+                                                    ? (isSelected ? 'bg-white text-success' : 'bg-success text-white') 
+                                                    : (isSelected ? 'bg-warning text-dark' : 'bg-warning-subtle text-warning-emphasis border border-warning')
+                                            }`}
+                                            style={{ fontSize: '10.5px', fontWeight: 600 }}
+                                        >
+                                            {m.kyc_status === 'APPROVED' ? '✓ KYC APPROVED' : `KYC: ${m.kyc_status || 'PENDING'}`}
+                                        </span>
+                                    </div>
                                     <div className={`small ${isSelected ? 'text-white-50' : 'text-muted'}`}>
                                         Member ID: <strong>{m.member_id || m.id}</strong> | Mobile: {m.mobile || 'N/A'}
                                     </div>

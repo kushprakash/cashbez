@@ -33,6 +33,11 @@ const AccountDetailsModal = ({ isOpen, account, onClose }) => {
         member,
         nominee_name,
         nominee_relation,
+        virtual_account_number,
+        virtual_ifsc,
+        virtual_upi_handle,
+        qrcode_image,
+        qrcode_pdf,
     } = account;
 
     const openingDate = created_at ? new Date(created_at).toLocaleDateString('en-IN') : 'N/A';
@@ -65,6 +70,67 @@ const AccountDetailsModal = ({ isOpen, account, onClose }) => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* UPI QR & Digital Banking Section */}
+                        {(qrcode_image || virtual_upi_handle || virtual_account_number) && (
+                            <div className="card border-0 shadow-sm rounded-3 p-3 mb-3" style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%)', border: '1.5px solid #0284c7' }}>
+                                <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                                    <h6 className="fw-bold text-primary mb-0 d-flex align-items-center gap-2">
+                                        <i className="bx bx-qr-scan fs-5"></i>
+                                        <span>UPI QR & Digital Banking Deposit Details</span>
+                                    </h6>
+                                    <span className="badge bg-primary text-white px-2.5 py-1">Real-Time Deposit</span>
+                                </div>
+                                <div className="row align-items-center g-3">
+                                    <div className="col-auto text-center">
+                                        <div className="bg-white p-2 rounded-3 border shadow-sm d-inline-block">
+                                            {qrcode_image ? (
+                                                <img
+                                                    src={qrcode_image.startsWith('data:') || qrcode_image.startsWith('http') ? qrcode_image : `data:image/png;base64,${qrcode_image}`}
+                                                    alt="Saving UPI QR"
+                                                    style={{ width: '120px', height: '120px', objectFit: 'contain' }}
+                                                />
+                                            ) : (
+                                                <div style={{ width: '120px', height: '120px' }} className="d-flex align-items-center justify-content-center text-muted small">
+                                                    QR Code
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="small text-primary fw-bold mt-1" style={{ fontSize: '11px' }}>SCAN & PAY</div>
+                                    </div>
+                                    <div className="col">
+                                        <div className="row g-2">
+                                            {virtual_account_number && (
+                                                <div className="col-sm-6">
+                                                    <small className="text-muted d-block">Virtual Account No</small>
+                                                    <strong className="text-dark font-monospace">{virtual_account_number}</strong>
+                                                </div>
+                                            )}
+                                            <div className="col-sm-6">
+                                                <small className="text-muted d-block">Virtual IFSC Code</small>
+                                                <strong className="text-dark font-monospace">{virtual_ifsc || 'ICCH0000001'}</strong>
+                                            </div>
+                                            <div className="col-12">
+                                                <small className="text-muted d-block">UPI VPA Handle</small>
+                                                <strong className="text-success font-monospace fs-6">{virtual_upi_handle || `${account_number}@cashbez`}</strong>
+                                            </div>
+                                        </div>
+                                        {qrcode_pdf && (
+                                            <div className="mt-2">
+                                                <a
+                                                    href={qrcode_pdf}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="btn btn-sm btn-outline-primary fw-bold"
+                                                >
+                                                    <i className="bx bx-file me-1"></i> View Official QR PDF
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="row g-3">
                             {/* Member Details */}
@@ -448,6 +514,9 @@ const SavingAccountView = () => {
         fetchSavingPlans();
     }, [search]);
 
+    const selectedOpenMember = members.find(m => m.id == openForm.member_id);
+    const isOpenKycApproved = selectedOpenMember && String(selectedOpenMember.kyc_status || '').toUpperCase() === 'APPROVED';
+
     const handlePlanChange = (e) => {
         const planId = e.target.value;
         if (!planId) {
@@ -481,6 +550,12 @@ const SavingAccountView = () => {
     const handleOpenAccountClick = (e) => {
         e.preventDefault();
         if (!openForm.member_id) return toast.error('Please select a member.');
+
+        const selectedMember = members.find(m => m.id == openForm.member_id);
+        if (!selectedMember || String(selectedMember.kyc_status || '').toUpperCase() !== 'APPROVED') {
+            return toast.error(`Member KYC is not approved (${selectedMember?.kyc_status || 'PENDING'}). Saving account requires approved KYC with verified bank details.`);
+        }
+
         if (!openForm.plan_id && plans.length > 0) return toast.error('Please select an Account Plan / Type.');
 
         const amount = parseFloat(openForm.opening_amount || 0);
@@ -504,6 +579,15 @@ const SavingAccountView = () => {
                 setShowOpenModal(false);
                 setShowMpinModal(false);
                 fetchSavingAccounts();
+                if (res.data.data) {
+                    const accData = res.data.data;
+                    const selectedMember = members.find(m => m.id == openForm.member_id);
+                    setSelectedBondAccount({
+                        ...accData,
+                        member: selectedMember || accData.member,
+                        service_type: 'SAVING'
+                    });
+                }
             } else {
                 toast.error(res.data?.message || 'Account opening failed.');
             }
@@ -676,6 +760,35 @@ const SavingAccountView = () => {
                                             placeholder="Search Member by Name, ID, Mobile..."
                                         />
                                     </div>
+
+                                    {openForm.member_id && selectedOpenMember && (
+                                        !isOpenKycApproved ? (
+                                            <div className="alert alert-warning border border-warning rounded-3 p-3 mb-3 d-flex align-items-start gap-2 shadow-sm">
+                                                <i className="bx bx-error-circle text-warning fs-4 flex-shrink-0 mt-0.5"></i>
+                                                <div className="flex-grow-1">
+                                                    <div className="fw-bold text-dark">Member KYC Not Approved ({selectedOpenMember.kyc_status || 'PENDING'})</div>
+                                                    <div className="small text-secondary mt-1">
+                                                        Saving account opening and UPI QR generation require <strong>APPROVED KYC</strong> with verified Aadhaar and Bank Account details.
+                                                    </div>
+                                                    <Link
+                                                        to="/agent/financial/kyc"
+                                                        className="btn btn-warning btn-sm fw-bold px-3 mt-2 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                    >
+                                                        <i className="bx bx-shield-quarter"></i> Complete Member KYC Verification
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="alert alert-success border border-success rounded-3 p-2.5 mb-3 d-flex align-items-center gap-2 shadow-sm">
+                                                <i className="bx bx-check-shield text-success fs-4 flex-shrink-0"></i>
+                                                <div className="small">
+                                                    <strong className="text-success d-block">✓ Member KYC Approved</strong>
+                                                    <span className="text-muted">Aadhaar & Bank ({selectedOpenMember.bank_name ? `${selectedOpenMember.bank_name} - ` : ''}...{String(selectedOpenMember.account_number || '').slice(-4)}) verified. Official QR will be auto-generated.</span>
+                                                </div>
+                                            </div>
+                                        )
+                                    )}
+
                                     <div className="mb-3">
                                         <label className="form-label fw-semibold">Select Account Plan / Type <span className="text-danger">*</span></label>
                                         <select
@@ -720,7 +833,11 @@ const SavingAccountView = () => {
                                 </div>
                                 <div className="modal-footer bg-light border-0 py-3 px-4">
                                     <button type="button" className="btn btn-outline-secondary" onClick={() => setShowOpenModal(false)}>Cancel</button>
-                                    <button type="submit" className="btn btn-success px-4 fw-bold">
+                                    <button
+                                        type="submit"
+                                        className="btn btn-success px-4 fw-bold"
+                                        disabled={Boolean(openForm.member_id && !isOpenKycApproved)}
+                                    >
                                         OPEN ACCOUNT
                                     </button>
                                 </div>

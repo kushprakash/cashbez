@@ -518,8 +518,9 @@ const DashboardCreateMemberModal = ({ isOpen, onClose, onSuccess }) => {
     );
 };
 
-const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
+const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess, onOpenBond }) => {
     const api = ApiService();
+    const navigate = useNavigate();
     const [members, setMembers] = useState(() => FinancialDataCache.getCachedMembers());
     const [plans, setPlans] = useState(() => FinancialDataCache.getCachedPlans('SAVING'));
     const [showMpin, setShowMpin] = useState(false);
@@ -556,6 +557,9 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
 
     if (!isOpen) return null;
 
+    const selectedMember = members.find(m => m.id == form.member_id);
+    const isKycApproved = selectedMember && String(selectedMember.kyc_status || '').toUpperCase() === 'APPROVED';
+
     const handlePlanChange = (e) => {
         const pId = e.target.value;
         if (!pId) return setForm(prev => ({ ...prev, plan_id: '', plan_name: '', opening_amount: '', min_amount: 0, max_amount: null }));
@@ -573,6 +577,9 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!form.member_id) return toast.error('Please select a member.');
+        if (!selectedMember || !isKycApproved) {
+            return toast.error(`Member KYC is not approved (Current status: ${selectedMember?.kyc_status || 'PENDING'}). Saving account requires approved KYC with verified bank details.`);
+        }
         if (!form.plan_id && plans.length > 0) return toast.error('Please select an Account Plan.');
         const amount = parseFloat(form.opening_amount || 0);
         if (form.min_amount > 0 && amount < form.min_amount) {
@@ -591,6 +598,14 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
                 setShowMpin(false);
                 onClose();
                 onSuccess();
+                if (onOpenBond && res.data?.data) {
+                    const accData = res.data.data;
+                    onOpenBond({
+                        ...accData,
+                        member: selectedMember || accData.member,
+                        service_type: 'SAVING',
+                    });
+                }
             } else {
                 toast.error(res.data?.message || 'Opening account failed.');
             }
@@ -619,6 +634,39 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
                                     <label className="form-label fw-semibold">Select Member <span className="text-danger">*</span></label>
                                     <MemberSelectSearch members={members} value={form.member_id} onChange={(id) => setForm(prev => ({...prev, member_id: id}))} />
                                 </div>
+
+                                {form.member_id && selectedMember && (
+                                    !isKycApproved ? (
+                                        <div className="alert alert-warning border border-warning rounded-3 p-3 mb-3 d-flex align-items-start gap-2 shadow-sm">
+                                            <i className="bx bx-error-circle text-warning fs-4 flex-shrink-0 mt-0.5"></i>
+                                            <div className="flex-grow-1">
+                                                <div className="fw-bold text-dark">Member KYC Not Approved ({selectedMember.kyc_status || 'PENDING'})</div>
+                                                <div className="small text-secondary mt-1">
+                                                    Saving account opening and UPI QR generation require <strong>APPROVED KYC</strong> with verified Aadhaar and Bank Account details.
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-warning btn-sm fw-bold px-3 mt-2 d-inline-flex align-items-center gap-1 shadow-xs"
+                                                    onClick={() => {
+                                                        onClose();
+                                                        navigate('/agent/financial/kyc');
+                                                    }}
+                                                >
+                                                    <i className="bx bx-shield-quarter"></i> Complete Member KYC Verification
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="alert alert-success border border-success rounded-3 p-2.5 mb-3 d-flex align-items-center gap-2 shadow-sm">
+                                            <i className="bx bx-check-shield text-success fs-4 flex-shrink-0"></i>
+                                            <div className="small">
+                                                <strong className="text-success d-block">✓ Member KYC Approved</strong>
+                                                <span className="text-muted">Aadhaar & Bank ({selectedMember.bank_name ? `${selectedMember.bank_name} - ` : ''}...{String(selectedMember.account_number || '').slice(-4)}) verified. Official QR will be auto-generated.</span>
+                                            </div>
+                                        </div>
+                                    )
+                                )}
+
                                 <div className="mb-3">
                                     <label className="form-label fw-semibold">Select Account Plan / Type <span className="text-danger">*</span></label>
                                     <select className="form-select" value={form.plan_id} onChange={handlePlanChange} required>
@@ -645,7 +693,13 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
                             </div>
                             <div className="modal-footer bg-light border-0 py-3 px-4">
                                 <button type="button" className="btn btn-outline-secondary" onClick={onClose}>Cancel</button>
-                                <button type="submit" className="btn btn-success px-4 fw-bold">OPEN ACCOUNT</button>
+                                <button
+                                    type="submit"
+                                    className="btn btn-success px-4 fw-bold"
+                                    disabled={Boolean(form.member_id && !isKycApproved)}
+                                >
+                                    OPEN ACCOUNT
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -659,7 +713,7 @@ const DashboardOpenSavingModal = ({ isOpen, onClose, onSuccess }) => {
                 serviceTitle="Saving Account Opening"
                 planName={form.plan_name || "Saving Plan"}
                 amount={parseFloat(form.opening_amount || 0)}
-                memberInfo={members.find(m => m.id == form.member_id)}
+                memberInfo={selectedMember}
                 loading={submitting}
             />
         </>
@@ -949,6 +1003,7 @@ const AgentFinancialDashboard = () => {
                     isOpen={true}
                     onClose={() => setActiveModal(null)}
                     onSuccess={handleModalSuccess}
+                    onOpenBond={(bondData) => setBondModalData(bondData)}
                 />
             )}
             {activeModal === 'OPEN_DD' && (

@@ -446,7 +446,7 @@ class VaController extends Controller
                 }
 
 
-                $va = Va::where('mobile', $user->mobile)->select('virtual_account_id','virtual_upi_handle','qrcode_image','qrcode_pdf')->first();
+                $va = Va::where('virtual_account_id', $vaData['id'])->select('virtual_account_id','virtual_upi_handle','virtual_account_number','virtual_ifsc','qrcode_image','qrcode_pdf')->first();
 
 
 
@@ -574,108 +574,157 @@ class VaController extends Controller
 
                                 $id = DB::table('vpa_transaction')->insertGetId($data);
 
-                                $user = DB::table('users')->where('mid', $vpa_data->mid)->first();
+                                $isMember = (($vpa_data->user_type ?? 'AGENT') === 'MEMBER' || !empty($vpa_data->financial_account_id) || !empty($vpa_data->member_id));
 
-                                if ($user) {
-                                    $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+                                if ($isMember) {
+                                    // ── MEMBER SAVING ACCOUNT CREDIT ────────────────────
+                                    $finAccount = null;
+                                    if (!empty($vpa_data->financial_account_id)) {
+                                        $finAccount = \App\Models\Financial\FinancialAccount::find($vpa_data->financial_account_id);
+                                    }
+                                    if (!$finAccount && !empty($vpa_data->member_id)) {
+                                        $finAccount = \App\Models\Financial\FinancialAccount::where('member_id', $vpa_data->member_id)
+                                            ->where('service_type', 'SAVING')
+                                            ->first();
+                                    }
+                                    if (!$finAccount && !empty($vpa_data->virtual_account_id)) {
+                                        $finAccount = \App\Models\Financial\FinancialAccount::where('virtual_account_id', $vpa_data->virtual_account_id)->first();
+                                    }
 
-                                    if ($account) {
-
-
+                                    if ($finAccount && ($eventData['status'] ?? '') == 'SUCCESS') {
                                         $amt = (float) ($eventData['amount'] ?? 0);
-                                        
+                                        $utr = $eventData['utr'] ?? $txnId;
+                                        $remitter = $eventData['remitter_full_name'] ?? 'UPI Transfer';
 
-                                        $transactionData1 = [
-                                            'account_id' => $account->id,
-                                            'type' => 'CR',
-                                            'amount' => $amt,
-                                            'description' => 'VPA Credit',
-                                            'transaction_id' => $txnId.'_CR',
-                                            'created_by' => $account->user_id,
-                                            'admin_id' => $account->admin_id,
-                                            'user_id' => $account->user_id,
-                                            'category_code' => 'DEPOSIT'
-                                        ];
+                                        DB::transaction(function() use ($finAccount, $amt, $txnId, $utr, $remitter) {
+                                            $balanceBefore = (float) $finAccount->current_balance;
+                                            $balanceAfter = $balanceBefore + $amt;
 
-                                        if ($eventData['status'] == 'SUCCESS') {
+                                            $finAccount->update([
+                                                'current_balance'   => $balanceAfter,
+                                                'available_balance' => $balanceAfter,
+                                            ]);
 
-                                            $transactionData = createTransaction($transactionData1);
+                                            \App\Models\Financial\FinancialTransaction::create([
+                                                'transaction_id' => $txnId . '_QR',
+                                                'account_id'     => $finAccount->id,
+                                                'member_id'      => $finAccount->member_id,
+                                                'user_id'        => $finAccount->user_id,
+                                                'admin_id'       => $finAccount->admin_id,
+                                                'service_type'   => 'SAVING',
+                                                'txn_type'       => 'DEPOSIT',
+                                                'amount'         => $amt,
+                                                'charges'        => 0,
+                                                'net_amount'     => $amt,
+                                                'balance_before' => $balanceBefore,
+                                                'balance_after'  => $balanceAfter,
+                                                'payment_mode'   => 'UPI_QR',
+                                                'narration'      => "UPI QR Deposit from {$remitter} (UTR: {$utr})",
+                                                'status'         => 'SUCCESS',
+                                            ]);
+                                        });
+                                    }
+                                } else {
+                                    // ── AGENT ACCOUNT CREDIT (Existing flow) ────────────
+                                    $user = DB::table('users')->where('mid', $vpa_data->mid)->first();
 
-                                            $settings = DB::table('settings')->where('user_id', $account->admin_id)->first();
-                                            $charge = $settings->va_receive_charge ?? 4;
-                                            
-                                            $credit_user_id = $account->user_id;
-                                            $is_api_partner = false;
+                                    if ($user) {
+                                        $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
 
-                                            $adminData = User::where('id', $account->admin_id)->first();
-                                            if ($adminData && $adminData->is_api_partner == true) {
-                                                $credit_user_id = $adminData->id;
-                                                $is_api_partner = true;
-                                                $charge = $settings->api_vpa_receive_charge ?? 0;
-                                            } 
+                                        if ($account) {
 
-                                            $transactionData13 = [
+                                            $amt = (float) ($eventData['amount'] ?? 0);
+
+                                            $transactionData1 = [
                                                 'account_id' => $account->id,
-                                                'type' => 'DR',
-                                                'amount' => $charge,
-                                                'description' => 'VPA Credit Charge',
-                                                'transaction_id' => $txnId.'_DR',
+                                                'type' => 'CR',
+                                                'amount' => $amt,
+                                                'description' => 'VPA Credit',
+                                                'transaction_id' => $txnId.'_CR',
                                                 'created_by' => $account->user_id,
                                                 'admin_id' => $account->admin_id,
                                                 'user_id' => $account->user_id,
-                                                'category_code' => 'CHARGE'
+                                                'category_code' => 'DEPOSIT'
                                             ];
 
-                                            if($charge>0){
-                                                $transactionData2 = createTransaction($transactionData13);
-                                            }
+                                            if ($eventData['status'] == 'SUCCESS') {
 
-                                            
+                                                $transactionData = createTransaction($transactionData1);
 
-                                            if ($is_api_partner == true) {
+                                                $settings = DB::table('settings')->where('user_id', $account->admin_id)->first();
+                                                $charge = $settings->va_receive_charge ?? 4;
+                                                
+                                                $credit_user_id = $account->user_id;
+                                                $is_api_partner = false;
 
-                                                $setting = Setting::where('user_id', $credit_user_id)->first();
-                                                if ($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
-                                                    try {
+                                                $adminData = User::where('id', $account->admin_id)->first();
+                                                if ($adminData && $adminData->is_api_partner == true) {
+                                                    $credit_user_id = $adminData->id;
+                                                    $is_api_partner = true;
+                                                    $charge = $settings->api_vpa_receive_charge ?? 0;
+                                                } 
 
-                                                        $postData = [
-                                                            "type" => "vpa_transaction",
-                                                            "data" => DB::table('vpa_transaction')->where('id', $id)->first()
-                                                        ];
-                                                        
-                                                        $ch = curl_init($setting->call_back_url);
-                                                        curl_setopt_array($ch, [
-                                                            CURLOPT_RETURNTRANSFER => true,
-                                                            CURLOPT_POST           => true,
-                                                            CURLOPT_POSTFIELDS     => json_encode($postData),
-                                                            CURLOPT_HTTPHEADER     => [
-                                                                "Content-Type: application/json",
-                                                                "Accept: application/json"
-                                                            ],
-                                                            CURLOPT_TIMEOUT        => 60,
-                                                            CURLOPT_CONNECTTIMEOUT => 20
-                                                        ]);
-                                                        $res = curl_exec($ch);
-                                                        curl_close($ch);
+                                                $transactionData13 = [
+                                                    'account_id' => $account->id,
+                                                    'type' => 'DR',
+                                                    'amount' => $charge,
+                                                    'description' => 'VPA Credit Charge',
+                                                    'transaction_id' => $txnId.'_DR',
+                                                    'created_by' => $account->user_id,
+                                                    'admin_id' => $account->admin_id,
+                                                    'user_id' => $account->user_id,
+                                                    'category_code' => 'CHARGE'
+                                                ];
+
+                                                if($charge>0){
+                                                    $transactionData2 = createTransaction($transactionData13);
+                                                }
+
+                                                if ($is_api_partner == true) {
+
+                                                    $setting = Setting::where('user_id', $credit_user_id)->first();
+                                                    if ($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)) {
+                                                        try {
+
+                                                            $postData = [
+                                                                "type" => "vpa_transaction",
+                                                                "data" => DB::table('vpa_transaction')->where('id', $id)->first()
+                                                            ];
+                                                            
+                                                            $ch = curl_init($setting->call_back_url);
+                                                            curl_setopt_array($ch, [
+                                                                CURLOPT_RETURNTRANSFER => true,
+                                                                CURLOPT_POST           => true,
+                                                                CURLOPT_POSTFIELDS     => json_encode($postData),
+                                                                CURLOPT_HTTPHEADER     => [
+                                                                    "Content-Type: application/json",
+                                                                    "Accept: application/json"
+                                                                ],
+                                                                CURLOPT_TIMEOUT        => 60,
+                                                                CURLOPT_CONNECTTIMEOUT => 20
+                                                            ]);
+                                                            $res = curl_exec($ch);
+                                                            curl_close($ch);
 
 
-                                                        DB::table('logs')->insert([
-                                                            'mid' => $adminData->mid,
-                                                            'type' => 'VPA Webhook Sent',
-                                                            'platform' => 'API',
-                                                            'headers' => NULL,
-                                                            'request_data' => json_encode(DB::table('vpa_transaction')->where('id', $id)->first()),
-                                                            'response_data' => $res,
-                                                            'url' => $setting->call_back_url,
-                                                            'txnid' => rand(999999999, 111111111),
-                                                            'status' => 0,
-                                                            'timestamp' => now(),
-                                                            'created_at' => now()->format('Y-m-d H:i:s'),
-                                                        ]);
+                                                            DB::table('logs')->insert([
+                                                                'mid' => $adminData->mid,
+                                                                'type' => 'VPA Webhook Sent',
+                                                                'platform' => 'API',
+                                                                'headers' => NULL,
+                                                                'request_data' => json_encode(DB::table('vpa_transaction')->where('id', $id)->first()),
+                                                                'response_data' => $res,
+                                                                'url' => $setting->call_back_url,
+                                                                'txnid' => rand(999999999, 111111111),
+                                                                'status' => 0,
+                                                                'timestamp' => now(),
+                                                                'created_at' => now()->format('Y-m-d H:i:s'),
+                                                            ]);
 
 
-                                                    } catch (\Exception $e) {
-                                                        \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                                                        } catch (\Exception $e) {
+                                                            \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                                                        }
                                                     }
                                                 }
                                             }

@@ -24,6 +24,9 @@ class Va extends Model
         'virtual_upi_handle',
         'qrcode_image',
         'qrcode_pdf',
+        'user_type',
+        'member_id',
+        'financial_account_id',
         'status'
     ];
 

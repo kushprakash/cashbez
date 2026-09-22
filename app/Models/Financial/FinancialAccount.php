@@ -27,6 +27,12 @@ class FinancialAccount extends Model
         'status',
         'nominee_name',
         'nominee_relation',
+        'virtual_account_id',
+        'virtual_account_number',
+        'virtual_ifsc',
+        'virtual_upi_handle',
+        'qrcode_image',
+        'qrcode_pdf',
     ];
 
     public function member()
