@@ -74,11 +74,11 @@ class VerificationController extends Controller
         DB::table('verifications')->insert($data);
 
 
-        return response()->json([
-          'status' => 1,
-          'message' => 'Your Data allready Exits Please Use OTP 123456',
-          'data' => $response
-        ], 200); die;
+        // return response()->json([
+        //   'status' => 1,
+        //   'message' => 'Your Data allready Exits Please Use OTP 123456',
+        //   'data' => $response
+        // ], 200); die;
       }
 
       $url = "https://goterpay.in/api/verification/aadhaarotp?mid=$mid&mkey=$mkey&aadhaar=$aadhaarno&txnid=$txnid";
