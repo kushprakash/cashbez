@@ -20,6 +20,10 @@ export const storeTokenAndUserData = (tokenData, userData) => {
         if (userData) {
             try {
                 localStorage.setItem('user', JSON.stringify(sanitizedUserData));
+                const compName = userData.company_name || userData.setting?.company_name;
+                if (compName) {
+                    localStorage.setItem('company_name', compName);
+                }
             } catch (e) {
                 console.error('Error saving user data to localStorage:', e);
             }

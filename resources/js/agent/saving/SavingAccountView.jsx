@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import ApiService from '../../core/services/ApiService';
 import MpinModal from '../../components/MpinModal';
 import MemberSelectSearch from '../../components/MemberSelectSearch';
 import BankAccountBondModal from '../../components/BankAccountBondModal';
+import { AuthContext } from '../../core/hooks/context';
 
 const getPlanMinAmount = (p) => {
     if (!p) return 0;
@@ -215,6 +216,11 @@ import DepositReceiptModal from '../../components/DepositReceiptModal';
    Saving Account Statement Modal
 ───────────────────────────────────────────────────────────── */
 const AccountStatementModal = ({ isOpen, account, onClose }) => {
+    const { userData } = useContext(AuthContext) || {};
+    const companyName = userData?.company_name ||
+                        userData?.setting?.company_name ||
+                        localStorage.getItem('company_name') ||
+                        'CASHBEZ FINANCIAL SERVICES NIDHI LIMITED';
     const api = ApiService();
     const [loading, setLoading] = useState(true);
     const [txns, setTxns] = useState([]);
@@ -350,6 +356,12 @@ const AccountStatementModal = ({ isOpen, account, onClose }) => {
                                         </button>
                                     </div>
                                 </form>
+                            </div>
+
+                            {/* Company / Passbook Header */}
+                            <div className="border-bottom pb-3 mb-3 text-center">
+                                <h4 className="fw-bold text-dark mb-1">{companyName}</h4>
+                                <p className="text-muted small mb-0">Saving Bank Account Passbook Statement</p>
                             </div>
 
                             {/* Statement Header Card */}

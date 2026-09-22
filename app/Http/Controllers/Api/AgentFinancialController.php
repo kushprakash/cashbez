@@ -347,6 +347,7 @@ class AgentFinancialController extends Controller
                     'recent_members'      => $recentMembers,
                     'monthly_trend'       => $monthlyTrend,
                     'period_trend'        => $periodTrend,
+                    'company_name'        => $this->getCompanyName($adminId),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -1088,7 +1089,8 @@ class AgentFinancialController extends Controller
 
             return response()->json([
                 'status' => 1,
-                'data' => $accounts
+                'data' => $accounts,
+                'company_name' => $this->getCompanyName($adminId),
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -1632,7 +1634,8 @@ class AgentFinancialController extends Controller
 
             return response()->json([
                 'status' => 1,
-                'data' => $accounts
+                'data' => $accounts,
+                'company_name' => $this->getCompanyName($adminId),
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -1858,6 +1861,7 @@ class AgentFinancialController extends Controller
                     'nominee_name' => $account->nominee_name ?? $account->member->nominee_name,
                     'nominee_relation' => $account->nominee_relation ?? $account->member->nominee_relation,
                     'status' => $account->status,
+                    'company_name' => $this->getCompanyName($adminId),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -1937,7 +1941,8 @@ class AgentFinancialController extends Controller
 
             return response()->json([
                 'status' => 1,
-                'data' => $transactions
+                'data' => $transactions,
+                'company_name' => $this->getCompanyName($adminId),
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -2096,4 +2101,17 @@ class AgentFinancialController extends Controller
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Get Company Name from admin settings
+     */
+    protected function getCompanyName($adminId)
+    {
+        $setting = DB::table('settings')->where('user_id', $adminId)->first();
+        if (!$setting) {
+            $setting = DB::table('settings')->where('status', 1)->first() ?? DB::table('settings')->first();
+        }
+        return $setting->company_name ?? 'FINANCIAL SERVICES LIMITED';
+    }
 }
+

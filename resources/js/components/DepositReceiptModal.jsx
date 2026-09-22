@@ -1,6 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
+import { AuthContext } from '../core/hooks/context';
 
 const DepositReceiptModal = ({ isOpen, onClose, data }) => {
+    const { userData } = useContext(AuthContext) || {};
+    const companyName = data?.company_name ||
+                        userData?.company_name ||
+                        userData?.setting?.company_name ||
+                        localStorage.getItem('company_name') ||
+                        'CASHBEZ BANKING';
+
     // 3 Print Formats: 'A4_HALF' (1/2 A4), 'A4_QUARTER' (1/4 A4), 'POS_THERMAL' (Mall Bill Bluetooth POS)
     const [format, setFormat] = useState(() => {
         return localStorage.getItem('cashbez_receipt_format') || 'A4_HALF';
@@ -185,7 +193,7 @@ const DepositReceiptModal = ({ isOpen, onClose, data }) => {
             </head>
             <body>
                 <div class="text-center">
-                    <div class="header-title">CASHBEZ BANKING</div>
+                    <div class="header-title">${companyName}</div>
                     <div>${receiptTitle}</div>
                     <div>${agent_name || 'Agent Outlet'}</div>
                     ${agent_mobile ? `<div>Mob: ${agent_mobile}</div>` : ''}
@@ -321,7 +329,7 @@ const DepositReceiptModal = ({ isOpen, onClose, data }) => {
                             <div className="border rounded-4 p-4 shadow-sm" style={{ border: `2px dashed ${isWithdrawal ? '#dc3545' : '#0d6efd'}` }}>
                                 <div className="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
                                     <div>
-                                        <h4 className={`fw-bold mb-0 ${isWithdrawal ? 'text-danger' : 'text-primary'}`}>CASHBEZ BANKING</h4>
+                                        <h4 className={`fw-bold mb-0 ${isWithdrawal ? 'text-danger' : 'text-primary'}`}>{companyName}</h4>
                                         <small className="text-muted fw-semibold">{acknowledgementText}</small>
                                     </div>
                                     <div className="text-end">
@@ -392,7 +400,7 @@ const DepositReceiptModal = ({ isOpen, onClose, data }) => {
                             <div className="border rounded-3 p-3 ms-0 me-auto bg-white" style={{ width: '100%', maxWidth: '340px', border: '1px solid #cbd5e1' }}>
                                 <div className="text-center border-bottom pb-2 mb-2">
                                     <strong className={`text-uppercase d-block fs-6 ${isWithdrawal ? 'text-danger' : 'text-primary'}`}>
-                                        CASHBEZ {receiptTitle}
+                                        {companyName} - {receiptTitle}
                                     </strong>
                                     <small className="text-muted font-monospace">{transaction_id}</small>
                                 </div>
@@ -432,7 +440,7 @@ const DepositReceiptModal = ({ isOpen, onClose, data }) => {
                         {format === 'POS_THERMAL' && (
                             <div className="font-monospace mx-auto p-3 bg-light rounded border text-dark" style={{ maxWidth: '300px', fontSize: '12px' }}>
                                 <div className="text-center fw-bold">
-                                    <div className="fs-6">CASHBEZ BANKING</div>
+                                    <div className="fs-6">{companyName}</div>
                                     <div>{receiptTitle}</div>
                                     <div>=================================</div>
                                 </div>

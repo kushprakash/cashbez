@@ -475,8 +475,20 @@ class AuthController extends Controller
         $user->role_name = $role->name ?? 'Unknown';
 
 
-        $user1 = User::where('mid', $user->admin_mid)->first();
-        $sett = DB::table('settings')->where('user_id', $user1->id)->select('logo')->first();
+        $adminUser = null;
+        if (!empty($user->admin_mid)) {
+            $adminUser = User::where('mid', $user->admin_mid)->first();
+        }
+        $targetUserId = $adminUser ? $adminUser->id : ($user->id == 1 || $user->role == 1 ? $user->id : ($user->admin_id ?? 1));
+
+        $sett = DB::table('settings')->where('user_id', $targetUserId)->first();
+        if (!$sett) {
+            $sett = DB::table('settings')->where('status', 1)->first() ?? DB::table('settings')->first();
+        }
+
+        $companyName = $sett->company_name ?? $user->shop_name ?? 'FINANCIAL SERVICES LIMITED';
+        $user->company_name = $companyName;
+        $user->company_logo = $sett->logo ?? null;
         $user->logo = $sett->logo ?? 'https://enexa.in/images/enexa-logo-mix-white.png?id=83e17363ed5f59867f1cb9c59b3c5f56';
         $userKyc = DB::table('user_kyc')->where('user_id', $user->id)->first();
         $user->kyc = $userKyc;

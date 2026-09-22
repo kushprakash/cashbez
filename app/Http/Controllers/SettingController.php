@@ -441,11 +441,28 @@ class SettingController extends Controller
     {
         try {
 
-            $user=$request->get('user');
+            $user = $request->get('user') ?? $request->user();
+            $targetUserId = null;
 
-            $admin_user = User::where('mid', $user->admin_mid)->first();
+            if ($user) {
+                if (!empty($user->admin_mid)) {
+                    $admin_user = User::where('mid', $user->admin_mid)->first();
+                    $targetUserId = $admin_user ? $admin_user->id : null;
+                }
+                if (!$targetUserId) {
+                    $targetUserId = ($user->id == 1 || $user->role == 1) ? $user->id : ($user->admin_id ?? 1);
+                }
+            }
 
-            $setting = Setting::where('status', 1)->where('user_id', $admin_user->id)->first();
+            $setting = null;
+            if ($targetUserId) {
+                $setting = Setting::where('status', 1)->where('user_id', $targetUserId)->first()
+                    ?: Setting::where('user_id', $targetUserId)->first();
+            }
+
+            if (!$setting) {
+                $setting = Setting::where('status', 1)->first() ?: Setting::first();
+            }
 
             if ($setting) {
                 return response()->json([

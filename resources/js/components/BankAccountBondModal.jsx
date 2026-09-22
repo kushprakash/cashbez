@@ -1,6 +1,46 @@
-import React from 'react';
+import React, { useContext, useState, useEffect } from 'react';
+import { AuthContext } from '../core/hooks/context';
+import ApiService from '../core/services/ApiService';
 
 const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
+    const { userData } = useContext(AuthContext) || {};
+    const [companyName, setCompanyName] = useState(() => {
+        return bondData?.company_name ||
+               userData?.company_name ||
+               userData?.setting?.company_name ||
+               localStorage.getItem('company_name') ||
+               'CASHBEZ FINANCIAL SERVICES NIDHI LIMITED';
+    });
+
+    useEffect(() => {
+        if (bondData?.company_name) {
+            setCompanyName(bondData.company_name);
+            return;
+        }
+        if (userData?.company_name || userData?.setting?.company_name) {
+            setCompanyName(userData?.company_name || userData?.setting?.company_name);
+            return;
+        }
+        const cached = localStorage.getItem('company_name');
+        if (cached) {
+            setCompanyName(cached);
+            return;
+        }
+        const fetchSettings = async () => {
+            try {
+                const apiService = ApiService();
+                const res = await apiService.vGet('/api/public-settings');
+                if (res?.data?.status === 1 && res.data?.setting?.company_name) {
+                    setCompanyName(res.data.setting.company_name);
+                    localStorage.setItem('company_name', res.data.setting.company_name);
+                }
+            } catch (err) {
+                // Keep default
+            }
+        };
+        fetchSettings();
+    }, [bondData, userData]);
+
     if (!isOpen || !bondData) return null;
 
     const handlePrint = () => {
@@ -46,7 +86,7 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
     const P = Number(opening_amount || current_balance || 0);
     const r = Number(interest_rate || 7.5);
     const m = Number(duration_months || (service_type === 'DD' ? 365 : 12));
-    
+
     let calcMat = maturity_amount;
     if (!calcMat || calcMat <= 0) {
         if (service_type === 'FD') {
@@ -69,7 +109,7 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.75)', zIndex: 1060 }}>
             <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                 <div className="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-                    
+
                     {/* Non-printable modal header */}
                     <div className="modal-header bg-dark text-white border-0 py-3 px-4 no-print d-flex justify-content-between align-items-center">
                         <div className="d-flex align-items-center gap-2">
@@ -109,23 +149,26 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                                 top: '50%',
                                 left: '50%',
                                 transform: 'translate(-50%, -50%)',
-                                fontSize: '160px',
+                                fontSize: companyName.length > 25 ? '100px' : '150px',
                                 color: 'rgba(30, 58, 138, 0.03)',
                                 fontWeight: 900,
                                 userSelect: 'none',
                                 pointerEvents: 'none',
-                                textTransform: 'uppercase'
+                                textTransform: 'uppercase',
+                                textAlign: 'center',
+                                width: '100%',
+                                overflow: 'hidden'
                             }}>
-                                CASHBEZ
+                                {companyName ? companyName.split(' ')[0] : 'CASHBEZ'}
                             </div>
 
                             {/* Header Banner */}
                             <div style={{ textAlign: 'center', borderBottom: '2px solid #1e3a8a', paddingBottom: '16px', marginBottom: '20px' }}>
                                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#1e3a8a', letterSpacing: '1px', textTransform: 'uppercase' }}>
-                                    CASHBEZ FINANCIAL SERVICES NIDHI LIMITED
+                                    {companyName}
                                 </div>
                                 <div style={{ fontSize: '12px', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
-                                    Govt. Registered Nidhi Bank Institution | Member Deposit Certificate
+                                    Govt. Registered Financial Institution | Member Deposit Certificate
                                 </div>
                                 <div style={{
                                     display: 'inline-block',
@@ -156,7 +199,7 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
 
                             {/* Details Grid */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '18px' }}>
-                                
+
                                 {/* Member Details */}
                                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                                     <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e3a8a', borderBottom: '1px solid #cbd5e1', paddingBottom: '6px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -271,12 +314,7 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                                                         <td style={{ color: '#475569', fontWeight: 600, width: '42%' }}>Saving Account No:</td>
                                                         <td style={{ fontWeight: 800, color: '#0f172a', fontFamily: 'monospace', fontSize: '13.5px' }}>{account_number}</td>
                                                     </tr>
-                                                    {virtual_account_number && (
-                                                        <tr>
-                                                            <td style={{ color: '#475569', fontWeight: 600 }}>Virtual Account No:</td>
-                                                            <td style={{ fontWeight: 800, color: '#0369a1', fontFamily: 'monospace' }}>{virtual_account_number}</td>
-                                                        </tr>
-                                                    )}
+
                                                     <tr>
                                                         <td style={{ color: '#475569', fontWeight: 600 }}>Virtual IFSC Code:</td>
                                                         <td style={{ fontWeight: 800, color: '#0f172a', fontFamily: 'monospace' }}>{virtual_ifsc || 'ICCH0000001'}</td>

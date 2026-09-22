@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import ApiService from '../../core/services/ApiService';
 import BankAccountBondModal from '../../components/BankAccountBondModal';
 import OpenDepositAccountModal, { calculateMaturity } from '../../components/OpenDepositAccountModal';
+import { AuthContext } from '../../core/hooks/context';
 
 /* Account Details & Member Profile Modal */
 const AccountDetailsModal = ({ isOpen, account, onClose }) => {
@@ -131,6 +132,11 @@ const AccountDetailsModal = ({ isOpen, account, onClose }) => {
 
 /* Account Statement Modal */
 const AccountStatementModal = ({ isOpen, account, onClose }) => {
+    const { userData } = useContext(AuthContext) || {};
+    const companyName = userData?.company_name ||
+                        userData?.setting?.company_name ||
+                        localStorage.getItem('company_name') ||
+                        'CASHBEZ FINANCIAL SERVICES NIDHI LIMITED';
     const api = ApiService();
     const [loading, setLoading] = useState(true);
     const [txns, setTxns] = useState([]);
@@ -268,7 +274,7 @@ const AccountStatementModal = ({ isOpen, account, onClose }) => {
                             </div>
 
                             <div className="border-bottom pb-3 mb-3 text-center">
-                                <h4 className="fw-bold text-dark mb-1">CASHBEZ FINANCIAL SERVICES NIDHI LIMITED</h4>
+                                <h4 className="fw-bold text-dark mb-1">{companyName}</h4>
                                 <p className="text-muted small mb-0">Recurring Deposit Passbook Transaction Statement</p>
                                 <div className="mt-2 text-start p-2 bg-light rounded border d-flex justify-content-between text-dark small fw-bold flex-wrap gap-2">
                                     <span>Account No: {account.account_number}</span>
