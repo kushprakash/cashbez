@@ -60,18 +60,18 @@ class VerificationController extends Controller
 
         $response = [ 'txnid' => $ref, 'status' => 'SUCCESS', 'refid' => $ref, 'aadhaarno' => $aadhaarno, 'Fees' => '3.00', 'balance' => '982.15', 'message' => 'OTP sent successfully' ];
 
-        $data = [
-          'user_id'=>$user->id,
-          'type'=>'Aadhaar',
-          'number'=>$aadhaarno,
-          'refid'=>$ref,
-          'status'=>0,
-          'first_res' => json_encode($response),
-          'created_at'=>now(),
-          'updated_at'=>now(),
-        ];
+        // $data = [
+        //   'user_id'=>$user->id,
+        //   'type'=>'Aadhaar',
+        //   'number'=>$aadhaarno,
+        //   'refid'=>$ref,
+        //   'status'=>0,
+        //   'first_res' => json_encode($response),
+        //   'created_at'=>now(),
+        //   'updated_at'=>now(),
+        // ];
 
-        DB::table('verifications')->insert($data);
+       // DB::table('verifications')->insert($data);
 
 
         // return response()->json([
