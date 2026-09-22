@@ -185,7 +185,7 @@ const AccountStatementModal = ({ isOpen, account, onClose }) => {
     const companyName = userData?.company_name ||
                         userData?.setting?.company_name ||
                         localStorage.getItem('company_name') ||
-                        'CASHBEZ FINANCIAL SERVICES NIDHI LIMITED';
+                        'FINANCIAL SERVICES  LIMITED';
     const api = ApiService();
     const [loading, setLoading] = useState(true);
     const [txns, setTxns] = useState([]);

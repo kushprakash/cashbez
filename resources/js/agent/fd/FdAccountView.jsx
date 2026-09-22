@@ -134,9 +134,9 @@ const AccountDetailsModal = ({ isOpen, account, onClose }) => {
 const AccountStatementModal = ({ isOpen, account, onClose }) => {
     const { userData } = useContext(AuthContext) || {};
     const companyName = userData?.company_name ||
-                        userData?.setting?.company_name ||
-                        localStorage.getItem('company_name') ||
-                        'CASHBEZ FINANCIAL SERVICES NIDHI LIMITED';
+        userData?.setting?.company_name ||
+        localStorage.getItem('company_name') ||
+        'FINANCIAL SERVICES  LIMITED';
     const api = ApiService();
     const [loading, setLoading] = useState(true);
     const [txns, setTxns] = useState([]);
@@ -188,7 +188,7 @@ const AccountStatementModal = ({ isOpen, account, onClose }) => {
     const handlePrintTxnReceipt = (t) => {
         const typeStr = String(t.type || t.transaction_type || t.txn_type || '').toUpperCase();
         const narrationStr = String(t.narration || t.description || '').toLowerCase();
-        
+
         const isWithdrawal = typeStr.includes('DEBIT') || typeStr.includes('WITHDRAW') || typeStr === 'DR' || narrationStr.includes('withdraw') || narrationStr.includes('debit');
         const isCredit = !isWithdrawal;
 

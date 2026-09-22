@@ -9,7 +9,7 @@ const BankAccountBondModal = ({ isOpen, bondData, onClose }) => {
                userData?.company_name ||
                userData?.setting?.company_name ||
                localStorage.getItem('company_name') ||
-               'CASHBEZ FINANCIAL SERVICES NIDHI LIMITED';
+               'FINANCIAL SERVICES  LIMITED';
     });
 
     useEffect(() => {
