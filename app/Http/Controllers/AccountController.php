@@ -76,18 +76,10 @@ class AccountController extends Controller
               
             };
 
-            // Build query based on user role
-            if ($user->role == 1) {
-                $accounts = Account::with('latestTransaction')->get()->map($mapAccount);
-            } elseif ($admin && $user->role == $admin->role) {
-                $accounts = Account::with('latestTransaction')
-                    ->where('admin_id', $admin->id)
-                    ->get()->map($mapAccount);
-            } else {
-                $accounts = Account::with('latestTransaction')
-                    ->where('user_id', $user->id)
-                    ->get()->map($mapAccount);
-            }
+            // Show strictly session user's own wallet accounts
+            $accounts = Account::with('latestTransaction')
+                ->where('user_id', $user->id)
+                ->get()->map($mapAccount);
 
             return response()->json([
                 'status' => 1,
@@ -125,22 +117,9 @@ class AccountController extends Controller
             ->leftJoin('users as admin_users', 'users.admin_mid', '=', 'admin_users.mid')
             ->orderBy('accounts.id', 'DESC');
 
-            // Role-wise filter
-            if ($user->role == 1) {
-                // Super Admin → no filter (get all)
-                $query->select($selectColumns);
-            } elseif ($user->role == 2) {
-                // Admin → filter by admin_id
-                $query->where('accounts.admin_id', $user->id)
-                      ->select($selectColumns);
-            } else {
-                // Dealer/Retailer → filter by root chain or direct ownership
-                $query->where(function ($q) use ($user) {
-                    $q->whereRaw("FIND_IN_SET(?, users.root)", [$user->id])
-                    ->orWhere('users.id', $user->id);
-                })
-                ->select($selectColumns);
-            }
+            // Show strictly session user's own wallet accounts
+            $query->where('accounts.user_id', $user->id)
+                  ->select($selectColumns);
 
             // Add subquery for latest balance
             $query->addSelect(['latest_balance' => \App\Models\Passbook::select('balance')

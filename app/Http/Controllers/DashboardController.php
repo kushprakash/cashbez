@@ -29,19 +29,16 @@ class DashboardController extends Controller
             $userId = (int) ($user->id ?? 0);
 
             if ($userRole === 1 || $userRole === 0 || $userId === 1) {
-                // Role 1 (Super Admin / Master Admin) or User ID 1: NO WHERE FILTER AT ALL! Returns ALL system-wide data!
-                return $query;
-            } elseif ($userRole === 2) {
-                // Role 2 (Admin): Filter by admin_mid
-                $adminUserIds = User::where('admin_mid', $user->mid)->pluck('id')->toArray();
-                $adminUserIds[] = $userId;
+                // Super Admin: Only Role 2 (all Admins) data!
                 if ($userColumn === 'mid') {
-                    $adminMids = User::whereIn('id', $adminUserIds)->pluck('mid')->toArray();
-                    return $query->whereIn('mid', $adminMids);
+                    $role2Mids = User::where('role', 2)->pluck('mid')->filter()->toArray();
+                    return $query->whereIn('mid', $role2Mids);
+                } else {
+                    $role2UserIds = User::where('role', 2)->pluck('id')->toArray();
+                    return $query->whereIn($userColumn, $role2UserIds);
                 }
-                return $query->whereIn($userColumn, $adminUserIds);
             } else {
-                // Retailer / Regular User: Filter strictly by their own user_id or mid
+                // Admin (Role 2) / Retailer: Filter strictly by their own session user_id or mid (never by admin_id or admin_mid)
                 $userValue = $useIdForUser ? $userId : $user->mid;
                 return $query->where($userColumn, $userValue);
             }
@@ -306,9 +303,15 @@ class DashboardController extends Controller
             }
 
             // 6. User Accounts & Balances (Optimized 1 Query with MAX(id) Passbook Join)
-            // Admin / Super Admin / Retailer: Display strictly their OWN wallet balance on dashboard.
-            // Subordinate user balances are NOT summed because user transactions already debit/credit the admin's wallet.
-            $accountsQuery = DB::table('accounts')->where('user_id', $userId);
+            // Super Admin: Only Role 2 (all Admins) accounts
+            // Admin (Role 2) / Retailer: Strictly their OWN session user_id (not admin_id)
+            $accountsQuery = DB::table('accounts');
+            if ($userRole === 1 || $userId === 1) {
+                $role2UserIds = User::where('role', 2)->pluck('id')->toArray();
+                $accountsQuery->whereIn('user_id', $role2UserIds);
+            } else {
+                $accountsQuery->where('user_id', $userId);
+            }
             $accounts = $accountsQuery->select('id', 'name', 'number', 'primary_status', 'hold_amount', 'status', 'user_id')->get();
 
             $accountIds = $accounts->pluck('id')->toArray();
@@ -472,8 +475,13 @@ class DashboardController extends Controller
             ];
 
             $allPassbookEntries = DB::table('passbooks')
-                ->where(function ($q) use ($userId, $accountIds) {
-                    $q->where('user_id', $userId);
+                ->where(function ($q) use ($userRole, $userId, $accountIds) {
+                    if ($userRole === 1 || $userId === 1) {
+                        $role2UserIds = User::where('role', 2)->pluck('id')->toArray();
+                        $q->whereIn('user_id', $role2UserIds);
+                    } else {
+                        $q->where('user_id', $userId);
+                    }
                     if (!empty($accountIds)) {
                         $q->orWhereIn('account_id', $accountIds);
                     }
@@ -564,8 +572,10 @@ class DashboardController extends Controller
 
             if ($userRole === 1 || $userRole === 2) {
                 $userQuery = User::query();
-                if ($userRole === 2) {
-                    $userQuery->where('admin_mid', $userMid);
+                if ($userRole === 1 || $userId === 1) {
+                    $userQuery->where('role', 2);
+                } else {
+                    $userQuery->where('id', $userId);
                 }
 
                 $userAgg = (clone $userQuery)
