@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Va;
 use App\Models\User;
 use App\Models\Setting;
+use App\Models\Account;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Exception;
@@ -627,11 +628,19 @@ class VaController extends Controller
 
 
 
-                                            $adminAccount = Account::where('user_id', $finAccount->admin_id)->where('primary_status', false)->first();
+                                            $adminAccount = Account::where('user_id', $finAccount->admin_id)
+                                                ->where(function ($q) {
+                                                    $q->where('primary_status', false)->orWhere('primary_status', 0);
+                                                })->first();
+
+                                            if (!$adminAccount && $finAccount->admin_id) {
+                                                $adminAccount = Account::where('user_id', $finAccount->admin_id)->first();
+                                            }
+
                                             if ($adminAccount && $finAccount->admin_id) {
 
                                                 $settings = DB::table('settings')->where('user_id', 1)->first();
-                                                $charge = $settings->va_receive_charge ?? 4;
+                                                $charge = (float) ($settings->va_receive_charge ?? 4);
 
                                                 // Create passbook entry
                                                 $passbookData = [
@@ -641,42 +650,80 @@ class VaController extends Controller
                                                     'description' => 'UPI QR Deposit from '.$remitter,
                                                     'transaction_id' => $txnId.'-1',
                                                     'created_by' => 1,
-                                                    'admin_id' => $adminAccount->admin_id,
+                                                    'admin_id' => $adminAccount->admin_id ?? $finAccount->admin_id,
                                                     'user_id' => $adminAccount->user_id,
                                                     'category_code' => 'UPI_QR'
                                                 ];
 
                                                 $transactionData12 = createTransaction($passbookData);
 
-                                                $passbookData2 = [
-                                                    'account_id' => $adminAccount->id,
-                                                    'type' => 'DR',
-                                                    'amount' => $charge,
-                                                    'description' => 'VPA Credit Charge',
-                                                    'transaction_id' => $txnId.'-2',
-                                                    'created_by' => 1,
-                                                    'admin_id' => $adminAccount->admin_id,
-                                                    'user_id' => $adminAccount->user_id,
-                                                    'category_code' => 'CHARGE'
-                                                ];
+                                                if ($charge > 0) {
+                                                    $passbookData2 = [
+                                                        'account_id' => $adminAccount->id,
+                                                        'type' => 'DR',
+                                                        'amount' => $charge,
+                                                        'description' => 'VPA Credit Charge',
+                                                        'transaction_id' => $txnId.'-2',
+                                                        'created_by' => 1,
+                                                        'admin_id' => $adminAccount->admin_id ?? $finAccount->admin_id,
+                                                        'user_id' => $adminAccount->user_id,
+                                                        'category_code' => 'CHARGE'
+                                                    ];
 
-                                                $transactionData2 = createTransaction($passbookData2);
+                                                    $transactionData2 = createTransaction($passbookData2);
+                                                }
                                             }
                                         });
                                     }
                                 } else {
                                     // ── AGENT ACCOUNT CREDIT (Existing flow) ────────────
-                                    $user = DB::table('users')->where('mid', $vpa_data->mid)->first();
+                                    $user = User::where('mid', $vpa_data->mid)->first();
 
                                     if ($user) {
-                                        $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+                                        $account = Account::where('user_id', $user->id)
+                                            ->where(function ($q) {
+                                                $q->where('primary_status', false)->orWhere('primary_status', 0);
+                                            })->first();
+
+                                        if (!$account) {
+                                            $account = Account::where('user_id', $user->id)->first();
+                                        }
 
                                         if ($account) {
 
+                                            // Determine Admin User (check admin_mid, or different account->admin_id, or default to 1)
+                                            $adminUser = null;
+                                            if (!empty($user->admin_mid)) {
+                                                $adminUser = User::where('mid', $user->admin_mid)->first();
+                                            }
+                                            if (!$adminUser || $adminUser->id == $user->id) {
+                                                if (!empty($account->admin_id) && $account->admin_id != $user->id) {
+                                                    $adminUser = User::find($account->admin_id);
+                                                }
+                                            }
+                                            if (!$adminUser && $user->id != 1) {
+                                                $adminUser = User::find(1);
+                                            }
+
+                                            $adminId = $adminUser ? $adminUser->id : 1;
+
                                             $settings = DB::table('settings')->where('user_id', 1)->first();
-                                            $charge = $settings->va_receive_charge ?? 4;
+                                            $charge = (float) ($settings->va_receive_charge ?? 4);
 
                                             $amt = (float) ($eventData['amount'] ?? 0);
+
+                                            $credit_user_id = $account->user_id;
+                                            $is_api_partner = false;
+
+                                            if (!empty($user->is_api_partner)) {
+                                                $credit_user_id = $user->id;
+                                                $is_api_partner = true;
+                                                $charge = (float) ($settings->api_vpa_receive_charge ?? 0);
+                                            } elseif ($adminUser && !empty($adminUser->is_api_partner)) {
+                                                $credit_user_id = $adminUser->id;
+                                                $is_api_partner = true;
+                                                $charge = (float) ($settings->api_vpa_receive_charge ?? 0);
+                                            }
 
                                             $transactionData1 = [
                                                 'account_id' => $account->id,
@@ -685,22 +732,10 @@ class VaController extends Controller
                                                 'description' => 'VPA Credit',
                                                 'transaction_id' => $txnId.'_CR',
                                                 'created_by' => $account->user_id,
-                                                'admin_id' => $account->admin_id,
+                                                'admin_id' => $adminId,
                                                 'user_id' => $account->user_id,
                                                 'category_code' => 'DEPOSIT'
                                             ];
-
-
-                                            $credit_user_id = $account->user_id;
-                                            $is_api_partner = false;
-
-                                            $adminData = User::where('id', $account->admin_id)->first();
-                                            if ($adminData && $adminData->is_api_partner == true) {
-                                                $credit_user_id = $adminData->id;
-                                                $is_api_partner = true;
-                                                $charge = $settings->api_vpa_receive_charge ?? 0;
-                                            } 
-
 
                                             $transactionData13 = [
                                                 'account_id' => $account->id,
@@ -709,7 +744,7 @@ class VaController extends Controller
                                                 'description' => 'VPA Credit Charge',
                                                 'transaction_id' => $txnId.'_DR',
                                                 'created_by' => $account->user_id,
-                                                'admin_id' => $account->admin_id,
+                                                'admin_id' => $adminId,
                                                 'user_id' => $account->user_id,
                                                 'category_code' => 'CHARGE'
                                             ];
@@ -718,42 +753,53 @@ class VaController extends Controller
 
                                                 $transactionData = createTransaction($transactionData1);
 
-                                                if($charge>0){
+                                                if ($charge > 0) {
                                                     $transactionData2 = createTransaction($transactionData13);
                                                 }
 
+                                                // Admin credit (only if admin is a different user)
+                                                if ($adminId && $adminId != $account->user_id) {
+                                                    $adminAccount = Account::where('user_id', $adminId)
+                                                        ->where(function ($q) {
+                                                            $q->where('primary_status', false)->orWhere('primary_status', 0);
+                                                        })->first();
 
-                                                $adminAccount = Account::where('user_id', $account->admin_id)->where('primary_status', false)->first();
-                                                if ($adminAccount) {
+                                                    if (!$adminAccount) {
+                                                        $adminAccount = Account::where('user_id', $adminId)->first();
+                                                    }
 
-                                                    // Create passbook entry
-                                                    $passbookData = [
-                                                        'account_id' => $adminAccount->id,
-                                                        'type' => 'CR',
-                                                        'amount' => $amt,
-                                                        'description' => 'VPA Deposit',
-                                                        'transaction_id' => $txnId.'-1',
-                                                        'created_by' => $credit_user_id,
-                                                        'admin_id' => $adminAccount->admin_id,
-                                                        'user_id' => $adminAccount->user_id,
-                                                        'category_code' => 'DEPOSIT'
-                                                    ];
+                                                    if ($adminAccount) {
+                                                        // Create passbook entry for Admin Deposit
+                                                        $passbookData = [
+                                                            'account_id' => $adminAccount->id,
+                                                            'type' => 'CR',
+                                                            'amount' => $amt,
+                                                            'description' => 'VPA Deposit',
+                                                            'transaction_id' => $txnId.'-1',
+                                                            'created_by' => $credit_user_id,
+                                                            'admin_id' => $adminAccount->admin_id ?? $adminId,
+                                                            'user_id' => $adminAccount->user_id,
+                                                            'category_code' => 'DEPOSIT'
+                                                        ];
 
-                                                    $transactionData12 = createTransaction($passbookData);
+                                                        $transactionData12 = createTransaction($passbookData);
 
-                                                    $passbookData2 = [
-                                                        'account_id' => $adminAccount->id,
-                                                        'type' => 'DR',
-                                                        'amount' => $charge,
-                                                        'description' => 'VPA Credit Charge',
-                                                        'transaction_id' => $txnId.'-2',
-                                                        'created_by' => $credit_user_id,
-                                                        'admin_id' => $adminAccount->admin_id,
-                                                        'user_id' => $adminAccount->user_id,
-                                                        'category_code' => 'CHARGE'
-                                                    ];
+                                                        if ($charge > 0) {
+                                                            $passbookData2 = [
+                                                                'account_id' => $adminAccount->id,
+                                                                'type' => 'DR',
+                                                                'amount' => $charge,
+                                                                'description' => 'VPA Credit Charge',
+                                                                'transaction_id' => $txnId.'-2',
+                                                                'created_by' => $credit_user_id,
+                                                                'admin_id' => $adminAccount->admin_id ?? $adminId,
+                                                                'user_id' => $adminAccount->user_id,
+                                                                'category_code' => 'CHARGE'
+                                                            ];
 
-                                                    $transactionData2 = createTransaction($passbookData2);
+                                                            $transactionData2 = createTransaction($passbookData2);
+                                                        }
+                                                    }
                                                 }
 
                                                 if ($is_api_partner == true) {
@@ -784,7 +830,7 @@ class VaController extends Controller
 
 
                                                             DB::table('logs')->insert([
-                                                                'mid' => $adminData->mid,
+                                                                'mid' => $adminUser ? $adminUser->mid : $user->mid,
                                                                 'type' => 'VPA Webhook Sent',
                                                                 'platform' => 'API',
                                                                 'headers' => NULL,
