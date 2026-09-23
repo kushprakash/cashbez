@@ -74,7 +74,7 @@ const FinancialMasterHub = ({ initialTab = 'SETTINGS' }) => {
                 </div>
 
                 {/* Super Admin Tenant Filter */}
-                {summary && summary.is_super_admin && (
+                {summary && summary.is_super_admin && activeTab !== 'COMMISSION' && (
                     <div className="card shadow-sm border-0 bg-light p-2 mt-2 mt-md-0" style={{ minWidth: '300px' }}>
                         <div className="d-flex align-items-center">
                             <i className="bx bx-shield-quarter text-danger fs-4 me-2"></i>
@@ -237,7 +237,7 @@ const FinancialMasterHub = ({ initialTab = 'SETTINGS' }) => {
                 )}
 
                 {activeTab === 'COMMISSION' && (
-                    <CommissionMasterView selectedAdminId={selectedAdminId} />
+                    <CommissionMasterView />
                 )}
             </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ApiService from '../../core/services/ApiService';
 
-const CommissionMasterView = ({ selectedAdminId }) => {
+const CommissionMasterView = () => {
     const api = ApiService();
     const [commissions, setCommissions] = useState([]);
     const [serviceTypes, setServiceTypes] = useState([]);
@@ -60,7 +60,6 @@ const CommissionMasterView = ({ selectedAdminId }) => {
             setLoading(true);
             let url = '/api/financial/commissions';
             const params = [];
-            if (selectedAdminId) params.push(`admin_id=${selectedAdminId}`);
             if (serviceFilter && serviceFilter !== 'ALL') params.push(`service_type=${serviceFilter}`);
             if (roleFilter && roleFilter !== 'ALL') params.push(`role_id=${roleFilter}`);
             if (statusFilter && statusFilter !== 'ALL') params.push(`status=${statusFilter}`);
@@ -85,7 +84,7 @@ const CommissionMasterView = ({ selectedAdminId }) => {
 
     useEffect(() => {
         fetchCommissions();
-    }, [selectedAdminId, serviceFilter, roleFilter, statusFilter, search]);
+    }, [serviceFilter, roleFilter, statusFilter, search]);
 
     const handleFormChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -135,7 +134,6 @@ const CommissionMasterView = ({ selectedAdminId }) => {
                 commission_value: parseFloat(form.commission_value),
                 distributor_commission_value: parseFloat(form.distributor_commission_value || 0),
             };
-            if (selectedAdminId) payload.admin_id = selectedAdminId;
 
             let res;
             if (editId) {

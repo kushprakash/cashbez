@@ -204,7 +204,8 @@ class FinancialCommissionService
     }
 
     /**
-     * Calculate and disburse financial commission to agent & upline wallets
+     * Calculate and disburse financial commission across user hierarchy
+     * Entry point: calls private distributeCommission
      * 
      * @param string $serviceType
      * @param float $amount
@@ -216,128 +217,264 @@ class FinancialCommissionService
      */
     public static function processCommission($serviceType, $amount, $user, $adminId = null, $refTxnId = '', $narration = '')
     {
+        return self::distributeCommission($user, $amount, $serviceType, $adminId, $refTxnId, $narration);
+    }
+
+    /**
+     * Private Function 1:
+     * Session user ka root get hoga, explode hoga, usme session user ka id add hoga,
+     * and fir loop chala kar common private function call hoga
+     *
+     * @param User $sessionUser
+     * @param float $amount
+     * @param string $serviceType
+     * @param int|null $adminId
+     * @param string $refTxnId
+     * @param string $narration
+     * @return array
+     */
+    private static function distributeCommission($sessionUser, $amount, $serviceType, $adminId = null, $refTxnId = '', $narration = '')
+    {
         try {
-            if (!$user) return ['status' => 0, 'message' => 'User not provided'];
+            if (!$sessionUser) {
+                return ['status' => 0, 'message' => 'User not provided'];
+            }
 
-            $targetAdminId = $adminId ?? ($user->admin_id ?? ($user->role == 2 ? $user->id : 1));
-            $calc = self::calculateCommission($serviceType, $amount, $user, $targetAdminId);
+            $amount = floatval($amount);
+            $serviceType = strtoupper(trim($serviceType));
+            $targetAdminId = $adminId;
 
-            $agentCommission = $calc['agent_commission'];
-            $distributorCommission = $calc['distributor_commission'];
-            $matchedRule = $calc['rule'];
+            // Resolve target admin if not explicitly passed
+            if (!$targetAdminId) {
+                if (!empty($sessionUser->admin_mid)) {
+                    $adminObj = User::where('mid', $sessionUser->admin_mid)->first();
+                    if ($adminObj) $targetAdminId = $adminObj->id;
+                }
+                if (!$targetAdminId && !empty($sessionUser->role)) {
+                    $roleObj = \App\Models\Role::find($sessionUser->role);
+                    if ($roleObj && !empty($roleObj->user_id)) {
+                        $targetAdminId = $roleObj->user_id;
+                    }
+                }
+                if (!$targetAdminId) {
+                    $targetAdminId = $sessionUser->admin_id ?? ($sessionUser->role == 2 ? $sessionUser->id : 1);
+                }
+            }
 
-            if ($agentCommission <= 0 && $distributorCommission <= 0) {
+            // 1. Session user ka root get kiya
+            $taems = $sessionUser->root;
+            $userid = $sessionUser->id;
+
+            // 2. Session user ka id add kiya and explode kiya
+            $string1 = !empty($taems) ? ($userid . ',' . $taems) : (string)$userid;
+            $rootArrays = array_values(array_filter(array_unique(explode(',', $string1))));
+
+            $distributedUsers = [];
+            $totalDistributed = 0.00;
+
+            // 3. Loop chala kar common private function call kiya (user data and amount passed)
+            foreach ($rootArrays as $uId) {
+                $uId = trim($uId);
+                if (empty($uId)) continue;
+
+                $targetUser = ($uId == $sessionUser->id) ? $sessionUser : User::where('id', $uId)->first();
+                if (!$targetUser) continue;
+
+                $result = self::distributeToSingleUser($targetUser, $amount, $serviceType, $targetAdminId, $sessionUser, $refTxnId, $narration);
+
+                if ($result && !empty($result['status']) && $result['status'] == 1 && $result['commission'] > 0) {
+                    $distributedUsers[] = $result;
+                    $totalDistributed += $result['commission'];
+                }
+            }
+
+            return [
+                'status' => 1,
+                'message' => 'Commission distributed successfully across hierarchy',
+                'total_commission' => round($totalDistributed, 2),
+                'distributed_count' => count($distributedUsers),
+                'data' => $distributedUsers,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('FinancialCommission distributeCommission error: ' . $e->getMessage());
+            return [
+                'status' => 0,
+                'message' => 'Commission distribution failed: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Private Function 2 (Common Function):
+     * Jisme user ki data and amount pass hota hai, aur unke role ke anusaar
+     * commission calculate karke utility wallet me credit hota hai
+     *
+     * @param User $targetUser
+     * @param float $amount
+     * @param string $serviceType
+     * @param int $targetAdminId
+     * @param User $sessionUser
+     * @param string $refTxnId
+     * @param string $narration
+     * @return array
+     */
+    private static function distributeToSingleUser($targetUser, $amount, $serviceType, $targetAdminId, $sessionUser, $refTxnId = '', $narration = '')
+    {
+        try {
+            if (!$targetUser) return ['status' => 0, 'message' => 'Target user invalid'];
+
+            $isWorker = ($targetUser->id == $sessionUser->id);
+
+            // Fetch active rules for this service and admin
+            $rules = FinancialCommission::where('admin_id', $targetAdminId)
+                ->where('service_type', $serviceType)
+                ->where('status', 'ACTIVE')
+                ->get();
+
+            if ($rules->isEmpty() && $targetAdminId != 1) {
+                // Fallback to super-admin (admin_id = 1) if admin hasn't configured
+                $rules = FinancialCommission::where('admin_id', 1)
+                    ->where('service_type', $serviceType)
+                    ->where('status', 'ACTIVE')
+                    ->get();
+            }
+
+            if ($rules->isEmpty()) {
+                return ['status' => 0, 'commission' => 0, 'message' => 'No commission rules found'];
+            }
+
+            // 1. Role-specific rule match
+            $userRoleId = $targetUser->role ?? null;
+            $matchedRule = null;
+
+            if ($userRoleId) {
+                $roleRules = $rules->where('role_id', $userRoleId);
+                $matchedRule = self::pickBestMatchingRule($roleRules, $amount);
+            }
+
+            // 2. Agar worker (session user) hai aur role-specific rule nahi mila to Global rule match karega
+            if (!$matchedRule && $isWorker) {
+                $globalRules = $rules->whereNull('role_id');
+                $matchedRule = self::pickBestMatchingRule($globalRules, $amount);
+            }
+
+            // 3. Agar upline distributor hai aur direct role rule nahi mila,
+            // worker ke matched rule se distributor_commission_value check karega
+            $commAmount = 0.00;
+
+            if ($matchedRule) {
+                if ($matchedRule->commission_type === 'percentage') {
+                    $commAmount = ($amount * floatval($matchedRule->commission_value)) / 100;
+                } else {
+                    $commAmount = floatval($matchedRule->commission_value);
+                }
+            } elseif (!$isWorker) {
+                // Worker ke rule se distributor commission fallback
+                $workerRole = $sessionUser->role ?? null;
+                $workerRule = null;
+                if ($workerRole) {
+                    $workerRule = self::pickBestMatchingRule($rules->where('role_id', $workerRole), $amount);
+                }
+                if (!$workerRule) {
+                    $workerRule = self::pickBestMatchingRule($rules->whereNull('role_id'), $amount);
+                }
+
+                if ($workerRule && floatval($workerRule->distributor_commission_value) > 0) {
+                    if ($workerRule->distributor_commission_type === 'percentage') {
+                        $commAmount = ($amount * floatval($workerRule->distributor_commission_value)) / 100;
+                    } else {
+                        $commAmount = floatval($workerRule->distributor_commission_value);
+                    }
+                    $matchedRule = $workerRule;
+                }
+            }
+
+            $commAmount = round($commAmount, 2);
+            if ($commAmount <= 0) {
                 return [
                     'status' => 1,
-                    'message' => 'No commission applicable for this transaction',
-                    'agent_commission' => 0,
-                    'distributor_commission' => 0,
+                    'user_id' => $targetUser->id,
+                    'user_name' => $targetUser->name,
+                    'role_id' => $targetUser->role,
+                    'commission' => 0,
+                    'message' => 'Zero commission for user'
                 ];
             }
 
+            // Wallet credit via transaction helper
             if (!function_exists('createTransaction')) {
                 require_once app_path('Helpers/TransactionHelper.php');
+            }
+
+            // Secondary / Utility wallet account
+            $wallet = Account::where('user_id', $targetUser->id)->where('primary_status', false)->first();
+            if (!$wallet) {
+                return [
+                    'status' => 0,
+                    'user_id' => $targetUser->id,
+                    'commission' => $commAmount,
+                    'message' => "Utility wallet not found for user {$targetUser->id}"
+                ];
             }
 
             $types = self::getServiceTypes();
             $serviceMeta = $types[$serviceType] ?? null;
             $serviceLabel = $serviceMeta['label'] ?? $serviceType;
 
-            // 1. Credit Agent Utility Wallet
-            if ($agentCommission > 0) {
-                $agentWallet = Account::where('user_id', $user->id)->where('primary_status', false)->first();
+            $commTxnId = 'COMM-' . ($isWorker ? '' : 'UPLINE-') . ($refTxnId ?: date('YmdHis') . rand(100, 999));
+            $desc = $isWorker 
+                ? "Commission: {$serviceLabel}" . ($refTxnId ? " ({$refTxnId})" : "")
+                : "Upline Commission: {$serviceLabel} ({$sessionUser->name})";
 
-                if ($agentWallet) {
-                    $commTxnId = 'COMM-' . ($refTxnId ?: date('YmdHis') . rand(100, 999));
+            $passbookData = [
+                'account_id' => $wallet->id,
+                'type' => 'CR',
+                'amount' => $commAmount,
+                'description' => $desc,
+                'transaction_id' => $commTxnId,
+                'created_by' => $sessionUser->id,
+                'admin_id' => $targetAdminId,
+                'user_id' => $targetUser->id,
+                'category_code' => 'COMMISSION'
+            ];
 
-                    $passbookData = [
-                        'account_id' => $agentWallet->id,
-                        'type' => 'CR',
-                        'amount' => $agentCommission,
-                        'description' => "Commission: {$serviceLabel}" . ($refTxnId ? " ({$refTxnId})" : ""),
-                        'transaction_id' => $commTxnId,
-                        'created_by' => $user->id,
-                        'admin_id' => $targetAdminId,
-                        'user_id' => $user->id,
-                        'category_code' => 'COMMISSION'
-                    ];
+            createTransaction($passbookData);
 
-                    createTransaction($passbookData);
-
-                    // Record in FinancialTransaction ledger
-                    FinancialTransaction::create([
-                        'transaction_id' => $commTxnId,
-                        'user_id' => $user->id,
-                        'admin_id' => $targetAdminId,
-                        'service_type' => $serviceType,
-                        'txn_type' => 'COMMISSION',
-                        'amount' => $agentCommission,
-                        'charges' => 0,
-                        'net_amount' => $agentCommission,
-                        'payment_mode' => 'UTILITY_WALLET',
-                        'reference' => $refTxnId,
-                        'narration' => $narration ?: "Commission earned for {$serviceLabel} (#{$refTxnId})",
-                        'status' => 'SUCCESS',
-                    ]);
-                }
-            }
-
-            // 2. Credit Distributor Upline if applicable
-            if ($distributorCommission > 0) {
-                $distributorId = null;
-
-                if (!empty($user->root)) {
-                    $rootArray = explode(',', $user->root);
-                    // Usually first ancestor after user in root
-                    foreach ($rootArray as $ancestorId) {
-                        $ancestorId = trim($ancestorId);
-                        if (!empty($ancestorId) && $ancestorId != $user->id && $ancestorId != $targetAdminId) {
-                            $distributorId = (int)$ancestorId;
-                            break;
-                        }
-                    }
-                }
-
-                if (!$distributorId && !empty($user->parent_id) && $user->parent_id != $user->id && $user->parent_id != $targetAdminId) {
-                    $distributorId = (int)$user->parent_id;
-                }
-
-                if ($distributorId) {
-                    $distWallet = Account::where('user_id', $distributorId)->where('primary_status', false)->first();
-
-                    if ($distWallet) {
-                        $distTxnId = 'COMM-UPLINE-' . ($refTxnId ?: date('YmdHis') . rand(100, 999));
-
-                        $distPassbook = [
-                            'account_id' => $distWallet->id,
-                            'type' => 'CR',
-                            'amount' => $distributorCommission,
-                            'description' => "Upline Comm: {$serviceLabel} ({$user->name})",
-                            'transaction_id' => $distTxnId,
-                            'created_by' => $user->id,
-                            'admin_id' => $targetAdminId,
-                            'user_id' => $distributorId,
-                            'category_code' => 'COMMISSION'
-                        ];
-
-                        createTransaction($distPassbook);
-                    }
-                }
-            }
+            // FinancialTransaction record
+            FinancialTransaction::create([
+                'transaction_id' => $commTxnId,
+                'user_id' => $targetUser->id,
+                'admin_id' => $targetAdminId,
+                'service_type' => $serviceType,
+                'txn_type' => 'COMMISSION',
+                'amount' => $commAmount,
+                'charges' => 0,
+                'net_amount' => $commAmount,
+                'payment_mode' => 'UTILITY_WALLET',
+                'reference' => $refTxnId,
+                'narration' => $isWorker ? ($narration ?: "Commission for {$serviceLabel}") : "Upline commission from {$sessionUser->name}",
+                'status' => 'SUCCESS',
+            ]);
 
             return [
                 'status' => 1,
-                'message' => 'Commission calculated and processed successfully',
-                'agent_commission' => $agentCommission,
-                'distributor_commission' => $distributorCommission,
+                'user_id' => $targetUser->id,
+                'user_name' => $targetUser->name,
+                'role_id' => $targetUser->role,
+                'commission' => $commAmount,
+                'is_worker' => $isWorker,
                 'rule_id' => $matchedRule->id ?? null,
+                'transaction_id' => $commTxnId,
             ];
 
         } catch (\Exception $e) {
-            Log::error('FinancialCommission processCommission error: ' . $e->getMessage());
+            Log::error("FinancialCommission distributeToSingleUser error (User: {$targetUser->id}): " . $e->getMessage());
             return [
                 'status' => 0,
-                'message' => 'Commission processing failed: ' . $e->getMessage(),
+                'user_id' => $targetUser->id,
+                'commission' => 0,
+                'message' => $e->getMessage()
             ];
         }
     }

@@ -629,13 +629,33 @@ class FinancialMasterController extends Controller
     }
 
     /**
+     * Resolve authenticated user from request or auth guard
+     */
+    protected function getAuthUser(Request $request)
+    {
+        return $request->get('user') ?? ($request->user() ?? auth()->user());
+    }
+
+    /**
      * Get available roles for commission assignment
+     * Sirf jo user login karega usi ka role list hoga (chahe super admin ho ya admin)
      */
     public function getCommissionRoles(Request $request)
     {
         try {
-            $user = $request->user ?? auth()->user();
-            $roles = Role::where('status', 1)->get(['id', 'name']);
+            $user = $this->getAuthUser($request);
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            // Filter roles strictly by logged-in user's user_id
+            $query = Role::where('status', 1)
+                ->where('user_id', $user->id);
+
+            // Exclude user's own role so they only configure agent types
+            if (!empty($user->role)) {
+                $query->where('id', '!=', $user->role);
+            }
+
+            $roles = $query->orderBy('name', 'asc')->get(['id', 'name']);
 
             return response()->json([
                 'status' => 1,
@@ -648,25 +668,17 @@ class FinancialMasterController extends Controller
 
     /**
      * Get all financial commission rules
+     * Sabko apna apna commission master show hoga; admin ka data super ko show nahi hoga
      */
     public function getCommissions(Request $request)
     {
         try {
-            $user = $request->user ?? auth()->user();
-            $filterAdminId = $request->query('admin_id');
+            $user = $this->getAuthUser($request);
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $targetAdminId = ($user->role == 2) ? $user->id : ($user->admin_id ?? $user->id);
-            if ($user->id == 1 || $user->role == 1) {
-                if ($filterAdminId) {
-                    $targetAdminId = (int)$filterAdminId;
-                }
-            }
-
-            $query = FinancialCommission::with(['role', 'admin:id,name,email,mid']);
-
-            if (!($user->id == 1 || $user->role == 1) || $filterAdminId) {
-                $query->where('admin_id', $targetAdminId);
-            }
+            // Strictly scoped to the logged-in user's own admin_id
+            $query = FinancialCommission::with(['role', 'admin:id,name,email,mid'])
+                ->where('admin_id', $user->id);
 
             if ($request->filled('service_type') && $request->service_type !== 'ALL') {
                 $query->where('service_type', $request->service_type);
@@ -712,15 +724,15 @@ class FinancialMasterController extends Controller
 
     /**
      * Store new financial commission rule
+     * Strictly saved under logged-in user's admin_id
      */
     public function storeCommission(Request $request)
     {
         try {
-            $user = $request->user ?? auth()->user();
-            $adminId = ($user->role == 2) ? $user->id : ($user->admin_id ?? 1);
-            if (($user->id == 1 || $user->role == 1) && $request->filled('admin_id')) {
-                $adminId = (int)$request->admin_id;
-            }
+            $user = $this->getAuthUser($request);
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->id;
 
             $validator = Validator::make($request->all(), [
                 'service_type' => 'required|string',
@@ -741,6 +753,14 @@ class FinancialMasterController extends Controller
                     'status' => 0,
                     'message' => $validator->errors()->first()
                 ], 422);
+            }
+
+            // Verify role_id belongs to logged-in user
+            if ($request->filled('role_id')) {
+                $roleValid = Role::where('id', $request->role_id)->where('user_id', $user->id)->exists();
+                if (!$roleValid) {
+                    return response()->json(['status' => 0, 'message' => 'Selected role is invalid or does not belong to your account.'], 422);
+                }
             }
 
             $isSlab = (bool)$request->is_slab;
@@ -787,13 +807,17 @@ class FinancialMasterController extends Controller
     /**
      * Show single commission rule
      */
-    public function showCommission($id)
+    public function showCommission(Request $request, $id)
     {
         try {
-            $item = FinancialCommission::with('role')->findOrFail($id);
+            $user = $this->getAuthUser($request);
+            $item = FinancialCommission::with('role')
+                ->where('id', $id)
+                ->where('admin_id', $user->id)
+                ->firstOrFail();
             return response()->json(['status' => 1, 'data' => $item]);
         } catch (\Exception $e) {
-            return response()->json(['status' => 0, 'message' => $e->getMessage()], 404);
+            return response()->json(['status' => 0, 'message' => 'Commission rule not found.'], 404);
         }
     }
 
@@ -803,8 +827,10 @@ class FinancialMasterController extends Controller
     public function updateCommission(Request $request, $id)
     {
         try {
-            $user = $request->user ?? auth()->user();
-            $item = FinancialCommission::findOrFail($id);
+            $user = $this->getAuthUser($request);
+            $item = FinancialCommission::where('id', $id)
+                ->where('admin_id', $user->id)
+                ->firstOrFail();
 
             $validator = Validator::make($request->all(), [
                 'service_type' => 'sometimes|required|string',
@@ -825,6 +851,13 @@ class FinancialMasterController extends Controller
                     'status' => 0,
                     'message' => $validator->errors()->first()
                 ], 422);
+            }
+
+            if ($request->filled('role_id')) {
+                $roleValid = Role::where('id', $request->role_id)->where('user_id', $user->id)->exists();
+                if (!$roleValid) {
+                    return response()->json(['status' => 0, 'message' => 'Selected role is invalid or does not belong to your account.'], 422);
+                }
             }
 
             $updateData = $request->only([
@@ -864,10 +897,13 @@ class FinancialMasterController extends Controller
     /**
      * Delete commission rule
      */
-    public function deleteCommission($id)
+    public function deleteCommission(Request $request, $id)
     {
         try {
-            $item = FinancialCommission::findOrFail($id);
+            $user = $this->getAuthUser($request);
+            $item = FinancialCommission::where('id', $id)
+                ->where('admin_id', $user->id)
+                ->firstOrFail();
             $item->delete();
 
             return response()->json([
@@ -875,17 +911,20 @@ class FinancialMasterController extends Controller
                 'message' => 'Commission rule deleted successfully!'
             ]);
         } catch (\Exception $e) {
-            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 0, 'message' => 'Error deleting commission rule: ' . $e->getMessage()], 500);
         }
     }
 
     /**
      * Quick toggle status (ACTIVE / INACTIVE)
      */
-    public function toggleCommissionStatus($id)
+    public function toggleCommissionStatus(Request $request, $id)
     {
         try {
-            $item = FinancialCommission::findOrFail($id);
+            $user = $this->getAuthUser($request);
+            $item = FinancialCommission::where('id', $id)
+                ->where('admin_id', $user->id)
+                ->firstOrFail();
             $item->status = ($item->status === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
             $item->save();
 
