@@ -202,14 +202,20 @@ class UserRolePermissionController extends Controller
         ]);
     }
 
-    public function assignToAllUsers(Request $request)
+     public function assignToAllUsers(Request $request)
     {
-        // 1. Loop of roles
-        $roles = Role::where('status', 1)->where('user_id', $request->get('user')->id)->get();
+        $currentUserId = $request->get('user') ? $request->get('user')->id : 1;
+
+        // 1. Loop of roles - Exclude Super Admin role (ID 1)
+        $roles = Role::where('status', 1)
+            ->where('id', '!=', 1)
+            ->whereRaw('LOWER(name) NOT LIKE ?', ['%super admin%'])
+            ->where('user_id', $currentUserId)
+            ->get();
         $count = 0;
 
         foreach ($roles as $role) {
-            // 2. Loop of role_module_commission role wise fetched
+            // 2. Loop of role_module_permission role wise fetched
             $roleCommissions = \App\Models\RoleModulePermission::where('role_id', $role->id)
                 ->where('status', 1) 
                 ->get();
@@ -218,11 +224,18 @@ class UserRolePermissionController extends Controller
                 continue;
             }
 
-            // 3. Loop of user where get users.role=role.id
-            $users = User::where('role', $role->id)->get();
+            // 3. Loop of users - Exclude Super Admin (ID 1 or Role 1)
+            $users = User::where('role', $role->id)
+                ->where('id', '!=', 1)
+                ->where('role', '!=', 1)
+                ->get();
 
             foreach ($users as $user) {
-           
+                // Safety check: Never delete permissions for Super Admin
+                if ($user->id == 1 || $user->role == 1) {
+                    continue;
+                }
+
                 UserRolePermission::where('user_id', $user->id)->delete();
                 foreach ($roleCommissions as $comm) {
                     UserRolePermission::create(
