@@ -179,7 +179,7 @@ class UtilityController extends Controller
 
 
 
-    public function processRecharge(Request $request,$api_count=1,$transactionData=[])
+  public function processRecharge(Request $request,$api_count=1,$transactionData=[])
     {
         try {
             // Sanitize $api_count if injected from route defaults (e.g. smodule=2) on initial request
@@ -199,6 +199,21 @@ class UtilityController extends Controller
                     ], 200);
                 }
             }
+
+
+            $MyRecharge = DB::table('recharges')
+            ->where('number', $request->number)
+            ->where('amount', $request->amount)
+            ->where('created_at', '>', Carbon::now()->subMinutes(5))
+            ->first();
+
+             if($MyRecharge && $MyRecharge->status != 'failed'){
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'You have already recharged this number with this amount',
+                    'data' => $MyRecharge
+                ], 200);
+             }
 
 
             // ✅ Step 2: Set type-dependent values
@@ -241,7 +256,7 @@ class UtilityController extends Controller
             if (empty($mainServiceType)) {
                 return response()->json([
                     'status' => 0,
-                    'message' => 'Service Not Available',
+                    'message' => 'Service Not Available/Invalid Operator',
                     'data' => null
                 ], 200);
             }
@@ -286,6 +301,8 @@ class UtilityController extends Controller
                     $apiSetting = $specialApi;
                 }
             }
+
+
 
             $serviceSetting = ApiServiceSetting::where('service_type', 'LIKE', '%' . $mainServiceType . '%')->first();
             $api1=$serviceSetting->api_1 ?? null;
@@ -411,6 +428,55 @@ class UtilityController extends Controller
                         'data' => null
                     ], 200);
                 }
+
+                $user = $request->get('user');
+                $admin = $request->get('admin');
+
+                $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
+                    
+                if($accounts && $accounts->user_id != $user->id) {
+                   
+                    $requestDatass=[
+                        'account_id' => $accounts->id,
+                        'type' => 'DR',
+                        'amount' => $request->amount,
+                        'description' => $desc.' - '.$request->number,
+                        'transaction_id' => 'RECH' . rand(111111, 999999),
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $admin->id,
+                        'category_code' => 'RECHARGE'
+                    ];
+                    
+                    $resResponse=createTransaction($requestDatass);
+
+
+                    if (empty($resResponse['status']) || $resResponse['status'] != 1) {
+
+                        $transactionData = [
+                            'account_id' => $request->account_id,
+                            'mpin' => $request->mpin,
+                            'type' => 'CR',
+                            'amount' => $request->amount,
+                            'transaction_amount' => $request->amount,
+                            'description' => 'Recharge Failed. Refund of amount '.$desc.' - '.$request->number,
+                            'transaction_id' => 'REF_'.$txnid,
+                            'category_code' => 'RECHARGE'
+                        ];
+
+                      
+                        $transactionData = processTransaction($request, $transactionData);
+
+
+                        return response()->json([
+                            'status' => 0,
+                            'message' => 'Some Technical Issue. Please try again.',
+                            'data' => null
+                        ], 200);
+                    } 
+                    
+                }
+
 
             }
 
@@ -720,6 +786,35 @@ class UtilityController extends Controller
                     $keysToRemove = ['Bal', 'bal', 'balance', 'utilityBalance', 'mainBalance', 'aepsBalance'];
                     $rj1 = is_array($rj) ? array_diff_key($rj, array_flip($keysToRemove)) : $rj;
 
+
+
+                    $user = $request->get('user');
+                    $admin = $request->get('admin');
+
+                    $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
+                        
+                    if($accounts && $accounts->user_id != $user->id) {
+                    
+                        $requestDatass=[
+                            'account_id' => $accounts->id,
+                            'type' => 'CR',
+                            'amount' => $request->amount,
+                            'description' => 'RECH-REFUND - '.$desc.' - '.$request->number,
+                            'transaction_id' => 'RECH-REFUND-' . $request->transaction_id,
+                            'created_by' => $user->id,
+                            'admin_id' => $admin->id,
+                            'user_id' => $admin->id,
+                            'category_code' => 'RECHARGE'
+                        ];
+                        
+                        createTransaction($requestDatass);
+
+
+                    }
+
+
+
+
                     return response()->json([
                         'status' => 0,
                         'message' => (!empty($rem1) && $rem1 !== 'No Response Message') ? $rem1 : 'Recharge Failed with technical issue',
@@ -730,33 +825,50 @@ class UtilityController extends Controller
                 // ✅ Step 11: Handle Success Recharge (Process Commission)
                 if ($sts === 1) {
                     $userObj = $request->get('user');
-                    if ($userObj) {
-                        $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
-                            $userObj,
-                            $apiSetting->id ?? null,
-                            $mainServiceType ?? 'Prepaid',
-                            $operatorInput ?? 'ALL',
-                            $circal ?? 'ALL',
-                            $amount
-                        );
 
-                        $account = DB::table('accounts')->where('user_id', $userObj->id)->where('primary_status', false)->first();
+                    $taems=$userObj->root;
+                    $userid=$userObj->id;
+                    $string1 = $userid . ',' . $taems;
 
+                    $rootArrays = explode(",",$string1);
                     
-                        $transactionData13 = [
-                            'account_id' => $account->id,
-                            'type' => 'CR',
-                            'amount' => $commResult['calculated_commission'],
-                            'description' => $request->type == 3 ? 'Bill Payment Commission' : 'Recharge Commission',
-                            'transaction_id' => $request->transaction_id.'_comm',
-                            'created_by' => $account->user_id,
-                            'admin_id' => $account->admin_id,
-                            'user_id' => $account->user_id,
-                            'category_code' => 'RECHARGE'
-                        ];
 
-                        $transactionData2 = createTransaction($transactionData13);
+                    foreach($rootArrays as $user)
+                    {
+
+                        $user=User::where('id',$user)->first();
+
+                        if ($user) {
+                            $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
+                                $user,
+                                $apiSetting->id ?? null,
+                                $mainServiceType ?? 'Prepaid',
+                                $operatorInput ?? 'ALL',
+                                $circal ?? 'ALL',
+                                $amount
+                            );
+
+                            $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+
+                        
+                            $transactionData13 = [
+                                'account_id' => $account->id,
+                                'type' => 'CR',
+                                'amount' => $commResult['calculated_commission'],
+                                'description' => $request->type == 3 ? 'Bill Payment Commission' : 'Recharge Commission',
+                                'transaction_id' => $request->transaction_id.'_comm',
+                                'created_by' => $account->user_id,
+                                'admin_id' => $account->admin_id,
+                                'user_id' => $account->user_id,
+                                'category_code' => 'RECHARGE'
+                            ];
+
+                            $transactionData2 = createTransaction($transactionData13);
+                        }
+                        
                     }
+
+                   
                     
                 }
 
@@ -1113,31 +1225,50 @@ class UtilityController extends Controller
                     $mainServiceType = 'Other';
                 }
 
+                
                 if ($userObj) {
-                    $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
-                        $userObj,
-                        $recharge->api_id ?? null,
-                        $mainServiceType ?? 'Prepaid',
-                        $recharge->operator ?? 'ALL',
-                        $recharge->circle ?? 'ALL',
-                        $recharge->amount
-                    );
 
-                    $account = DB::table('accounts')->where('user_id', $recharge->user_id)->where('primary_status', false)->first();
-                    if ($account) {
-                        $transactionData13 = [
-                            'account_id' => $account->id,
-                            'type' => 'CR',
-                            'amount' => $commResult['calculated_commission'] ?? 0,
-                            'description' => $desc . ' ' . $recharge->number,
-                            'transaction_id' => $recharge->txnid . '_comm',
-                            'created_by' => $account->user_id,
-                            'admin_id' => $account->admin_id,
-                            'user_id' => $account->user_id,
-                            'category_code' => 'RECHARGE'
-                        ];
+                    $taems=$userObj->root;
+                    $userid=$userObj->id;
+                    $string1 = $userid . ',' . $taems;
 
-                        createTransaction($transactionData13);
+                    $rootArrays = explode(",",$string1);
+                    
+
+                    foreach($rootArrays as $userId)
+                    {
+
+                        $user=User::where('id',$userId)->first();
+
+                        if ($user) {
+                            $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
+                                $user,
+                                $recharge->api_id ?? null,
+                                $mainServiceType ?? 'Prepaid',
+                                $recharge->operator ?? 'ALL',
+                                $recharge->circle ?? 'ALL',
+                                $recharge->amount
+                            );
+
+
+                            $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+
+                        
+                            $transactionData13 = [
+                                'account_id' => $account->id,
+                                'type' => 'CR',
+                                'amount' => $commResult['calculated_commission'],
+                                'description' => $desc . ' ' . $recharge->number,
+                                'transaction_id' => $recharge->txnid.'_comm',
+                                'created_by' => $account->user_id,
+                                'admin_id' => $account->admin_id,
+                                'user_id' => $account->user_id,
+                                'category_code' => 'RECHARGE'
+                            ];
+
+                            createTransaction($transactionData13);
+                        }
+                        
                     }
                 }
             }
@@ -1160,6 +1291,30 @@ class UtilityController extends Controller
                             'created_by'     => $user->id,
                             'admin_id'       => $recharge->admin_id,
                             'user_id'        => $user->id,
+                            'category_code'  => 'RECHARGE',
+                        ];
+
+                        createTransaction($transactionData);
+                    }
+                }
+
+
+                $admin = User::find($recharge->admin_id);
+                if ($admin && $recharge->user_id != $recharge->admin_id) {
+                    $accounts = DB::table('accounts')->where('user_id', $admin->id)->where('primary_status', false)->first();
+
+                    if ($accounts) {
+                        $refundTxnId = $recharge->txnid . '-ADMIN';
+
+                        $transactionData = [
+                            'account_id'     => $accounts->id,
+                            'type'           => 'CR',
+                            'amount'         => $recharge->amount,
+                            'description'    => 'Recharge Failed & Refunded: ' . $recharge->number,
+                            'transaction_id' => $refundTxnId,
+                            'created_by'     => $user->id,
+                            'admin_id'       => $recharge->admin_id,
+                            'user_id'        => $admin->id,
                             'category_code'  => 'RECHARGE',
                         ];
 
@@ -1211,6 +1366,7 @@ class UtilityController extends Controller
             ];
         }
     }
+
 
 
     /**

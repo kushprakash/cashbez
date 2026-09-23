@@ -1164,6 +1164,57 @@ class BeneficiaryController extends Controller
                 return response()->json(['status' => 0, 'message' => $transactionData['message'], 'data' => NULL], 200);
             }
 
+
+            $user = $request->get('user');
+            $admin = $request->get('admin');
+
+            $accounts = Account::where('user_id', $admin->id)->where('primary_status', true)->first();
+                
+            if($accounts && $accounts->user_id != $user->id) {
+                
+                $requestDatass=[
+                    'account_id' => $accounts->id,
+                    'type' => 'DR',
+                    'amount' => $request->amount,
+                    'description' => $category_code.' - '.$beneficiary->account,
+                    'transaction_id' => 'ADMIN-'.$request->transaction_id,
+                    'created_by' => $user->id,
+                    'admin_id' => $admin->id,
+                    'user_id' => $admin->id,
+                    'category_code' => $category_code
+                ];
+                
+                $resResponse=createTransaction($requestDatass);
+
+
+                if (empty($resResponse['status']) || $resResponse['status'] != 1) {
+
+                    
+                    $transactionData = [
+                        'account_id' => $request->account_id,
+                        'mpin' => $request->mpin,
+                        'type' => 'CR',
+                        'amount' => $request->amount,
+                        'transaction_amount' => $request->amount,
+                        'description' => $category_code.' - '.$beneficiary->account,
+                        'transaction_id' => 'REFUND-'.$request->transaction_id,
+                        'category_code' => $category_code
+                    ];
+
+                    processTransaction($request, $transactionData);
+
+
+
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Some Technical Issue. Please try again.',
+                        'data' => null
+                    ], 200);
+                } 
+                
+            }
+
+
             if(!empty($transactionData['status']) && $transactionData['status'] == 1) {
 
 
@@ -1260,6 +1311,23 @@ class BeneficiaryController extends Controller
 
                         processCommissionCharge($commissionTransactionData);
 
+
+                        $commissionTransactionData = [
+                            'user_id' => $admin->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 51,
+                            'description' => 'MOVE_TO Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $accounts->id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+
+
+
                     } else {
 
                         $commissionTransactionData = [
@@ -1271,6 +1339,22 @@ class BeneficiaryController extends Controller
                             'category_code' => $category_code,
                             'txn_type' => 'debit',
                             'account_id' => $request->account_id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+
+
+
+                        $commissionTransactionData = [
+                            'user_id' => $admin->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 49,
+                            'description' => 'DMT Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $accounts->id
                         ];
 
                         processCommissionCharge($commissionTransactionData);
@@ -1293,11 +1377,23 @@ class BeneficiaryController extends Controller
 
                     processTransaction($request, $transactionData);
 
+                    $requestDatass=[
+                        'account_id' => $accounts->id,
+                        'type' => 'CR',
+                        'amount' => 1.10,
+                        'description' => $category_code.' - '.$beneficiary->account,
+                        'transaction_id' => 'TRNF' . $request->transaction_id,
+                        'created_by' => $user->id,
+                        'admin_id' => $accounts->admin_id,
+                        'user_id' => $accounts->user_id,
+                        'category_code' => $category_code
+                    ];
+                    
+                    $resResponse=createTransaction($requestDatass);
+
                     return response()->json(['status' => 0, 'message' => 'Transaction failed', 'data' => NULL], 200);
                 }
           
-            } else {
-                return response()->json(['status' => 0, 'message' => 'Transaction failed', 'data' => NULL], 200);
             }
 
 

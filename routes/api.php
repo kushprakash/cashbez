@@ -1197,6 +1197,16 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('charges-penalties', [FinancialMasterController::class, 'storeChargePenalty']);
         Route::put('charges-penalties/{id}', [FinancialMasterController::class, 'updateChargePenalty']);
         Route::delete('charges-penalties/{id}', [FinancialMasterController::class, 'deleteChargePenalty']);
+
+        // Financial Commission Master
+        Route::get('commissions/service-types', [FinancialMasterController::class, 'getCommissionServiceTypes']);
+        Route::get('commissions/roles', [FinancialMasterController::class, 'getCommissionRoles']);
+        Route::get('commissions', [FinancialMasterController::class, 'getCommissions']);
+        Route::post('commissions', [FinancialMasterController::class, 'storeCommission']);
+        Route::get('commissions/{id}', [FinancialMasterController::class, 'showCommission']);
+        Route::put('commissions/{id}', [FinancialMasterController::class, 'updateCommission']);
+        Route::delete('commissions/{id}', [FinancialMasterController::class, 'deleteCommission']);
+        Route::post('commissions/toggle-status/{id}', [FinancialMasterController::class, 'toggleCommissionStatus']);
     });
 
     // ==========================================

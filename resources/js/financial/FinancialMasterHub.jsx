@@ -4,10 +4,11 @@ import FinancialSettingsView from './masters/FinancialSettingsView';
 import MembershipPlanMaster from './masters/MembershipPlanMaster';
 import PlanMasterView from './masters/PlanMasterView';
 import ChargePenaltyMaster from './masters/ChargePenaltyMaster';
+import CommissionMasterView from './masters/CommissionMasterView';
 
-const FinancialMasterHub = () => {
+const FinancialMasterHub = ({ initialTab = 'SETTINGS' }) => {
     const api = ApiService();
-    const [activeTab, setActiveTab] = useState('SETTINGS'); // SETTINGS, MEMBERSHIP, SAVING, DD, RD, FD, MIS, CHARGES
+    const [activeTab, setActiveTab] = useState(initialTab); // SETTINGS, MEMBERSHIP, SAVING, DD, RD, FD, MIS, CHARGES, COMMISSION
     const [summary, setSummary] = useState(null);
     const [loadingSummary, setLoadingSummary] = useState(true);
 
@@ -58,6 +59,7 @@ const FinancialMasterHub = () => {
         { key: 'FD', label: 'Fixed Deposit (FD)', icon: 'bx-vault', color: 'danger', desc: 'FD interest payout, lock-in & premature penalty' },
         { key: 'MIS', label: 'MIS Plan Master', icon: 'bx-line-chart', color: 'teal', desc: 'Monthly income scheme investment & payouts' },
         { key: 'CHARGES', label: 'Charges & Penalties', icon: 'bx-error', color: 'dark', desc: 'Fee schedules, service charges & late penalties' },
+        { key: 'COMMISSION', label: 'Commission Master', icon: 'bx-gift', color: 'success', desc: 'Agent & Role commission rules (Slab/Flat, %, Fixed)' },
     ];
 
     return (
@@ -232,6 +234,10 @@ const FinancialMasterHub = () => {
 
                 {activeTab === 'CHARGES' && (
                     <ChargePenaltyMaster selectedAdminId={selectedAdminId} />
+                )}
+
+                {activeTab === 'COMMISSION' && (
+                    <CommissionMasterView selectedAdminId={selectedAdminId} />
                 )}
             </div>
         </div>

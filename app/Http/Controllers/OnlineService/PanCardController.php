@@ -268,6 +268,71 @@ class PanCardController extends Controller
                     'data' => $agent
                 ]);
             }
+
+
+            $is_api_partner = false;
+            $adminData = User::where('id',$agent->admin_id)->first();
+            if($adminData && $adminData->is_api_partner==true) {
+                $is_api_partner = true;
+            } 
+
+            if($is_api_partner == true){
+                $setting = Setting::where('user_id', $agent->admin_id)->first();
+                if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
+                    // Send callback to partner URL
+                    try {
+                       
+                        $postData = [
+                            "type" => "updateAgentStatus",
+                            "data" => [
+                                'pan_no'=> $agent->pan_no,
+                                'status' =>$newStatus,
+                                'remarks' => $request->admin_remark
+                            ]
+                        ];
+
+                        // Initialize cURL
+                        $ch = curl_init($setting->call_back_url);
+
+                        // Encode POST data as JSON
+                        $payload = json_encode($postData);
+
+                        // Set cURL options
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Content-Type: application/json',
+                            'Content-Length: ' . strlen($payload)
+                        ]);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+                        // Execute and get response
+                        $response = curl_exec($ch);
+
+
+                        // ✅ Step 7: Log API Request BEFORE Call
+                        DB::table('logs')->insert([
+                            'mid'          => $adminData->mid ?? null,
+                            'type'         => 'updateAgentStatus',
+                            'platform'     => 'API',
+                            'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
+                            'request_data' => json_encode($postData),
+                            'response_data' => $response,
+                            'url'          => $setting->call_back_url,
+                            'txnid'        => $agent->agent_id,
+                            'status'       => 0,
+                            'timestamp'    => now(),
+                            'created_at'   => now()->format('Y-m-d H:i:s'),
+                        ]);
+                        
+                    } catch (\Exception $e) {
+                        \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                    }   
+
+                }
+            }
+
+
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
         }
@@ -595,6 +660,77 @@ class PanCardController extends Controller
 
             $newStatus = (int)$request->status;
 
+
+            $agent = UtiPsaAgent::where('user_id',$fundReq->user_id)->first();
+
+            if($agent){
+
+                $is_api_partner = false;
+                $adminData = User::where('id',$fundReq->admin_id)->first();
+                if($adminData && $adminData->is_api_partner==true) {
+                    $is_api_partner = true;
+                } 
+
+                if($is_api_partner == true){
+                    $setting = Setting::where('user_id', $fundReq->admin_id)->first();
+                    if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
+                        // Send callback to partner URL
+                        try {
+                        
+                            $postData = [
+                                "type" => "PanFundStatus",
+                                "data" => [
+                                    'pan_no'=> $agent->pan_no,
+                                    'status' =>$newStatus,
+                                    'remarks' => $request->admin_remark
+                                ]
+                            ];
+
+                            // Initialize cURL
+                            $ch = curl_init($setting->call_back_url);
+
+                            // Encode POST data as JSON
+                            $payload = json_encode($postData);
+
+                            // Set cURL options
+                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($ch, CURLOPT_POST, true);
+                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                'Content-Type: application/json',
+                                'Content-Length: ' . strlen($payload)
+                            ]);
+                            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+                            // Execute and get response
+                            $response = curl_exec($ch);
+
+
+
+                            // ✅ Step 7: Log API Request BEFORE Call
+                            DB::table('logs')->insert([
+                                'mid'          => $adminData->mid ?? null,
+                                'type'         => 'PanFundStatus',
+                                'platform'     => 'API',
+                                'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
+                                'request_data' => json_encode($postData),
+                                'response_data' => $response,
+                                'url'          => $setting->call_back_url,
+                                'txnid'        => $fundReq->txn_id,
+                                'status'       => 0,
+                                'timestamp'    => now(),
+                                'created_at'   => now()->format('Y-m-d H:i:s'),
+                            ]);
+                            
+                        } catch (\Exception $e) {
+                            \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                        }   
+
+                    }
+                }
+            }
+
+           
+
             if ($newStatus == 1) { // Approved (Success)
                 $fundReq->update([
                     'status' => 1,
@@ -645,6 +781,12 @@ class PanCardController extends Controller
                     'data' => $fundReq
                 ]);
             }
+
+
+
+
+           
+
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
         }
@@ -735,6 +877,86 @@ class PanCardController extends Controller
                     ];
 
                     processCommissionCharge($commissionTransactionData);
+
+
+
+                    $accounts = DB::table('accounts')->where('user_id', $agent->admin_id)->where('primary_status', false)->first();
+
+                    if($accounts && $agent->user_id != $agent->admin_id){
+
+                        $commissionTransactionData = [
+                            'user_id' => $accounts->user_id,
+                            'account_id' => $accounts->id,
+                            'amount' => 0,
+                            'sub_module_id' => 84,
+                            'category_code' => 'PAN',
+                            'description' => 'PAN Card Commission - '.$applicationNo,
+                            'admin_id' => $accounts->admin_id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+                    }
+
+
+
+                    $is_api_partner = false;
+                    $adminData = User::where('id',$accounts->admin_id)->first();
+                    if($adminData && $adminData->is_api_partner==true) {
+                        $is_api_partner = true;
+                    } 
+
+                    if($is_api_partner == true){
+                        $setting = Setting::where('user_id', $accounts->admin_id)->first();
+                        if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
+                            // Send callback to partner URL
+                            try {
+                            
+                                $postData = [
+                                    "type" => "PanAplication",
+                                    "data" => $pancard
+                                ];
+
+                                // Initialize cURL
+                                $ch = curl_init($setting->call_back_url);
+
+                                // Encode POST data as JSON
+                                $payload = json_encode($postData);
+
+                                // Set cURL options
+                                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                curl_setopt($ch, CURLOPT_POST, true);
+                                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                    'Content-Type: application/json',
+                                    'Content-Length: ' . strlen($payload)
+                                ]);
+                                curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+                                // Execute and get response
+                                $response = curl_exec($ch);
+
+
+                                // ✅ Step 7: Log API Request BEFORE Call
+                                DB::table('logs')->insert([
+                                    'mid'          => $adminData->mid ?? null,
+                                    'type'         => 'PanAplication',
+                                    'platform'     => 'API',
+                                    'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
+                                    'request_data' => json_encode($postData),
+                                    'response_data' => $response,
+                                    'url'          => $setting->call_back_url,
+                                    'txnid'        => $pancard->application_no,
+                                    'status'       => 0,
+                                    'timestamp'    => now(),
+                                    'created_at'   => now()->format('Y-m-d H:i:s'),
+                                ]);
+                                
+                            } catch (\Exception $e) {
+                                \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                            }   
+
+                        }
+                    }
 
                 }
 

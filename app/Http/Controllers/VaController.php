@@ -622,6 +622,46 @@ class VaController extends Controller
                                                 'narration'      => "UPI QR Deposit from {$remitter} (UTR: {$utr})",
                                                 'status'         => 'SUCCESS',
                                             ]);
+
+
+
+
+
+                                            $adminAccount = Account::where('user_id', $finAccount->admin_id)->where('primary_status', false)->first();
+                                            if ($adminAccount && $finAccount->admin_id) {
+
+                                                $settings = DB::table('settings')->where('user_id', $finAccount->admin_id)->first();
+                                                $charge = $settings->va_receive_charge ?? 4;
+
+                                                // Create passbook entry
+                                                $passbookData = [
+                                                    'account_id' => $adminAccount->id,
+                                                    'type' => 'CR',
+                                                    'amount' => $amt,
+                                                    'description' => 'UPI QR Deposit from '.$remitter,
+                                                    'transaction_id' => $txnId.'-1',
+                                                    'created_by' => 1,
+                                                    'admin_id' => $adminAccount->admin_id,
+                                                    'user_id' => $adminAccount->user_id,
+                                                    'category_code' => 'UPI_QR'
+                                                ];
+
+                                                $transactionData12 = createTransaction($passbookData);
+
+                                                $passbookData2 = [
+                                                    'account_id' => $adminAccount->id,
+                                                    'type' => 'DR',
+                                                    'amount' => $charge,
+                                                    'description' => 'VPA Credit Charge',
+                                                    'transaction_id' => $txnId.'-2',
+                                                    'created_by' => 1,
+                                                    'admin_id' => $adminAccount->admin_id,
+                                                    'user_id' => $adminAccount->user_id,
+                                                    'category_code' => 'CHARGE'
+                                                ];
+
+                                                $transactionData2 = createTransaction($passbookData2);
+                                            }
                                         });
                                     }
                                 } else {
@@ -678,6 +718,40 @@ class VaController extends Controller
 
                                                 if($charge>0){
                                                     $transactionData2 = createTransaction($transactionData13);
+                                                }
+
+
+                                                $adminAccount = Account::where('user_id', $account->admin_id)->where('primary_status', false)->first();
+                                                if ($adminAccount && $account->admin_id != $credit_user_id) {
+
+                                                    // Create passbook entry
+                                                    $passbookData = [
+                                                        'account_id' => $adminAccount->id,
+                                                        'type' => 'CR',
+                                                        'amount' => $amt,
+                                                        'description' => $type.' - Transaction '.$aadhaarNumber,
+                                                        'transaction_id' => $merchantTranId.'-1',
+                                                        'created_by' => $credit_user_id,
+                                                        'admin_id' => $adminAccount->admin_id,
+                                                        'user_id' => $adminAccount->user_id,
+                                                        'category_code' => $categoryCode
+                                                    ];
+
+                                                    $transactionData12 = createTransaction($passbookData);
+
+                                                    $passbookData2 = [
+                                                        'account_id' => $adminAccount->id,
+                                                        'type' => 'DR',
+                                                        'amount' => $charge,
+                                                        'description' => 'VPA Credit Charge',
+                                                        'transaction_id' => $txnId.'-2',
+                                                        'created_by' => $credit_user_id,
+                                                        'admin_id' => $adminAccount->admin_id,
+                                                        'user_id' => $adminAccount->user_id,
+                                                        'category_code' => 'CHARGE'
+                                                    ];
+
+                                                    $transactionData2 = createTransaction($passbookData2);
                                                 }
 
                                                 if ($is_api_partner == true) {

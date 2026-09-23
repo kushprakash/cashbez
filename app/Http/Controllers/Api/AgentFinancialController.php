@@ -14,6 +14,7 @@ use App\Models\Va;
 use App\Models\FinancialPlan;
 use App\Models\FinancialSetting;
 use App\Services\FinancialScopeService;
+use App\Services\FinancialCommissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -494,6 +495,16 @@ class AgentFinancialController extends Controller
                     'status' => 'SUCCESS',
                 ]);
             }
+
+            // Calculate & Disburse Commission for New Member Registration
+            FinancialCommissionService::processCommission(
+                'NEW_MEMBER',
+                $membershipFee > 0 ? $membershipFee : 1.0,
+                $user,
+                $adminId,
+                $txnId,
+                "New Member Registration ({$member->name} - {$member->member_id})"
+            );
 
             return response()->json([
                 'status' => 1,
@@ -1288,6 +1299,16 @@ class AgentFinancialController extends Controller
                 ]);
             }
 
+            // Calculate & Disburse Commission for Saving Account Opening
+            FinancialCommissionService::processCommission(
+                'SAVING_OPENING',
+                $openingAmount > 0 ? $openingAmount : 1.0,
+                $user,
+                $adminId,
+                $txnId,
+                "Saving Account Opening ({$account->account_number})"
+            );
+
             return response()->json([
                 'status' => 1,
                 'message' => "Saving Account {$accountNumber} opened successfully!",
@@ -1728,6 +1749,17 @@ class AgentFinancialController extends Controller
                 'status' => 'SUCCESS',
             ]);
 
+            // Calculate & Disburse Commission for RD / DD / FD / MIS Account Opening
+            $commServiceKey = strtoupper($serviceType) . '_OPENING';
+            FinancialCommissionService::processCommission(
+                $commServiceKey,
+                $amount > 0 ? $amount : 1.0,
+                $user,
+                $adminId,
+                $txnId,
+                "{$serviceType} Account Opening ({$account->account_number})"
+            );
+
             return response()->json([
                 'status' => 1,
                 'message' => "{$serviceType} Account {$accountNumber} opened successfully!",
@@ -1809,6 +1841,17 @@ class AgentFinancialController extends Controller
                     'status' => 'SUCCESS',
                 ]);
             });
+
+            // Calculate & Disburse Commission for RD / DD Deposit Collection
+            $commServiceKey = strtoupper($account->service_type) . '_DEPOSIT';
+            FinancialCommissionService::processCommission(
+                $commServiceKey,
+                $amount,
+                $user,
+                $adminId,
+                $txnId,
+                "{$account->service_type} Installment Collection ({$account->account_number})"
+            );
 
             return response()->json([
                 'status' => 1,

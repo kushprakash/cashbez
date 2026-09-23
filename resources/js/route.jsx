@@ -731,6 +731,8 @@ const AppRoutes = () => (
             {/* Financial Master Center */}
             <Route path="financial/master" element={<FinancialMasterHub />} />
             <Route path="financial-master" element={<FinancialMasterHub />} />
+            <Route path="financial/commissions" element={<FinancialMasterHub initialTab="COMMISSION" />} />
+            <Route path="financial-commission" element={<FinancialMasterHub initialTab="COMMISSION" />} />
 
             {/* Agent Financial Portal Routes */}
             <Route path="agent/financial-dashboard" element={<AgentFinancialDashboard />} />

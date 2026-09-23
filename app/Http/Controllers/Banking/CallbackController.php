@@ -186,6 +186,40 @@ class CallbackController extends Controller
                     processCommissionCharge($commissionTransactionData);
 
 
+
+                    $accounts = Account::where('user_id', $existingUser->admin_id)->where('primary_status', true)->first();
+
+                    if($accounts && $accounts->user_id != $credit_user_id){
+
+                        $transactionData1 = [
+                            'account_id' => $accounts->id,
+                            'type' => 'CR',
+                            'amount' => $amount,
+                            'description' => $typeOfTransaction . ' - Transaction ' . $cardNumber,
+                            'transaction_id' => $request->fpTransactionId.'admin',
+                            'created_by' => $credit_user_id,
+                            'admin_id' => $accounts->admin_id,
+                            'user_id' => $accounts->user_id,
+                            'category_code' => $categoryCode
+                        ];
+
+                        // Step 2: Create the transaction
+                        $transaction = createTransaction($transactionData1);
+
+                        $commissionTransactionData = [
+                            'user_id' => $accounts->user_id,
+                            'amount' => $amount,
+                            'sub_module_id' => 75,
+                            'category_code' => $categoryCode,
+                            'description' => $typeOfTransaction . ' - Commission ' . $cardNumber,
+                            'admin_id' => $accounts->admin_id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+                    }
+
+
                 }
 
 

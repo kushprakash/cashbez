@@ -8,7 +8,11 @@ use App\Services\FinancialMasterService;
 use App\Models\MembershipPlan;
 use App\Models\FinancialPlan;
 use App\Models\FinancialChargePenalty;
+use App\Models\Financial\FinancialCommission;
+use App\Services\FinancialCommissionService;
+use App\Models\Role;
 use App\Models\User;
+use Illuminate\Support\Facades\Validator;
 
 class FinancialMasterController extends Controller
 {
@@ -608,4 +612,291 @@ class FinancialMasterController extends Controller
             ], 500);
         }
     }
+
+    // ==========================================
+    // Financial Commission Master Endpoints
+    // ==========================================
+
+    /**
+     * Get list of supported financial service types
+     */
+    public function getCommissionServiceTypes()
+    {
+        return response()->json([
+            'status' => 1,
+            'data' => array_values(FinancialCommissionService::getServiceTypes())
+        ]);
+    }
+
+    /**
+     * Get available roles for commission assignment
+     */
+    public function getCommissionRoles(Request $request)
+    {
+        try {
+            $user = $request->user ?? auth()->user();
+            $roles = Role::where('status', 1)->get(['id', 'name']);
+
+            return response()->json([
+                'status' => 1,
+                'data' => $roles
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get all financial commission rules
+     */
+    public function getCommissions(Request $request)
+    {
+        try {
+            $user = $request->user ?? auth()->user();
+            $filterAdminId = $request->query('admin_id');
+
+            $targetAdminId = ($user->role == 2) ? $user->id : ($user->admin_id ?? $user->id);
+            if ($user->id == 1 || $user->role == 1) {
+                if ($filterAdminId) {
+                    $targetAdminId = (int)$filterAdminId;
+                }
+            }
+
+            $query = FinancialCommission::with(['role', 'admin:id,name,email,mid']);
+
+            if (!($user->id == 1 || $user->role == 1) || $filterAdminId) {
+                $query->where('admin_id', $targetAdminId);
+            }
+
+            if ($request->filled('service_type') && $request->service_type !== 'ALL') {
+                $query->where('service_type', $request->service_type);
+            }
+
+            if ($request->filled('role_id')) {
+                if ($request->role_id === 'GLOBAL') {
+                    $query->whereNull('role_id');
+                } else {
+                    $query->where('role_id', $request->role_id);
+                }
+            }
+
+            if ($request->filled('status') && $request->status !== 'ALL') {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->filled('search')) {
+                $s = $request->search;
+                $query->where(function ($q) use ($s) {
+                    $q->where('name', 'LIKE', "%{$s}%")
+                      ->orWhere('service_type', 'LIKE', "%{$s}%");
+                });
+            }
+
+            $commissions = $query->orderBy('service_type')
+                ->orderBy('is_slab')
+                ->orderBy('from_amount')
+                ->get();
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Commissions fetched successfully',
+                'data' => $commissions
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 0,
+                'message' => 'Error fetching commissions: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Store new financial commission rule
+     */
+    public function storeCommission(Request $request)
+    {
+        try {
+            $user = $request->user ?? auth()->user();
+            $adminId = ($user->role == 2) ? $user->id : ($user->admin_id ?? 1);
+            if (($user->id == 1 || $user->role == 1) && $request->filled('admin_id')) {
+                $adminId = (int)$request->admin_id;
+            }
+
+            $validator = Validator::make($request->all(), [
+                'service_type' => 'required|string',
+                'name' => 'nullable|string|max:255',
+                'role_id' => 'nullable|integer',
+                'is_slab' => 'required|boolean',
+                'from_amount' => 'required_if:is_slab,1|numeric|min:0',
+                'to_amount' => 'required_if:is_slab,1|numeric|min:0',
+                'commission_type' => 'required|in:flat,percentage',
+                'commission_value' => 'required|numeric|min:0',
+                'distributor_commission_type' => 'nullable|in:flat,percentage',
+                'distributor_commission_value' => 'nullable|numeric|min:0',
+                'status' => 'nullable|in:ACTIVE,INACTIVE',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $validator->errors()->first()
+                ], 422);
+            }
+
+            $isSlab = (bool)$request->is_slab;
+
+            // Generate a default name if omitted
+            $serviceTypes = FinancialCommissionService::getServiceTypes();
+            $serviceLabel = $serviceTypes[$request->service_type]['label'] ?? $request->service_type;
+            $name = $request->name;
+            if (empty($name)) {
+                $name = $serviceLabel . ' - ' . ($isSlab ? "Slab ({$request->from_amount} to {$request->to_amount})" : "Flat");
+            }
+
+            $item = FinancialCommission::create([
+                'admin_id' => $adminId,
+                'user_id' => $user->id,
+                'role_id' => $request->role_id ?: null,
+                'service_type' => $request->service_type,
+                'name' => $name,
+                'is_slab' => $isSlab,
+                'from_amount' => $isSlab ? floatval($request->from_amount) : 0.00,
+                'to_amount' => $isSlab ? floatval($request->to_amount) : 0.00,
+                'commission_type' => $request->commission_type,
+                'commission_value' => floatval($request->commission_value),
+                'distributor_commission_type' => $request->distributor_commission_type ?: 'flat',
+                'distributor_commission_value' => floatval($request->distributor_commission_value ?? 0),
+                'status' => $request->status ?: 'ACTIVE',
+                'created_by' => $user->id,
+                'updated_by' => $user->id,
+            ]);
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Commission rule created successfully!',
+                'data' => $item->load('role')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 0,
+                'message' => 'Error creating commission rule: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Show single commission rule
+     */
+    public function showCommission($id)
+    {
+        try {
+            $item = FinancialCommission::with('role')->findOrFail($id);
+            return response()->json(['status' => 1, 'data' => $item]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 404);
+        }
+    }
+
+    /**
+     * Update existing commission rule
+     */
+    public function updateCommission(Request $request, $id)
+    {
+        try {
+            $user = $request->user ?? auth()->user();
+            $item = FinancialCommission::findOrFail($id);
+
+            $validator = Validator::make($request->all(), [
+                'service_type' => 'sometimes|required|string',
+                'name' => 'nullable|string|max:255',
+                'role_id' => 'nullable|integer',
+                'is_slab' => 'sometimes|required|boolean',
+                'from_amount' => 'nullable|numeric|min:0',
+                'to_amount' => 'nullable|numeric|min:0',
+                'commission_type' => 'sometimes|required|in:flat,percentage',
+                'commission_value' => 'sometimes|required|numeric|min:0',
+                'distributor_commission_type' => 'nullable|in:flat,percentage',
+                'distributor_commission_value' => 'nullable|numeric|min:0',
+                'status' => 'nullable|in:ACTIVE,INACTIVE',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $validator->errors()->first()
+                ], 422);
+            }
+
+            $updateData = $request->only([
+                'service_type',
+                'name',
+                'role_id',
+                'is_slab',
+                'from_amount',
+                'to_amount',
+                'commission_type',
+                'commission_value',
+                'distributor_commission_type',
+                'distributor_commission_value',
+                'status',
+            ]);
+
+            if (array_key_exists('role_id', $updateData) && empty($updateData['role_id'])) {
+                $updateData['role_id'] = null;
+            }
+
+            $updateData['updated_by'] = $user->id;
+            $item->update($updateData);
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Commission rule updated successfully!',
+                'data' => $item->fresh()->load('role')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 0,
+                'message' => 'Error updating commission rule: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete commission rule
+     */
+    public function deleteCommission($id)
+    {
+        try {
+            $item = FinancialCommission::findOrFail($id);
+            $item->delete();
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Commission rule deleted successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Quick toggle status (ACTIVE / INACTIVE)
+     */
+    public function toggleCommissionStatus($id)
+    {
+        try {
+            $item = FinancialCommission::findOrFail($id);
+            $item->status = ($item->status === 'ACTIVE') ? 'INACTIVE' : 'ACTIVE';
+            $item->save();
+
+            return response()->json([
+                'status' => 1,
+                'message' => "Commission rule status updated to {$item->status}",
+                'data' => $item
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
 }
+
