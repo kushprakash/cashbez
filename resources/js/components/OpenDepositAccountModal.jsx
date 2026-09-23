@@ -196,6 +196,10 @@ const OpenDepositAccountModal = ({ serviceType, isOpen, onClose, onSuccess, onOp
                                 <div className="mb-3">
                                     <label className="form-label fw-semibold">Select Member <span className="text-danger">*</span></label>
                                     <MemberSelectSearch members={members} value={form.member_id} onChange={(id) => setForm(prev => ({...prev, member_id: id}))} />
+                                    <div className="form-text text-muted d-flex align-items-center gap-1 mt-1">
+                                        <i className="bx bx-check-shield text-success"></i>
+                                        <span>Direct Opening: Saving account ya KYC verification compulsory nahi hai — koi bhi member select karke {serviceType} account open kiya ja sakta hai.</span>
+                                    </div>
                                 </div>
                                 <div className="mb-3">
                                     <label className="form-label fw-semibold d-flex justify-content-between">

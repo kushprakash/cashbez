@@ -1647,6 +1647,7 @@ class AgentFinancialController extends Controller
 
     /**
      * Open DD, RD, FD, or MIS Account (Utility Wallet Debit + MPIN)
+     * NOTE: RD, DD, MIS, and FD accounts can be opened directly without a Saving Account and without Member KYC Approval.
      */
     public function openFinancialAccount(Request $request)
     {
@@ -1850,6 +1851,8 @@ class AgentFinancialController extends Controller
         try {
             $user = request()->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
 
             $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $id), $user)
                                       ->where('service_type', 'FD')
