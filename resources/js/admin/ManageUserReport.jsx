@@ -8,8 +8,8 @@ import { toast } from 'react-toastify';
 
 const ManageUserReport = () => {
     const apiService = ApiService();
-    const { userData, setProfile } = useContext(AuthContext) || {};
-    const isSuperAdmin = userData && (userData.id == 1 || userData.role == 1 || !!localStorage.getItem('impersonatorAdmin'));
+    const isSuperAdmin = userData && (userData.id == 1 || userData.role == 1);
+    const isAdmin = userData && (userData.role == 2 || !!userData.is_admin);
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('');
@@ -840,7 +840,7 @@ const ManageUserReport = () => {
 
     return (
         <>
-            <Pageheader mainheading="Manage User & Report" parentfolder="Super Admin" activepage="User & Reports" />
+            <Pageheader mainheading="Manage User & Report" parentfolder={isSuperAdmin ? "Super Admin" : "Admin"} activepage="User & Reports" />
             <div className="page-content-box">
                 <div className="page-content-box-inner">
 
@@ -916,7 +916,8 @@ const ManageUserReport = () => {
                                                                 <i className="fas fa-cogs"></i> Setting
                                                             </Link>
                                                         )}
-                                                        {isSuperAdmin && (
+                                                        {((isSuperAdmin && searchedData.user.id != userData?.id) ||
+                                                          (isAdmin && searchedData.user.id != userData?.id && searchedData.user.id != 1 && searchedData.user.role != 1 && searchedData.user.role != 2)) && (
                                                             <button
                                                                 type="button"
                                                                 className="btn btn-sm btn-warning text-dark ms-1 d-inline-flex align-items-center gap-1 py-1 px-2 font-weight-bold shadow-sm"

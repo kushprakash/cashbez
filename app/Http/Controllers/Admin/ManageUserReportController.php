@@ -22,11 +22,68 @@ use App\Services\CatchLogService;
 class ManageUserReportController extends Controller
 {
     /**
+     * Check if authenticated user can access/modify the target user
+     * Super Admin (id=1 or role=1) can access all users
+     * Admin can only access users that belong to their tenant/hierarchy
+     */
+    protected function canAccessUser($authUser, $targetUser)
+    {
+        if (!$authUser || !$targetUser) return false;
+
+        // Super Admin (id 1 or role 1) has universal access
+        if ($authUser->id == 1 || $authUser->role == 1) {
+            return true;
+        }
+
+        // Admin can access themselves
+        if ((int)$targetUser->id === (int)$authUser->id) {
+            return true;
+        }
+
+        // Check if targetUser has admin_mid equal to authUser's mid
+        if (!empty($authUser->mid) && !empty($targetUser->admin_mid) && $targetUser->admin_mid === $authUser->mid) {
+            return true;
+        }
+
+        // Check if targetUser's root contains authUser's id
+        if (!empty($targetUser->root)) {
+            $rootIds = array_map('trim', explode(',', $targetUser->root));
+            if (in_array((string)$authUser->id, $rootIds, true)) {
+                return true;
+            }
+        }
+
+        // Check if targetUser was referred by authUser
+        if (!empty($authUser->mid) && !empty($targetUser->refer_by) && $targetUser->refer_by === $authUser->mid) {
+            return true;
+        }
+
+        // Check if targetUser's role was created by this admin
+        if (!empty($targetUser->role)) {
+            $roleExists = Role::where('id', $targetUser->role)->where('user_id', $authUser->id)->exists();
+            if ($roleExists) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Search User by MID, Mobile Number, or PAN Card
+     * Admin can only search users belonging to their own hierarchy/tenant
      */
     public function search(Request $request)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
+            if (!$authUser) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Unauthenticated'
+                ], 401);
+            }
+
             $query = trim($request->get('q', ''));
 
             if (empty($query)) {
@@ -36,48 +93,72 @@ class ManageUserReportController extends Controller
                 ], 400);
             }
 
+            $isSuper = ($authUser->id == 1 || $authUser->role == 1);
+
+            // Scope query to admin's own users if not super admin
+            $applyAdminScope = function ($q) use ($isSuper, $authUser) {
+                if (!$isSuper) {
+                    $q->where(function ($sub) use ($authUser) {
+                        $sub->where('users.admin_mid', $authUser->mid)
+                            ->orWhereRaw("FIND_IN_SET(?, users.root)", [$authUser->id])
+                            ->orWhere('users.refer_by', $authUser->mid)
+                            ->orWhere('users.id', $authUser->id)
+                            ->orWhereIn('users.role', function($rq) use ($authUser) {
+                                $rq->select('id')->from('roles')->where('user_id', $authUser->id);
+                            });
+                    });
+                }
+            };
+
             // Search user by MID, Mobile, PAN Card (via UserKyc / AepsDraft), Email, or ID
-            $user = User::with(['role_info', 'account', 'kyc', 'aepsDraft'])
-                ->where(function ($sub) use ($query) {
-                    $sub->where('mid', $query)
-                        ->orWhere('mobile', $query)
-                        ->orWhere('email', $query)
-                        ->orWhere('id', $query)
-                        ->orWhere('aadhar_number', $query)
-                        ->orWhereHas('kyc', function ($kQ) use ($query) {
-                            $kQ->where('pan_number', $query)
-                                ->orWhere('aadhar_number', $query)
-                                ->orWhere('account_number', $query);
-                        })
-                        ->orWhereHas('aepsDraft', function ($aQ) use ($query) {
-                            $aQ->where('pan_no', $query)
-                                ->orWhere('phone', $query)
-                                ->orWhere('aadhaar_number', $query);
-                        });
-                })->first();
+            $exactQuery = User::with(['role_info', 'account', 'kyc', 'aepsDraft']);
+            $applyAdminScope($exactQuery);
+
+            $user = $exactQuery->where(function ($sub) use ($query) {
+                $sub->where('users.mid', $query)
+                    ->orWhere('users.mobile', $query)
+                    ->orWhere('users.email', $query)
+                    ->orWhere('users.id', $query)
+                    ->orWhere('users.aadhar_number', $query)
+                    ->orWhereHas('kyc', function ($kQ) use ($query) {
+                        $kQ->where('pan_number', $query)
+                            ->orWhere('aadhar_number', $query)
+                            ->orWhere('account_number', $query);
+                    })
+                    ->orWhereHas('aepsDraft', function ($aQ) use ($query) {
+                        $aQ->where('pan_no', $query)
+                            ->orWhere('phone', $query)
+                            ->orWhere('aadhaar_number', $query);
+                    });
+            })->first();
 
             // If not found directly, attempt partial/like search
             if (!$user) {
-                $user = User::with(['role_info', 'account', 'kyc', 'aepsDraft'])
-                    ->where('mid', 'LIKE', "%{$query}%")
-                    ->orWhere('mobile', 'LIKE', "%{$query}%")
-                    ->orWhere('email', 'LIKE', "%{$query}%")
-                    ->orWhere('name', 'LIKE', "%{$query}%")
-                    ->orWhereHas('kyc', function ($kQ) use ($query) {
-                        $kQ->where('pan_number', 'LIKE', "%{$query}%");
-                    })
-                    ->orWhereHas('aepsDraft', function ($aQ) use ($query) {
-                        $aQ->where('pan_no', 'LIKE', "%{$query}%")
-                            ->orWhere('full_name', 'LIKE', "%{$query}%")
-                            ->orWhere('shop_name', 'LIKE', "%{$query}%");
-                    })
-                    ->first();
+                $partialQuery = User::with(['role_info', 'account', 'kyc', 'aepsDraft']);
+                $applyAdminScope($partialQuery);
+
+                $user = $partialQuery->where(function ($sub) use ($query) {
+                    $sub->where('users.mid', 'LIKE', "%{$query}%")
+                        ->orWhere('users.mobile', 'LIKE', "%{$query}%")
+                        ->orWhere('users.email', 'LIKE', "%{$query}%")
+                        ->orWhere('users.name', 'LIKE', "%{$query}%")
+                        ->orWhereHas('kyc', function ($kQ) use ($query) {
+                            $kQ->where('pan_number', 'LIKE', "%{$query}%");
+                        })
+                        ->orWhereHas('aepsDraft', function ($aQ) use ($query) {
+                            $aQ->where('pan_no', 'LIKE', "%{$query}%")
+                                ->orWhere('full_name', 'LIKE', "%{$query}%")
+                                ->orWhere('shop_name', 'LIKE', "%{$query}%");
+                        });
+                })->first();
             }
 
             if (!$user) {
                 return response()->json([
                     'status' => 0,
-                    'message' => 'No user found matching "' . $query . '".'
+                    'message' => $isSuper
+                        ? 'No user found matching "' . $query . '".'
+                        : 'No user found matching "' . $query . '" under your account.'
                 ], 404);
             }
 
@@ -128,10 +209,14 @@ class ManageUserReportController extends Controller
                 ?? 'User';
 
             // Fetch roles created by this user's admin (or all available roles)
-            $adminUser = User::where('mid', $user->admin_mid)->first() ?? User::find($user->admin_id ?? 1);
-            $adminId = $adminUser ? $adminUser->id : null;
+            if ($isSuper) {
+                $adminUser = User::where('mid', $user->admin_mid)->first() ?? User::find($user->admin_id ?? 1);
+                $adminId = $adminUser ? $adminUser->id : 1;
+            } else {
+                $adminId = $authUser->id;
+            }
             
-            $rolesList = Role::where('user_id', $adminId)->select('id','name')->get();
+            $rolesList = Role::where('user_id', $adminId)->where('status', 1)->select('id','name')->get();
 
             // Parse Root Hierarchy Chain (e.g. "4,36,1155")
             $rootChain = [];
@@ -213,9 +298,14 @@ class ManageUserReportController extends Controller
     public function updateUser(Request $request, $id)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
             $user = User::find($id);
             if (!$user) {
                 return response()->json(['status' => 0, 'message' => 'User not found'], 404);
+            }
+
+            if (!$this->canAccessUser($authUser, $user)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: You can only update users belonging to your account.'], 403);
             }
 
             $validator = Validator::make($request->all(), [
@@ -364,7 +454,17 @@ class ManageUserReportController extends Controller
     public function getUsersByRole(Request $request, $roleId)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
             $query = User::where('role', $roleId);
+
+            if ($authUser && !($authUser->id == 1 || $authUser->role == 1)) {
+                $query->where(function ($sub) use ($authUser) {
+                    $sub->where('users.admin_mid', $authUser->mid)
+                        ->orWhereRaw("FIND_IN_SET(?, users.root)", [$authUser->id])
+                        ->orWhere('users.refer_by', $authUser->mid)
+                        ->orWhere('users.id', $authUser->id);
+                });
+            }
 
             if ($request->filled('parent_id')) {
                 $parentId = $request->parent_id;
@@ -404,6 +504,12 @@ class ManageUserReportController extends Controller
             $draft = AepsDraft::find($draftId);
             if (!$draft) {
                 return response()->json(['status' => 0, 'message' => 'Merchant AEPS Draft record not found'], 404);
+            }
+
+            $authUser = $request->get('user') ?? auth()->user();
+            $targetUser = User::where('mid', $draft->mid)->first() ?? User::find($draft->created_by);
+            if ($targetUser && !$this->canAccessUser($authUser, $targetUser)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: Merchant does not belong to your account.'], 403);
             }
 
             // Explicitly allow all 17 required columns + verification statuses
@@ -530,6 +636,12 @@ class ManageUserReportController extends Controller
                 return response()->json(['status' => 0, 'message' => 'Account not found'], 404);
             }
 
+            $authUser = $request->get('user') ?? auth()->user();
+            $targetUser = User::find($account->user_id);
+            if ($targetUser && !$this->canAccessUser($authUser, $targetUser)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: Account does not belong to your user.'], 403);
+            }
+
             // Set all other accounts for this user as non-primary (0)
             Account::where('user_id', $account->user_id)
                 ->where('id', '!=', $account->id)
@@ -591,6 +703,11 @@ class ManageUserReportController extends Controller
             $user = User::find($userId);
             if (!$user) {
                 return response()->json(['status' => 0, 'message' => 'User not found'], 404);
+            }
+
+            $authUser = $request->get('user') ?? auth()->user();
+            if (!$this->canAccessUser($authUser, $user)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: User does not belong to your account.'], 403);
             }
 
             // Check if accounts already exist
@@ -707,6 +824,11 @@ class ManageUserReportController extends Controller
                 return response()->json(['status' => 0, 'message' => 'User not found'], 404);
             }
 
+            $authUser = $request->get('user') ?? auth()->user();
+            if (!$this->canAccessUser($authUser, $user)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: User does not belong to your account.'], 403);
+            }
+
             $accountId = $request->account_id ?? null;
             $account = null;
             if ($accountId) {
@@ -814,6 +936,12 @@ class ManageUserReportController extends Controller
     public function getPassbook(Request $request, $userId)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
+            $targetUser = User::find($userId);
+            if (!$targetUser || !$this->canAccessUser($authUser, $targetUser)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: User does not belong to your account.'], 403);
+            }
+
             $query = Passbook::where('user_id', $userId);
 
             if ($request->filled('account_id')) {
@@ -869,7 +997,11 @@ class ManageUserReportController extends Controller
     public function getUserLogs(Request $request, $userId)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
             $user = User::find($userId);
+            if (!$user || !$this->canAccessUser($authUser, $user)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: User does not belong to your account.'], 403);
+            }
             $mid = $user ? $user->mid : $userId;
 
             $query = DB::table('logs')
@@ -922,6 +1054,12 @@ class ManageUserReportController extends Controller
     public function getAepsTransactions(Request $request, $mid)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
+            $targetUser = User::where('mid', $mid)->first();
+            if ($targetUser && !$this->canAccessUser($authUser, $targetUser)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: User does not belong to your account.'], 403);
+            }
+
             $query = AepsTransaction::where('mid', $mid);
 
             if ($request->filled('start_date') && $request->filled('end_date')) {
@@ -972,6 +1110,12 @@ class ManageUserReportController extends Controller
     public function getRechargeLogs(Request $request, $userId)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
+            $targetUser = User::find($userId);
+            if (!$targetUser || !$this->canAccessUser($authUser, $targetUser)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: User does not belong to your account.'], 403);
+            }
+
             $query = Recharge::where('user_id', $userId);
 
             if ($request->filled('start_date') && $request->filled('end_date')) {
@@ -1021,6 +1165,12 @@ class ManageUserReportController extends Controller
     public function getPayoutLogs(Request $request, $userId)
     {
         try {
+            $authUser = $request->get('user') ?? auth()->user();
+            $targetUser = User::find($userId);
+            if (!$targetUser || !$this->canAccessUser($authUser, $targetUser)) {
+                return response()->json(['status' => 0, 'message' => 'Unauthorized: User does not belong to your account.'], 403);
+            }
+
             $query = Payout::where('user_id', $userId);
 
             if ($request->filled('start_date') && $request->filled('end_date')) {
@@ -1092,12 +1242,12 @@ class ManageUserReportController extends Controller
     }
 
     /**
-     * Direct Login (Impersonate User) - Super Admin only
+     * Direct Login (Impersonate User) - Super Admin and Admin
      */
     public function impersonate(Request $request)
     {
         try {
-            $authUser = $request->get('user');
+            $authUser = $request->get('user') ?? auth()->user();
             if (!$authUser) {
                 $token = $request->header('Token') ?? $request->header('token') ?? $request->header('Authorization');
                 if ($token && strpos($token, 'Bearer ') === 0) {
@@ -1109,13 +1259,19 @@ class ManageUserReportController extends Controller
             }
 
             if (!$authUser) {
-                $authUser = User::find(1);
-            }
-
-            if (!$authUser || ($authUser->role != 1 && $authUser->id != 1)) {
                 return response()->json([
                     'status' => 0,
-                    'message' => 'Unauthorized. Only Super Admin can use direct login.'
+                    'message' => 'Unauthenticated'
+                ], 401);
+            }
+
+            $isSuper = ($authUser->role == 1 || $authUser->id == 1);
+            $isAdmin = ($authUser->role == 2 || !empty($authUser->is_admin));
+
+            if (!$isSuper && !$isAdmin) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Unauthorized. Only Super Admin and Admin can use direct login.'
                 ], 403);
             }
 
@@ -1126,6 +1282,37 @@ class ManageUserReportController extends Controller
                     'status' => 0,
                     'message' => 'Target user not found.'
                 ], 404);
+            }
+
+            // If Admin (not Super Admin), enforce security boundaries:
+            // 1. Admin cannot direct login into Super Admin
+            // 2. Admin cannot direct login into another Admin
+            // 3. Admin can only direct login into users in their own hierarchy/tenant
+            if (!$isSuper) {
+                if ($targetUser->id == 1 || $targetUser->role == 1) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Unauthorized. You cannot direct login into Super Admin.'
+                    ], 403);
+                }
+                if ($targetUser->role == 2 && $targetUser->id != $authUser->id) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Unauthorized. You cannot direct login into another Admin.'
+                    ], 403);
+                }
+                if (!$this->canAccessUser($authUser, $targetUser)) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Unauthorized. You can only direct login into users belonging to your account.'
+                    ], 403);
+                }
+            }
+
+            // Ensure authUser has a remember_token so they can return safely
+            if (empty($authUser->remember_token)) {
+                $authUser->remember_token = ($isSuper ? 'SADM_' : 'ADM_') . Str::random(40) . '_' . time();
+                $authUser->save();
             }
 
             // Generate/assign token to target user's remember_token so all backend APIs resolve to targetUser
@@ -1145,6 +1332,8 @@ class ManageUserReportController extends Controller
             $targetUser->kyc = $userKyc;
             $targetUser->photo = $userKyc->photo ?? url('') . '/assets/images/users/avatar-1.jpg';
 
+            $impersonatorRoleName = $isSuper ? 'Super Admin' : 'Admin';
+
             return response()->json([
                 'status' => 1,
                 'message' => 'Direct login successful as ' . $targetUser->name,
@@ -1153,7 +1342,9 @@ class ManageUserReportController extends Controller
                 'impersonator' => [
                     'id' => $authUser->id,
                     'token' => $authUser->remember_token,
-                    'name' => $authUser->name
+                    'name' => $authUser->name,
+                    'role' => $authUser->role,
+                    'role_name' => $impersonatorRoleName
                 ]
             ]);
         } catch (\Throwable $e) {
@@ -1170,29 +1361,37 @@ class ManageUserReportController extends Controller
     }
 
     /**
-     * Revert Impersonation (Return to Super Admin)
+     * Revert Impersonation (Return to original Admin / Super Admin)
      */
     public function revertImpersonate(Request $request)
     {
         try {
-            $adminId = $request->input('admin_id', 1);
+            $adminId = $request->input('admin_id');
             $adminToken = $request->input('admin_token');
 
-            $admin = User::find($adminId);
+            $admin = null;
+            if (!empty($adminId)) {
+                $admin = User::find($adminId);
+            }
+            if (!$admin && !empty($adminToken)) {
+                $admin = User::where('remember_token', $adminToken)->first();
+            }
             if (!$admin) {
-                $admin = User::where('role', 1)->first();
+                $admin = User::where('role', 1)->first() ?? User::find(1);
             }
 
             if ($admin) {
                 if (!empty($adminToken)) {
                     $admin->remember_token = $adminToken;
                 } else if (empty($admin->remember_token)) {
-                    $admin->remember_token = 'ADM_' . Str::random(40) . '_' . time();
+                    $prefix = ($admin->role == 1 || $admin->id == 1) ? 'SADM_' : 'ADM_';
+                    $admin->remember_token = $prefix . Str::random(40) . '_' . time();
                 }
                 $admin->save();
 
                 $role = DB::table('roles')->where('id', $admin->role)->first();
-                $admin->role_name = $role->name ?? 'Admin';
+                $adminRoleName = $role->name ?? (($admin->role == 1 || $admin->id == 1) ? 'Super Admin' : 'Admin');
+                $admin->role_name = $adminRoleName;
                 $sett = DB::table('settings')->where('user_id', $admin->id)->select('logo')->first();
                 $admin->logo = $sett->logo ?? 'https://enexa.in/images/enexa-logo-mix-white.png?id=83e17363ed5f59867f1cb9c59b3c5f56';
 
@@ -1202,7 +1401,7 @@ class ManageUserReportController extends Controller
 
                 return response()->json([
                     'status' => 1,
-                    'message' => 'Returned to Super Admin session successfully',
+                    'message' => 'Returned to ' . $adminRoleName . ' session successfully',
                     'token' => $admin->remember_token,
                     'user' => $admin
                 ]);
@@ -1210,7 +1409,7 @@ class ManageUserReportController extends Controller
 
             return response()->json([
                 'status' => 0,
-                'message' => 'Super Admin user not found.'
+                'message' => 'Admin user not found.'
             ], 404);
         } catch (\Throwable $e) {
             return response()->json([

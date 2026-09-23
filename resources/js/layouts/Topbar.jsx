@@ -50,11 +50,11 @@ const Topbar = ({ handleSidebarToggle, toggleTheme }) => {
     const handleReturnToSuperAdmin = async () => {
         try {
             const stored = localStorage.getItem('impersonatorAdmin');
-            let adminId = 1;
+            let adminId = null;
             let adminToken = '';
             if (stored) {
                 const adminSession = JSON.parse(stored);
-                adminId = adminSession.id || 1;
+                adminId = adminSession.id || null;
                 adminToken = adminSession.token || '';
             }
 
@@ -163,9 +163,9 @@ const Topbar = ({ handleSidebarToggle, toggleTheme }) => {
                                         boxShadow: '0 2px 8px rgba(220, 53, 69, 0.4)'
                                     }}
                                     onClick={handleReturnToSuperAdmin}
-                                    title="Click to return to Super Admin session"
+                                    title={`Click to return to ${impersonatedAdmin?.role_name || (impersonatedAdmin?.role == 1 ? 'Super Admin' : 'Admin')} session`}
                                 >
-                                    <i className="fas fa-undo"></i> Return to Super Admin
+                                    <i className="fas fa-undo"></i> Return to {impersonatedAdmin?.role_name || (impersonatedAdmin?.role == 1 ? 'Super Admin' : 'Admin')}
                                 </button>
                             </div>
                         )}
