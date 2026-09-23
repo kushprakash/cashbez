@@ -306,18 +306,9 @@ class DashboardController extends Controller
             }
 
             // 6. User Accounts & Balances (Optimized 1 Query with MAX(id) Passbook Join)
-            $accountsQuery = DB::table('accounts');
-            if ($userRole === 1 || $userId === 1) {
-                // Role 1 / Super Admin: NO FILTER! Returns ALL accounts in system!
-            } elseif ($userRole === 2) {
-                // Role 2 / Admin: Filter by admin_mid
-                $adminUserIds = User::where('admin_mid', $userMid)->pluck('id')->toArray();
-                $adminUserIds[] = $userId;
-                $accountsQuery->whereIn('user_id', $adminUserIds);
-            } else {
-                // Retailer / Regular User: Filter strictly by own user_id
-                $accountsQuery->where('user_id', $userId);
-            }
+            // Admin / Super Admin / Retailer: Display strictly their OWN wallet balance on dashboard.
+            // Subordinate user balances are NOT summed because user transactions already debit/credit the admin's wallet.
+            $accountsQuery = DB::table('accounts')->where('user_id', $userId);
             $accounts = $accountsQuery->select('id', 'name', 'number', 'primary_status', 'hold_amount', 'status', 'user_id')->get();
 
             $accountIds = $accounts->pluck('id')->toArray();
