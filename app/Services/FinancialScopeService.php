@@ -16,10 +16,25 @@ class FinancialScopeService
 {
     /**
      * Apply user_id + admin_id scope to any query builder
+     * Super Admin (id=1 or role=1): universal access
+     * Admin (role=2 or is_admin): all records within their tenant (admin_id == $adminId)
+     * Agent (other roles): records where user_id == $user->id && admin_id == $adminId
      */
     public static function applyScope($query, $user)
     {
-        $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+        if (!$user) return $query;
+        $isSuper = ($user->id == 1 || $user->role == 1);
+        $isAdmin = ($user->role == 2 || !empty($user->is_admin));
+        $adminId = $isAdmin ? $user->id : ($user->admin_id ?? ($user->role == 2 ? $user->id : 1));
+
+        if ($isSuper) {
+            return $query;
+        }
+
+        if ($isAdmin) {
+            return $query->where('admin_id', $adminId);
+        }
+
         return $query->where('user_id', $user->id)
                      ->where('admin_id', $adminId);
     }

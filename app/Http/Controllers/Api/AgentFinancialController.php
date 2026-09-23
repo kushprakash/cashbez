@@ -34,7 +34,14 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
             }
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $isSuper = ($user->id == 1 || $user->role == 1);
+            $isAdmin = ($user->role == 2 || !empty($user->is_admin));
+            $adminId = $isAdmin ? $user->id : ($user->admin_id ?? ($user->role == 2 ? $user->id : 1));
+
+            // Helper to apply scope to query builder
+            $applyScope = function($q) use ($user) {
+                return FinancialScopeService::applyScope($q, $user);
+            };
 
             // ── Period date range ─────────────────────────────────────────────────
             $period = $request->input('period', 'Today'); // Today | This Week | This Month | This Year
@@ -60,8 +67,7 @@ class AgentFinancialController extends Controller
             }
 
             // ── Single aggregate query for member stats ─────────────────────────────
-            $memberStats = FinancialMember::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $memberStats = $applyScope(FinancialMember::query())
                 ->selectRaw("
                     COUNT(id) as total_members,
                     SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_members,
@@ -75,8 +81,7 @@ class AgentFinancialController extends Controller
             $kycApproved   = intval($memberStats->kyc_approved ?? 0);
 
             // ── Single aggregate query for account stats ────────────────────────────
-            $accountStats = FinancialAccount::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $accountStats = $applyScope(FinancialAccount::query())
                 ->selectRaw("
                     COUNT(id) as total_accounts,
                     SUM(CASE WHEN service_type = 'SAVING' THEN 1 ELSE 0 END) as saving_accounts,
@@ -95,8 +100,7 @@ class AgentFinancialController extends Controller
 
             // ── Single query for all-time totals and today's stats ──────────────────
             $today = Carbon::today()->toDateString();
-            $txnStats = FinancialTransaction::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $txnStats = $applyScope(FinancialTransaction::query())
                 ->selectRaw("
                     COUNT(id) as total_transactions_count,
                     SUM(CASE WHEN txn_type = 'DEPOSIT' THEN amount ELSE 0 END) as total_deposits_sum,
@@ -110,8 +114,7 @@ class AgentFinancialController extends Controller
             $totalTxnCount    = intval($txnStats->total_transactions_count ?? 0);
 
             // ── Single query for period-scoped deposits, count, and commissions ─────
-            $periodStats = FinancialTransaction::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $periodStats = $applyScope(FinancialTransaction::query())
                 ->whereBetween('created_at', [$periodStart, $periodEnd])
                 ->selectRaw("
                     COUNT(id) as period_txn_count,
@@ -142,15 +145,13 @@ class AgentFinancialController extends Controller
 
             $totalEarnings = $memberComm + $savingComm + $ddComm + $rdComm + $fdComm + $misComm;
 
-            $recentTransactions = FinancialTransaction::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $recentTransactions = $applyScope(FinancialTransaction::query())
                 ->with(['member:id,name,member_id', 'account:id,account_number'])
                 ->orderBy('id', 'desc')
                 ->take(10)
                 ->get();
 
-            $recentMembers = FinancialMember::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $recentMembers = $applyScope(FinancialMember::query())
                 ->orderBy('id', 'desc')
                 ->take(5)
                 ->get();
@@ -161,8 +162,7 @@ class AgentFinancialController extends Controller
             $twelveMonthsAgo = Carbon::now()->subMonths(11)->startOfMonth();
             $nowEnd          = Carbon::now()->endOfMonth();
 
-            $monthlyTxnRows = FinancialTransaction::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $monthlyTxnRows = $applyScope(FinancialTransaction::query())
                 ->whereBetween('created_at', [$twelveMonthsAgo, $nowEnd])
                 ->selectRaw("
                     DATE_FORMAT(created_at, '%Y-%m') as ym,
@@ -174,8 +174,7 @@ class AgentFinancialController extends Controller
                 ->get()
                 ->keyBy('ym');
 
-            $monthlyMemberRows = FinancialMember::where('user_id', $user->id)
-                ->where('admin_id', $adminId)
+            $monthlyMemberRows = $applyScope(FinancialMember::query())
                 ->whereBetween('created_at', [$twelveMonthsAgo, $nowEnd])
                 ->selectRaw("
                     DATE_FORMAT(created_at, '%Y-%m') as ym,
@@ -204,8 +203,7 @@ class AgentFinancialController extends Controller
             // ── Period-specific trend in 1 single grouped query ────────────────────
             $periodTrend = [];
             if ($period === 'Today') {
-                $hourlyTxnRows = FinancialTransaction::where('user_id', $user->id)
-                    ->where('admin_id', $adminId)
+                $hourlyTxnRows = $applyScope(FinancialTransaction::query())
                     ->whereBetween('created_at', [$periodStart, $periodEnd])
                     ->selectRaw("
                         FLOOR(HOUR(created_at) / 2) * 2 as h_bucket,
@@ -228,8 +226,7 @@ class AgentFinancialController extends Controller
                     ];
                 }
             } elseif ($period === 'This Week') {
-                $dailyTxnRows = FinancialTransaction::where('user_id', $user->id)
-                    ->where('admin_id', $adminId)
+                $dailyTxnRows = $applyScope(FinancialTransaction::query())
                     ->whereBetween('created_at', [$periodStart, $periodEnd])
                     ->selectRaw("
                         DATE(created_at) as d_date,
@@ -253,8 +250,7 @@ class AgentFinancialController extends Controller
                     ];
                 }
             } elseif ($period === 'This Month') {
-                $dailyTxnRows = FinancialTransaction::where('user_id', $user->id)
-                    ->where('admin_id', $adminId)
+                $dailyTxnRows = $applyScope(FinancialTransaction::query())
                     ->whereBetween('created_at', [$periodStart, $periodEnd])
                     ->selectRaw("
                         DATE(created_at) as d_date,
@@ -280,8 +276,7 @@ class AgentFinancialController extends Controller
                 }
             } else {
                 // This Year
-                $monthlyYearRows = FinancialTransaction::where('user_id', $user->id)
-                    ->where('admin_id', $adminId)
+                $monthlyYearRows = $applyScope(FinancialTransaction::query())
                     ->whereBetween('created_at', [$periodStart, $periodEnd])
                     ->selectRaw("
                         MONTH(created_at) as m_num,
@@ -365,8 +360,7 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-            $query = FinancialMember::where('user_id', $user->id)->where('admin_id', $adminId);
+            $query = FinancialScopeService::applyScope(FinancialMember::query(), $user);
 
             if ($request->filled('search')) {
                 $s = trim($request->search);
@@ -525,11 +519,7 @@ class AgentFinancialController extends Controller
             $user = request()->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-
-            $member = FinancialMember::where('id', $id)
-                                    ->where('user_id', $user->id)
-                                    ->where('admin_id', $adminId)
+            $member = FinancialScopeService::applyScope(FinancialMember::where('id', $id), $user)
                                     ->with(['accounts', 'transactions'])
                                     ->firstOrFail();
 
@@ -551,16 +541,28 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-            $member = FinancialMember::where('id', $id)
-                                    ->where('user_id', $user->id)
-                                    ->where('admin_id', $adminId)
+            $member = FinancialScopeService::applyScope(FinancialMember::where('id', $id), $user)
                                     ->firstOrFail();
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'sometimes|required|string|max:255',
+                'mobile' => 'sometimes|required|string|max:15',
+                'email' => 'sometimes|nullable|email|max:255',
+                'dob' => 'sometimes|nullable|date',
+                'gender' => 'sometimes|nullable|in:male,female,other',
+                'status' => 'sometimes|nullable|in:ACTIVE,INACTIVE,BLOCKED',
+                'kyc_status' => 'sometimes|nullable|in:PENDING,SUBMITTED,APPROVED,REJECTED',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+            }
 
             $member->update($request->only([
                 'name', 'father_name', 'husband_name', 'dob', 'gender',
                 'mobile', 'email', 'address', 'state', 'district', 'pincode',
-                'occupation', 'nominee_name', 'nominee_relation', 'nominee_mobile'
+                'occupation', 'nominee_name', 'nominee_relation', 'nominee_mobile',
+                'status', 'kyc_status'
             ]));
 
             return response()->json([
@@ -582,10 +584,7 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-
-            $members = FinancialMember::where('user_id', $user->id)
-                                      ->where('admin_id', $adminId)
+            $members = FinancialScopeService::applyScope(FinancialMember::query(), $user)
                                       ->whereIn('kyc_status', ['PENDING', 'SUBMITTED', 'REJECTED'])
                                       ->orderBy('id', 'desc')
                                       ->paginate(15);
@@ -784,8 +783,7 @@ class AgentFinancialController extends Controller
                 $member = null;
                 // Immediately persist verified Aadhaar so it is never lost even if user logs out or leaves
                 if ($request->filled('member_id')) {
-                    $member = FinancialMember::where('id', $request->member_id)
-                        ->where('user_id', $user->id)
+                    $member = FinancialScopeService::applyScope(FinancialMember::where('id', $request->member_id), $user)
                         ->first();
 
                     if ($member) {
@@ -867,8 +865,7 @@ class AgentFinancialController extends Controller
         }
 
         try {
-            $member = FinancialMember::where('id', $request->member_id)
-                ->where('user_id', $user->id)
+            $member = FinancialScopeService::applyScope(FinancialMember::where('id', $request->member_id), $user)
                 ->first();
 
             if (!$member) {
@@ -982,10 +979,7 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-            $member = FinancialMember::where('id', $id)
-                                    ->where('user_id', $user->id)
-                                    ->where('admin_id', $adminId)
+            $member = FinancialScopeService::applyScope(FinancialMember::where('id', $id), $user)
                                     ->firstOrFail();
 
             // Require verified Aadhaar data to approve KYC
@@ -1076,10 +1070,7 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-
-            $query = FinancialAccount::where('user_id', $user->id)
-                                     ->where('admin_id', $adminId)
+            $query = FinancialScopeService::applyScope(FinancialAccount::query(), $user)
                                      ->where('service_type', 'SAVING')
                                      ->with(['member']);
 
@@ -1132,9 +1123,7 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $member = FinancialMember::where('id', $request->member_id)
-                                    ->where('user_id', $user->id)
-                                    ->where('admin_id', $adminId)
+            $member = FinancialScopeService::applyScope(FinancialMember::where('id', $request->member_id), $user)
                                     ->firstOrFail();
 
             // 1. Strict KYC check - Member KYC must be APPROVED
@@ -1341,9 +1330,7 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $account = FinancialAccount::where('id', $request->account_id)
-                                      ->where('user_id', $user->id)
-                                      ->where('admin_id', $adminId)
+            $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $request->account_id), $user)
                                       ->where('service_type', 'SAVING')
                                       ->firstOrFail();
 
@@ -1421,9 +1408,7 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $account = FinancialAccount::where('id', $request->account_id)
-                                      ->where('user_id', $user->id)
-                                      ->where('admin_id', $adminId)
+            $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $request->account_id), $user)
                                       ->with('member')
                                       ->firstOrFail();
 
@@ -1516,9 +1501,7 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $account = FinancialAccount::where('id', $request->account_id)
-                                      ->where('user_id', $user->id)
-                                      ->where('admin_id', $adminId)
+            $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $request->account_id), $user)
                                       ->where('service_type', 'SAVING')
                                       ->with('member')
                                       ->firstOrFail();
@@ -1633,8 +1616,7 @@ class AgentFinancialController extends Controller
             $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
             $type = strtoupper($serviceType);
 
-            $query = FinancialAccount::where('user_id', $user->id)
-                                     ->where('admin_id', $adminId)
+            $query = FinancialScopeService::applyScope(FinancialAccount::query(), $user)
                                      ->where('service_type', $type)
                                      ->with(['member']);
 
@@ -1688,9 +1670,7 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $member = FinancialMember::where('id', $request->member_id)
-                                    ->where('user_id', $user->id)
-                                    ->where('admin_id', $adminId)
+            $member = FinancialScopeService::applyScope(FinancialMember::where('id', $request->member_id), $user)
                                     ->firstOrFail();
 
             $serviceType = strtoupper($request->service_type);
@@ -1791,9 +1771,7 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $account = FinancialAccount::where('id', $request->account_id)
-                                      ->where('user_id', $user->id)
-                                      ->where('admin_id', $adminId)
+            $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $request->account_id), $user)
                                       ->firstOrFail();
 
             $amount = floatval($request->amount);
@@ -1873,10 +1851,7 @@ class AgentFinancialController extends Controller
             $user = request()->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-            $account = FinancialAccount::where('id', $id)
-                                      ->where('user_id', $user->id)
-                                      ->where('admin_id', $adminId)
+            $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $id), $user)
                                       ->where('service_type', 'FD')
                                       ->with('member')
                                       ->firstOrFail();
@@ -1921,10 +1896,7 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-
-            $maturities = FinancialMaturity::where('user_id', $user->id)
-                                          ->where('admin_id', $adminId)
+            $maturities = FinancialScopeService::applyScope(FinancialMaturity::query(), $user)
                                           ->with(['account:id,account_number,service_type', 'member:id,name,member_id,mobile'])
                                           ->orderBy('id', 'desc')
                                           ->paginate(15);
@@ -1947,8 +1919,7 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
-            $query = FinancialTransaction::where('admin_id', $adminId)
+            $query = FinancialScopeService::applyScope(FinancialTransaction::query(), $user)
                                          ->with(['member:id,name,member_id', 'account:id,account_number,service_type']);
 
             // If account_id or account_number is specified, filter by that account specifically
@@ -1959,8 +1930,6 @@ class AgentFinancialController extends Controller
                 $query->whereHas('account', function($q) use ($accNo) {
                     $q->where('account_number', $accNo);
                 });
-            } else {
-                $query->where('user_id', $user->id);
             }
 
             if ($request->filled('service_type')) {
@@ -2005,17 +1974,17 @@ class AgentFinancialController extends Controller
             $reportType = $request->input('report_type', 'MEMBERS');
 
             if ($reportType === 'MEMBERS') {
-                $data = FinancialMember::where('user_id', $user->id)->where('admin_id', $adminId)->orderBy('id', 'desc')->get();
+                $data = FinancialScopeService::applyScope(FinancialMember::query(), $user)->orderBy('id', 'desc')->get();
             } else if ($reportType === 'SAVING') {
-                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'SAVING')->with('member')->get();
+                $data = FinancialScopeService::applyScope(FinancialAccount::query(), $user)->where('service_type', 'SAVING')->with('member')->get();
             } else if ($reportType === 'DD') {
-                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'DD')->with('member')->get();
+                $data = FinancialScopeService::applyScope(FinancialAccount::query(), $user)->where('service_type', 'DD')->with('member')->get();
             } else if ($reportType === 'RD') {
-                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'RD')->with('member')->get();
+                $data = FinancialScopeService::applyScope(FinancialAccount::query(), $user)->where('service_type', 'RD')->with('member')->get();
             } else if ($reportType === 'FD') {
-                $data = FinancialAccount::where('user_id', $user->id)->where('admin_id', $adminId)->where('service_type', 'FD')->with('member')->get();
+                $data = FinancialScopeService::applyScope(FinancialAccount::query(), $user)->where('service_type', 'FD')->with('member')->get();
             } else {
-                $data = FinancialTransaction::where('user_id', $user->id)->where('admin_id', $adminId)->with(['member', 'account'])->orderBy('id', 'desc')->take(100)->get();
+                $data = FinancialScopeService::applyScope(FinancialTransaction::query(), $user)->with(['member', 'account'])->orderBy('id', 'desc')->take(100)->get();
             }
 
             return response()->json([

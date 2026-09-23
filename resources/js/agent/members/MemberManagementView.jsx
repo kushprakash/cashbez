@@ -185,6 +185,205 @@ const RegisterMemberModal = memo(({ isOpen, onClose, onProceed }) => {
     );
 });
 
+// Dedicated Memoized Edit Member Modal Component
+const EditMemberModal = memo(({ isOpen, onClose, member, onUpdated }) => {
+    const api = useMemo(() => ApiService(), []);
+    const [submitting, setSubmitting] = useState(false);
+    const [form, setForm] = useState({
+        name: '',
+        father_name: '',
+        husband_name: '',
+        dob: '',
+        gender: 'male',
+        mobile: '',
+        email: '',
+        address: '',
+        state: '',
+        district: '',
+        pincode: '',
+        occupation: '',
+        nominee_name: '',
+        nominee_relation: '',
+        nominee_mobile: '',
+        status: 'ACTIVE',
+        kyc_status: 'PENDING',
+    });
+
+    useEffect(() => {
+        if (member && isOpen) {
+            setForm({
+                name: member.name || '',
+                father_name: member.father_name || '',
+                husband_name: member.husband_name || '',
+                dob: member.dob ? member.dob.substring(0, 10) : '',
+                gender: member.gender || 'male',
+                mobile: member.mobile || '',
+                email: member.email || '',
+                address: member.address || '',
+                state: member.state || '',
+                district: member.district || '',
+                pincode: member.pincode || '',
+                occupation: member.occupation || '',
+                nominee_name: member.nominee_name || '',
+                nominee_relation: member.nominee_relation || '',
+                nominee_mobile: member.nominee_mobile || '',
+                status: member.status || 'ACTIVE',
+                kyc_status: member.kyc_status || 'PENDING',
+            });
+        }
+    }, [member, isOpen]);
+
+    if (!isOpen || !member) return null;
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setForm(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            setSubmitting(true);
+            const res = await api.vPut(`/api/agent/financial/members/${member.id}`, form);
+            if (res.data && res.data.status === 1) {
+                toast.success(res.data.message || 'Member updated successfully!');
+                onClose();
+                if (onUpdated) onUpdated(res.data.data);
+            } else {
+                toast.error(res.data?.message || 'Failed to update member.');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Error occurred while updating member.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060 }}>
+            <div className="modal-dialog modal-lg modal-dialog-centered">
+                <div className="modal-content border-0 shadow-lg rounded-4">
+                    <div className="modal-header bg-success text-white border-0 py-3 rounded-top-4">
+                        <div className="w-100 d-flex justify-content-between align-items-center">
+                            <h5 className="modal-title fw-bold mb-0">
+                                <i className="bx bx-edit me-2"></i> Edit Member ({member.member_id})
+                            </h5>
+                            <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
+                        </div>
+                    </div>
+
+                    <form onSubmit={handleSubmit}>
+                        <div className="modal-body p-4" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+                            <h6 className="fw-bold text-success mb-3"><i className="bx bx-id-card me-1"></i> Personal Details</h6>
+                            <div className="row g-3 mb-4">
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Full Name <span className="text-danger">*</span></label>
+                                    <input type="text" className="form-control" name="name" value={form.name} onChange={handleInputChange} required />
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Father's Name</label>
+                                    <input type="text" className="form-control" name="father_name" value={form.father_name} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Husband's Name</label>
+                                    <input type="text" className="form-control" name="husband_name" value={form.husband_name} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Mobile Number <span className="text-danger">*</span></label>
+                                    <input type="text" className="form-control" name="mobile" value={form.mobile} onChange={handleInputChange} required maxLength="15" />
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Email Address</label>
+                                    <input type="email" className="form-control" name="email" value={form.email} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-3">
+                                    <label className="form-label fw-semibold">Gender</label>
+                                    <select className="form-select" name="gender" value={form.gender} onChange={handleInputChange}>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                                <div className="col-md-3">
+                                    <label className="form-label fw-semibold">Date of Birth</label>
+                                    <input type="date" className="form-control" name="dob" value={form.dob} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Occupation</label>
+                                    <input type="text" className="form-control" name="occupation" value={form.occupation} onChange={handleInputChange} />
+                                </div>
+                            </div>
+
+                            <h6 className="fw-bold text-success mb-3"><i className="bx bx-map me-1"></i> Address & Location</h6>
+                            <div className="row g-3 mb-4">
+                                <div className="col-md-12">
+                                    <label className="form-label fw-semibold">Address</label>
+                                    <input type="text" className="form-control" name="address" value={form.address} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label fw-semibold">State</label>
+                                    <input type="text" className="form-control" name="state" value={form.state} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label fw-semibold">District</label>
+                                    <input type="text" className="form-control" name="district" value={form.district} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label fw-semibold">Pincode</label>
+                                    <input type="text" className="form-control" name="pincode" value={form.pincode} onChange={handleInputChange} />
+                                </div>
+                            </div>
+
+                            <h6 className="fw-bold text-success mb-3"><i className="bx bx-user-check me-1"></i> Nominee Details</h6>
+                            <div className="row g-3 mb-4">
+                                <div className="col-md-4">
+                                    <label className="form-label fw-semibold">Nominee Name</label>
+                                    <input type="text" className="form-control" name="nominee_name" value={form.nominee_name} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label fw-semibold">Nominee Relation</label>
+                                    <input type="text" className="form-control" name="nominee_relation" value={form.nominee_relation} onChange={handleInputChange} />
+                                </div>
+                                <div className="col-md-4">
+                                    <label className="form-label fw-semibold">Nominee Mobile</label>
+                                    <input type="text" className="form-control" name="nominee_mobile" value={form.nominee_mobile} onChange={handleInputChange} maxLength="15" />
+                                </div>
+                            </div>
+
+                            <h6 className="fw-bold text-success mb-3"><i className="bx bx-badge-check me-1"></i> Status & KYC</h6>
+                            <div className="row g-3">
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">Member Status</label>
+                                    <select className="form-select" name="status" value={form.status} onChange={handleInputChange}>
+                                        <option value="ACTIVE">ACTIVE</option>
+                                        <option value="INACTIVE">INACTIVE</option>
+                                        <option value="BLOCKED">BLOCKED</option>
+                                    </select>
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label fw-semibold">KYC Status</label>
+                                    <select className="form-select" name="kyc_status" value={form.kyc_status} onChange={handleInputChange}>
+                                        <option value="PENDING">PENDING</option>
+                                        <option value="SUBMITTED">SUBMITTED</option>
+                                        <option value="APPROVED">APPROVED</option>
+                                        <option value="REJECTED">REJECTED</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="modal-footer bg-light border-0 py-3 px-4 rounded-bottom-4">
+                            <button type="button" className="btn btn-outline-secondary" onClick={onClose} disabled={submitting}>Cancel</button>
+                            <button type="submit" className="btn btn-success px-4 fw-bold shadow-sm" disabled={submitting}>
+                                {submitting ? 'Updating...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+});
+
 const MemberManagementView = () => {
     // Memoize ApiService call so Axios instances & localStorage reads do NOT execute on every keystroke
     const api = useMemo(() => ApiService(), []);
@@ -195,13 +394,26 @@ const MemberManagementView = () => {
     const [statusFilter, setStatusFilter] = useState('');
     const [kycFilter, setKycFilter] = useState('');
 
-    // Modal & Form States
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showMpinModal, setShowMpinModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingMember, setEditingMember] = useState(null);
     const [selectedMember, setSelectedMember] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [pendingFormData, setPendingFormData] = useState(null);
+
+    const handleOpenEditModal = useCallback((m) => {
+        setEditingMember(m);
+        setShowEditModal(true);
+    }, []);
+
+    const handleMemberUpdated = useCallback((updatedM) => {
+        fetchMembers();
+        if (selectedMember && selectedMember.id === updatedM.id) {
+            setSelectedMember(prev => ({ ...prev, ...updatedM }));
+        }
+    }, [selectedMember]);
 
     // Debounce search box input
     useEffect(() => {
@@ -376,9 +588,14 @@ const MemberManagementView = () => {
                                         </td>
                                         <td className="small text-muted">{new Date(m.created_at).toLocaleDateString()}</td>
                                         <td className="text-end">
-                                            <button className="btn btn-sm btn-outline-primary" onClick={() => handleViewMember(m.id)}>
-                                                <i className="bx bx-show me-1"></i> Member 360
-                                            </button>
+                                            <div className="d-inline-flex gap-1">
+                                                <button className="btn btn-sm btn-outline-primary" onClick={() => handleViewMember(m.id)} title="View Member 360 Profile">
+                                                    <i className="bx bx-show me-1"></i> Member 360
+                                                </button>
+                                                <button className="btn btn-sm btn-outline-success" onClick={() => handleOpenEditModal(m)} title="Edit Member Details">
+                                                    <i className="bx bx-edit me-1"></i> Edit
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -414,11 +631,24 @@ const MemberManagementView = () => {
                 <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
                     <div className="modal-dialog modal-lg modal-dialog-centered">
                         <div className="modal-content border-0 shadow-lg rounded-4">
-                            <div className="modal-header bg-gradient bg-primary text-white border-0 py-3 rounded-top-4">
-                                <h5 className="modal-title fw-bold">
+                            <div className="modal-header bg-gradient bg-primary text-white border-0 py-3 rounded-top-4 d-flex justify-content-between align-items-center">
+                                <h5 className="modal-title fw-bold mb-0">
                                     <i className="bx bx-user me-2"></i> Member 360 Profile ({selectedMember.member_id})
                                 </h5>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setShowDetailModal(false)}></button>
+                                <div className="d-flex align-items-center gap-2">
+                                    <button
+                                        type="button"
+                                        className="btn btn-sm btn-light text-success fw-bold d-inline-flex align-items-center gap-1 shadow-sm"
+                                        onClick={() => {
+                                            setShowDetailModal(false);
+                                            handleOpenEditModal(selectedMember);
+                                        }}
+                                        title="Edit Member Information"
+                                    >
+                                        <i className="bx bx-edit"></i> Edit Member
+                                    </button>
+                                    <button type="button" className="btn-close btn-close-white" onClick={() => setShowDetailModal(false)}></button>
+                                </div>
                             </div>
                             <div className="modal-body p-4" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
                                 <div className="row g-3 mb-4">
@@ -640,6 +870,17 @@ const MemberManagementView = () => {
                     </div>
                 </div>
             )}
+
+            {/* Edit Member Modal */}
+            <EditMemberModal
+                isOpen={showEditModal}
+                member={editingMember}
+                onClose={() => {
+                    setShowEditModal(false);
+                    setEditingMember(null);
+                }}
+                onUpdated={handleMemberUpdated}
+            />
         </div>
     );
 };
