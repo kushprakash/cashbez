@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import ApiService from '../core/services/ApiService';
 import TableShimmerLoader from '../pages/components/TableShimmerLoader';
 import { toast, ToastContainer } from 'react-toastify';
@@ -10,12 +10,35 @@ import { getBbpsCache, setBbpsCache } from './bbpsCache';
 
 const MobileRechargeReport = ({ hideNav = false }) => {
     const navigate = useNavigate();
-    const [selectedType, setSelectedType] = useState('all');
-    const cachedData = getBbpsCache('recharge_reports_all') || getBbpsCache('recharge_reports') || {};
+    const location = useLocation();
+
+    const getInitialType = (pathname) => {
+        const path = (pathname || '').toLowerCase();
+        if (path.includes('/mobile/recharge-report') || path.includes('/mobilerecharge-report')) {
+            return '1'; // Mobile
+        }
+        if (path.includes('/dth/recharge-report') || path.includes('/dth-report')) {
+            return '2'; // DTH
+        }
+        if (path.includes('/bill/payment-report') || path.includes('/bill-payment-report')) {
+            return '3'; // Bill Payment
+        }
+        return 'all';
+    };
+
+    const initialType = getInitialType(location.pathname);
+    const [selectedType, setSelectedType] = useState(initialType);
+    const cachedData = getBbpsCache(`recharge_reports_${initialType}`) || getBbpsCache('recharge_reports_all') || getBbpsCache('recharge_reports') || {};
     const [recharges, setRecharges] = useState(cachedData.recharges || []);
     const [loading, setLoading] = useState(!cachedData.recharges);
     const [summary, setSummary] = useState(cachedData.summary || {});
     const [pagination, setPagination] = useState(cachedData.pagination || {});
+
+    // Sync selectedType when route path changes
+    useEffect(() => {
+        const targetType = getInitialType(location.pathname);
+        setSelectedType(targetType);
+    }, [location.pathname]);
 
     // State for checking status
     const [checkingId, setCheckingId] = useState(null);

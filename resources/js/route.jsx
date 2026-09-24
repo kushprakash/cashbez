@@ -525,15 +525,18 @@ const AppRoutes = () => (
             <Route path="banking/mobile-recharge" element={<BillPayment />} />
             <Route path="banking/mobilerecharge" element={<BillPayment />} />
             <Route path="mobile/recharge" element={<BillPayment />} />
-            <Route path="banking/mobile/recharge-report" element={<BillPayment />} />
+            <Route path="banking/mobile/recharge-report" element={<BillPaymentReport />} />
+            <Route path="banking/mobilerecharge-report" element={<BillPaymentReport />} />
             <Route path="banking/dth/recharge" element={<BillPayment />} />
             <Route path="banking/dth-recharge" element={<BillPayment />} />
             <Route path="banking/dthrecharge" element={<BillPayment />} />
             <Route path="dth/recharge" element={<BillPayment />} />
-            <Route path="banking/dth/recharge-report" element={<DTHReport />} />
+            <Route path="banking/dth/recharge-report" element={<BillPaymentReport />} />
+            <Route path="banking/dth-report" element={<BillPaymentReport />} />
             <Route path="banking/bill/payment" element={<BillPayment />} />
             <Route path="banking/bill-payment" element={<BillPayment />} />
-            <Route path="banking/bill/payment-report" element={<BillPayment />} />
+            <Route path="banking/bill/payment-report" element={<BillPaymentReport />} />
+            <Route path="banking/bill-payment-report" element={<BillPaymentReport />} />
             <Route path="banking/bill/search-transaction" element={<BillPayment />} />
             <Route path="bill-payment-invoice" element={<BillPayment />} />
             <Route path="banking/bill-payment-invoice" element={<BillPayment />} />
