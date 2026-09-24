@@ -447,7 +447,7 @@ class VaController extends Controller
                 }
 
 
-                $va = Va::where('virtual_account_id', $vaData['id'])->select('virtual_account_id','virtual_upi_handle','virtual_account_number','virtual_ifsc','qrcode_image','qrcode_pdf')->first();
+                $va = Va::where('virtual_account_id', $json_response['data']['virtual_account_id'])->select('virtual_account_id','virtual_upi_handle','virtual_account_number','virtual_ifsc','qrcode_image','qrcode_pdf')->first();
 
 
 
