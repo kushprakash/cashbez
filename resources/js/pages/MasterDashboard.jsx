@@ -42,6 +42,107 @@ const MasterDashboard = ({ dashboardData: initialData }) => {
     const [loading, setLoading] = useState(!initialData);
     const [timeframe, setTimeframe] = useState('today'); // 'today', 'this_month', 'total'
 
+    const [userVaData, setUserVaData] = useState(null);
+    const [qrForm, setQrForm] = useState({
+        name: user?.name || '',
+        account_number: '',
+        account_ifsc: ''
+    });
+    const [qrLoading, setQrLoading] = useState(false);
+    const [copiedField, setCopiedField] = useState('');
+
+    // Sync qrForm with user_kyc bank details from dashboard API
+    useEffect(() => {
+        const kyc = data?.kyc_account;
+        if (kyc) {
+            setQrForm({
+                name: kyc.name || user?.name || '',
+                account_number: kyc.account_number || '',
+                account_ifsc: kyc.ifsc_code || ''
+            });
+        } else if (user?.name) {
+            setQrForm(prev => ({
+                ...prev,
+                name: prev.name || user.name
+            }));
+        }
+    }, [data?.kyc_account, user]);
+
+    const vaData = userVaData || data?.va_data;
+
+    const handleGenerateQrSubmit = async (e) => {
+        e.preventDefault();
+        if (!qrForm.name || !qrForm.account_number || !qrForm.account_ifsc) {
+            toast.error('Please enter Account Holder Name, Account Number and IFSC Code');
+            return;
+        }
+        setQrLoading(true);
+        try {
+            const response = await apiService.vPost('/api/va/generate-qr', {
+                name: qrForm.name,
+                account_number: qrForm.account_number,
+                account_ifsc: qrForm.account_ifsc
+            });
+            if (response?.data?.status === 1) {
+                toast.success(response.data.message || 'Virtual Account QR Generated Successfully!');
+                setUserVaData(response.data.data);
+            } else {
+                toast.error(response?.data?.message || 'Failed to generate Virtual Account QR');
+            }
+        } catch (error) {
+            console.error('Error generating QR:', error);
+            toast.error(error?.response?.data?.message || 'Failed to generate Virtual Account QR');
+        } finally {
+            setQrLoading(false);
+        }
+    };
+
+    const handleCopy = (text, fieldName) => {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+            setCopiedField(fieldName);
+            toast.success('Copied to clipboard!');
+            setTimeout(() => setCopiedField(''), 2000);
+        }
+    };
+
+    const handleShare = (text, title) => {
+        if (navigator.share) {
+            navigator.share({ title: title, text: text }).catch(() => { });
+        } else {
+            handleCopy(text, title);
+        }
+    };
+
+    const qrImageUrl = vaData?.qrcode_image || (
+        vaData?.virtual_upi_handle || vaData?.virtual_account_number ?
+            `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=${vaData.virtual_upi_handle || vaData.virtual_account_number}&pn=${encodeURIComponent(vaData.username || user?.name || 'Admin')}`
+            : null
+    );
+
+    const handleDownloadPdf = () => {
+        if (vaData?.qrcode_pdf) {
+            window.open(vaData.qrcode_pdf, '_blank');
+        } else if (vaData?.qrcode_image || qrImageUrl) {
+            const qrSrc = vaData?.qrcode_image || qrImageUrl;
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                    <head><title>QR Code</title></head>
+                    <body style="text-align:center; padding: 40px;">
+                        <h2>UPI Payment QR Code</h2>
+                        <img src="${qrSrc}" style="max-width:300px; margin-top:20px;" />
+                        <p style="font-size:18px; font-weight:bold; margin-top:15px;">${vaData?.virtual_upi_handle || vaData?.virtual_account_number || ''}</p>
+                        <script>window.onload = function() { window.print(); }</script>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+        } else {
+            toast.error('QR Image/PDF not available');
+        }
+    };
+
     useEffect(() => {
         if (initialData) {
             setData(initialData);
@@ -383,181 +484,436 @@ const MasterDashboard = ({ dashboardData: initialData }) => {
                     </div>
 
                     {/* ========================================================================= */}
-                    {/* SECOND ROW: OVERALL TRANSACTION STATUS STATS & CHARTS */}
+                    {/* SECOND ROW: OVERALL TRANSACTION STATUS STATS, ANALYTICS & VIRTUAL QR CODE */}
                     {/* ========================================================================= */}
                     <div className="row g-2 mb-2">
-                        <div className="col-md-3" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                            <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 ${cardHoverClass}`}>
-                                <div className="d-flex align-items-center justify-content-between mb-1">
-                                    <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Total System Txn Volume</span>
-                                    <span className="badge bg-primary bg-opacity-10 text-primary">{timeframe}</span>
-                                </div>
-                                <h5 className="fw-bold text-dark mb-0">{formatCurrency(overallStats.totalAmount)}</h5>
-                                <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
-                                    <span>Total Count: <strong>{overallStats.totalTxns.toLocaleString()}</strong></span>
-                                    <i className="fas fa-chart-line text-primary"></i>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="col-md-3" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                            <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 ${cardHoverClass}`}>
-                                <div className="d-flex align-items-center justify-content-between mb-1">
-                                    <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Success Transactions</span>
-                                    <span className="badge bg-success text-white">Completed</span>
-                                </div>
-                                <h5 className="fw-bold text-success mb-0">{overallStats.successCount.toLocaleString()}</h5>
-                                <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
-                                    <span>Success Rate: <strong>{overallStats.totalTxns > 0 ? Math.round((overallStats.successCount / overallStats.totalTxns) * 100) : 0}%</strong></span>
-                                    <i className="fas fa-check-circle text-success"></i>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="col-md-3" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                            <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 border-start border-3 border-warning ${cardHoverClass}`}>
-                                <div className="d-flex align-items-center justify-content-between mb-1">
-                                    <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Pending Transactions</span>
-                                    <span className="badge bg-warning text-dark">Action Needed</span>
-                                </div>
-                                <h5 className="fw-bold text-warning mb-0">{overallStats.pendingCount.toLocaleString()}</h5>
-                                <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
-                                    <span>Review & Process</span>
-                                    <i className="fas fa-clock text-warning"></i>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="col-md-3" onClick={() => handleCardClick('/users/list')} style={{ cursor: cardCursor }}>
-                            <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 ${cardHoverClass}`}>
-                                <div className="d-flex align-items-center justify-content-between mb-1">
-                                    <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Users & Retailers</span>
-                                    <span className="badge bg-info text-white">System</span>
-                                </div>
-                                <h5 className="fw-bold text-dark mb-0">{data?.users?.total?.active || 0} / {(data?.users?.total?.active || 0) + (data?.users?.total?.inactive || 0)}</h5>
-                                <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
-                                    <span>Active Merchants: <strong>{data?.merchants?.total?.total_active || 0}</strong></span>
-                                    <i className="fas fa-users text-info"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* ========================================================================= */}
-                    {/* THIRD ROW: SERVICE-WISE ANALYTICS & APEXCHARTS GRAPHS */}
-                    {/* ========================================================================= */}
-                    <div className="card border-0 shadow-sm rounded-3 bg-white mb-2">
-                        <div className="card-header bg-white border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
-                            <h6 className="fw-bold text-dark mb-0 style-sm">
-                                <i className="fas fa-chart-pie text-primary me-2"></i> All System Services & Transaction Analytics
-                            </h6>
-                            <span className="text-muted small">{isAdminOnly ? 'Read-only analytics view' : 'Click any service box to open reports'}</span>
-                        </div>
-
-                        <div className="card-body p-2">
-                            <div className="row g-2">
-                                {/* 1. AEPS Cash Withdrawal (CW) */}
-                                <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                                    <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="fw-bold text-dark small"><i className="fas fa-fingerprint text-primary me-1"></i> AEPS Cash Withdrawal</span>
-                                            <span className="badge bg-primary text-white">AEPS CW</span>
+                        {/* LEFT SIDE (col-lg-8): SYSTEM ANALYTICS & OVERVIEW */}
+                        <div className="col-lg-8">
+                            <div className="row g-2 mb-2">
+                                <div className="col-md-3" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                    <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 ${cardHoverClass}`}>
+                                        <div className="d-flex align-items-center justify-content-between mb-1">
+                                            <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Total System Txn Volume</span>
+                                            <span className="badge bg-primary bg-opacity-10 text-primary">{timeframe}</span>
                                         </div>
-                                        <div className="d-flex justify-content-between align-items-baseline">
-                                            <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('aeps.cw', 'success').amount)}</h6>
-                                            <small className="text-muted">{getStatObj('aeps.cw', 'success').count} Success</small>
-                                        </div>
-                                        <div className="mt-2">
-                                            <MiniChart type="area" color="#10b981" data={[15, 25, 20, 35, 30, 45, 60]} />
+                                        <h5 className="fw-bold text-dark mb-0">{formatCurrency(overallStats.totalAmount)}</h5>
+                                        <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
+                                            <span>Total Count: <strong>{overallStats.totalTxns.toLocaleString()}</strong></span>
+                                            <i className="fas fa-chart-line text-primary"></i>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* 2. Aadhaar Pay (AP) */}
-                                <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                                    <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="fw-bold text-dark small"><i className="fas fa-id-card text-success me-1"></i> Aadhaar Pay (AP)</span>
-                                            <span className="badge bg-success text-white">AEPS AP</span>
+                                <div className="col-md-3" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                    <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 ${cardHoverClass}`}>
+                                        <div className="d-flex align-items-center justify-content-between mb-1">
+                                            <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Success Transactions</span>
+                                            <span className="badge bg-success text-white">Completed</span>
                                         </div>
-                                        <div className="d-flex justify-content-between align-items-baseline">
-                                            <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('aeps.ap', 'success').amount)}</h6>
-                                            <small className="text-muted">{getStatObj('aeps.ap', 'success').count} Success</small>
-                                        </div>
-                                        <div className="mt-2">
-                                            <MiniChart type="area" color="#6366f1" data={[10, 18, 14, 28, 22, 38, 50]} />
+                                        <h5 className="fw-bold text-success mb-0">{overallStats.successCount.toLocaleString()}</h5>
+                                        <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
+                                            <span>Success Rate: <strong>{overallStats.totalTxns > 0 ? Math.round((overallStats.successCount / overallStats.totalTxns) * 100) : 0}%</strong></span>
+                                            <i className="fas fa-check-circle text-success"></i>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* 3. Balance Enquiry (BE) & Mini Statement (MS) */}
-                                <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                                    <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="fw-bold text-dark small"><i className="fas fa-search text-warning me-1"></i> Balance Enquiry & Mini Stmt</span>
-                                            <span className="badge bg-warning text-dark">BE / MS</span>
+                                <div className="col-md-3" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                    <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 border-start border-3 border-warning ${cardHoverClass}`}>
+                                        <div className="d-flex align-items-center justify-content-between mb-1">
+                                            <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Pending Transactions</span>
+                                            <span className="badge bg-warning text-dark">Action Needed</span>
                                         </div>
-                                        <div className="d-flex justify-content-between align-items-baseline">
-                                            <h6 className="fw-bold text-dark mb-0">{(getStatObj('aeps.be', 'success').count + getStatObj('aeps.ms', 'success').count).toLocaleString()} Hits</h6>
-                                            <small className="text-muted">BE: {getStatObj('aeps.be', 'success').count} | MS: {getStatObj('aeps.ms', 'success').count}</small>
-                                        </div>
-                                        <div className="mt-2">
-                                            <MiniChart type="bar" color="#f59e0b" data={[40, 55, 35, 60, 45, 70, 85]} />
+                                        <h5 className="fw-bold text-warning mb-0">{overallStats.pendingCount.toLocaleString()}</h5>
+                                        <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
+                                            <span>Review & Process</span>
+                                            <i className="fas fa-clock text-warning"></i>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* 4. Utility & Mobile Recharges */}
-                                <div className="col-md-4" onClick={() => handleCardClick('/banking/dth-recharge')} style={{ cursor: cardCursor }}>
-                                    <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="fw-bold text-dark small"><i className="fas fa-mobile-alt text-info me-1"></i> Mobile & DTH Recharge</span>
-                                            <span className="badge bg-info text-white">Utility</span>
+                                <div className="col-md-3" onClick={() => handleCardClick('/users/list')} style={{ cursor: cardCursor }}>
+                                    <div className={`card border-0 shadow-sm rounded-3 bg-white p-2 h-100 ${cardHoverClass}`}>
+                                        <div className="d-flex align-items-center justify-content-between mb-1">
+                                            <span className="text-secondary fw-semibold" style={{ fontSize: '11px' }}>Users & Retailers</span>
+                                            <span className="badge bg-info text-white">System</span>
                                         </div>
-                                        <div className="d-flex justify-content-between align-items-baseline">
-                                            <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('utility.mobile', 'success').amount + getStatObj('utility.dth', 'success').amount)}</h6>
-                                            <small className="text-muted">{(getStatObj('utility.mobile', 'success').count + getStatObj('utility.dth', 'success').count).toLocaleString()} Txns</small>
-                                        </div>
-                                        <div className="mt-2">
-                                            <MiniChart type="area" color="#3b82f6" data={[20, 30, 25, 40, 35, 55, 70]} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* 5. Move to Bank (Payouts) */}
-                                <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                                    <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="fw-bold text-dark small"><i className="fas fa-university text-danger me-1"></i> Move to Bank (Payouts)</span>
-                                            <span className="badge bg-danger text-white">Payout</span>
-                                        </div>
-                                        <div className="d-flex justify-content-between align-items-baseline">
-                                            <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('payouts', 'success').amount)}</h6>
-                                            <small className="text-warning fw-bold">{getStatObj('payouts', 'pending').count} Pending</small>
-                                        </div>
-                                        <div className="mt-2">
-                                            <MiniChart type="line" color="#ef4444" data={[30, 45, 25, 50, 40, 65, 80]} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* 6. Cash Deposit Service */}
-                                <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
-                                    <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
-                                        <div className="d-flex justify-content-between align-items-center mb-1">
-                                            <span className="fw-bold text-dark small"><i className="fas fa-money-bill-wave text-success me-1"></i> Cash Deposit Service</span>
-                                            <span className="badge bg-secondary text-white">Cash</span>
-                                        </div>
-                                        <div className="d-flex justify-content-between align-items-baseline">
-                                            <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('cash_deposit', 'success').amount)}</h6>
-                                            <small className="text-muted">{getStatObj('cash_deposit', 'success').count} Txns</small>
-                                        </div>
-                                        <div className="mt-2">
-                                            <MiniChart type="bar" color="#10b981" data={[12, 20, 15, 30, 25, 40, 50]} />
+                                        <h5 className="fw-bold text-dark mb-0">{data?.users?.total?.active || 0} / {(data?.users?.total?.active || 0) + (data?.users?.total?.inactive || 0)}</h5>
+                                        <div className="d-flex justify-content-between align-items-center text-muted mt-1" style={{ fontSize: '11px' }}>
+                                            <span>Active Merchants: <strong>{data?.merchants?.total?.total_active || 0}</strong></span>
+                                            <i className="fas fa-users text-info"></i>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Service-wise Analytics */}
+                            <div className="card border-0 shadow-sm rounded-3 bg-white mb-0 h-100">
+                                <div className="card-header bg-white border-bottom py-2 px-3 d-flex justify-content-between align-items-center">
+                                    <h6 className="fw-bold text-dark mb-0 style-sm">
+                                        <i className="fas fa-chart-pie text-primary me-2"></i> All System Services & Transaction Analytics
+                                    </h6>
+                                    <span className="text-muted small">{isAdminOnly ? 'Read-only analytics view' : 'Click any service box to open reports'}</span>
+                                </div>
+
+                                <div className="card-body p-2">
+                                    <div className="row g-2">
+                                        {/* 1. AEPS Cash Withdrawal (CW) */}
+                                        <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                            <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <span className="fw-bold text-dark small"><i className="fas fa-fingerprint text-primary me-1"></i> AEPS Cash Withdrawal</span>
+                                                    <span className="badge bg-primary text-white">AEPS CW</span>
+                                                </div>
+                                                <div className="d-flex justify-content-between align-items-baseline">
+                                                    <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('aeps.cw', 'success').amount)}</h6>
+                                                    <small className="text-muted">{getStatObj('aeps.cw', 'success').count} Success</small>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <MiniChart type="area" color="#10b981" data={[15, 25, 20, 35, 30, 45, 60]} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 2. Aadhaar Pay (AP) */}
+                                        <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                            <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <span className="fw-bold text-dark small"><i className="fas fa-id-card text-success me-1"></i> Aadhaar Pay (AP)</span>
+                                                    <span className="badge bg-success text-white">AEPS AP</span>
+                                                </div>
+                                                <div className="d-flex justify-content-between align-items-baseline">
+                                                    <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('aeps.ap', 'success').amount)}</h6>
+                                                    <small className="text-muted">{getStatObj('aeps.ap', 'success').count} Success</small>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <MiniChart type="area" color="#6366f1" data={[10, 18, 14, 28, 22, 38, 50]} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 3. Balance Enquiry (BE) & Mini Statement (MS) */}
+                                        <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                            <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <span className="fw-bold text-dark small"><i className="fas fa-search text-warning me-1"></i> Balance Enquiry & Mini Stmt</span>
+                                                    <span className="badge bg-warning text-dark">BE / MS</span>
+                                                </div>
+                                                <div className="d-flex justify-content-between align-items-baseline">
+                                                    <h6 className="fw-bold text-dark mb-0">{(getStatObj('aeps.be', 'success').count + getStatObj('aeps.ms', 'success').count).toLocaleString()} Hits</h6>
+                                                    <small className="text-muted">BE: {getStatObj('aeps.be', 'success').count} | MS: {getStatObj('aeps.ms', 'success').count}</small>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <MiniChart type="bar" color="#f59e0b" data={[40, 55, 35, 60, 45, 70, 85]} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 4. Utility & Mobile Recharges */}
+                                        <div className="col-md-4" onClick={() => handleCardClick('/banking/dth-recharge')} style={{ cursor: cardCursor }}>
+                                            <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <span className="fw-bold text-dark small"><i className="fas fa-mobile-alt text-info me-1"></i> Mobile & DTH Recharge</span>
+                                                    <span className="badge bg-info text-white">Utility</span>
+                                                </div>
+                                                <div className="d-flex justify-content-between align-items-baseline">
+                                                    <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('utility.mobile', 'success').amount + getStatObj('utility.dth', 'success').amount)}</h6>
+                                                    <small className="text-muted">{(getStatObj('utility.mobile', 'success').count + getStatObj('utility.dth', 'success').count).toLocaleString()} Txns</small>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <MiniChart type="area" color="#3b82f6" data={[20, 30, 25, 40, 35, 55, 70]} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 5. Move to Bank (Payouts) */}
+                                        <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                            <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <span className="fw-bold text-dark small"><i className="fas fa-university text-danger me-1"></i> Move to Bank (Payouts)</span>
+                                                    <span className="badge bg-danger text-white">Payout</span>
+                                                </div>
+                                                <div className="d-flex justify-content-between align-items-baseline">
+                                                    <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('payouts', 'success').amount)}</h6>
+                                                    <small className="text-warning fw-bold">{getStatObj('payouts', 'pending').count} Pending</small>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <MiniChart type="line" color="#ef4444" data={[30, 45, 25, 50, 40, 65, 80]} />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* 6. Cash Deposit Service */}
+                                        <div className="col-md-4" onClick={() => handleCardClick('/banking/reports')} style={{ cursor: cardCursor }}>
+                                            <div className={`p-2 border rounded-3 bg-white h-100 ${cardHoverClass}`}>
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <span className="fw-bold text-dark small"><i className="fas fa-money-bill-wave text-success me-1"></i> Cash Deposit Service</span>
+                                                    <span className="badge bg-secondary text-white">Cash</span>
+                                                </div>
+                                                <div className="d-flex justify-content-between align-items-baseline">
+                                                    <h6 className="fw-bold text-success mb-0">{formatCurrency(getStatObj('cash_deposit', 'success').amount)}</h6>
+                                                    <small className="text-muted">{getStatObj('cash_deposit', 'success').count} Txns</small>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <MiniChart type="bar" color="#10b981" data={[12, 20, 15, 30, 25, 40, 50]} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT SIDE (col-lg-4): VIRTUAL ACCOUNT QR CODE CARD & GENERATOR FORM */}
+                        <div className="col-lg-4">
+                            {!vaData ? (
+                                /* Premium High-Contrast Card Design when no Virtual Account (vaData) exists */
+                                <div className="card border-0 rounded-4 shadow-sm h-100 bg-white overflow-hidden" style={{ border: '1px solid #CBD5E1' }}>
+                                    {/* Header */}
+                                    <div className="card-header border-0 py-2.5 px-3" style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)' }}>
+                                        <div className="d-flex justify-content-between align-items-center">
+                                            <div className="d-flex align-items-center">
+                                                <div className="bg-white bg-opacity-20 text-white rounded-circle me-2 d-flex align-items-center justify-content-center" style={{ width: '32px', height: '32px', minWidth: '32px' }}>
+                                                    <iconify-icon icon="solar:qr-code-bold-duotone" style={{ fontSize: '20px' }}></iconify-icon>
+                                                </div>
+                                                <div>
+                                                    <h6 className="fw-bold mb-0 text-white tracking-wide d-flex align-items-center" style={{ fontSize: '13.5px' }}>
+                                                        Create Virtual QR Code
+                                                    </h6>
+                                                    <small className="text-white-50" style={{ fontSize: '10px' }}>Linked with Verified KYC Bank Account</small>
+                                                </div>
+                                            </div>
+                                            <span className="badge bg-warning text-dark fw-bold px-2 py-1 shadow-sm" style={{ fontSize: '9.5px', borderRadius: '6px' }}>
+                                                ✓ KYC VERIFIED
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Body */}
+                                    <div className="card-body p-3 d-flex flex-column justify-content-between">
+                                        <form onSubmit={handleGenerateQrSubmit} className="d-flex flex-column h-100 justify-content-between">
+                                            {/* Hidden Inputs for Name, Account, IFSC */}
+                                            <input type="hidden" name="name" value={qrForm.name} />
+                                            <input type="hidden" name="account_number" value={qrForm.account_number} />
+                                            <input type="hidden" name="account_ifsc" value={qrForm.account_ifsc} />
+
+                                            {/* High-Contrast Account Details Display Box (Compact 50-50 Layout) */}
+                                            <div className="d-flex flex-column gap-2 mb-2">
+
+                                                {/* 1. Account Holder Name */}
+                                                <div className="p-2 rounded-3 border" style={{ backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' }}>
+                                                    <div className="d-flex align-items-center">
+                                                        <div className="rounded-3 bg-primary-subtle text-primary p-1.5 me-2 d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px', minWidth: '30px' }}>
+                                                            <iconify-icon icon="solar:user-bold-duotone" style={{ fontSize: '16px' }}></iconify-icon>
+                                                        </div>
+                                                        <div className="w-100 overflow-hidden">
+                                                            <span className="text-muted d-block fw-bold text-uppercase" style={{ fontSize: '9px', letterSpacing: '0.5px' }}>Account Holder Name</span>
+                                                            <span className="fw-bold text-dark text-truncate d-block" style={{ fontSize: '12.5px', color: '#0F172A' }}>
+                                                                {qrForm.name || data?.kyc_account?.name || user?.name || 'N/A'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* 2. Account Number & IFSC Code 50% - 50% */}
+                                                <div className="row g-2">
+                                                    {/* Account Number (50%) */}
+                                                    <div className="col-6">
+                                                        <div className="p-2 rounded-3 border h-100" style={{ backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' }}>
+                                                            <div className="d-flex align-items-center">
+                                                                <div className="rounded-3 bg-success-subtle text-success p-1.5 me-1.5 d-flex align-items-center justify-content-center" style={{ width: '28px', height: '28px', minWidth: '28px' }}>
+                                                                    <iconify-icon icon="solar:card-bold-duotone" style={{ fontSize: '15px' }}></iconify-icon>
+                                                                </div>
+                                                                <div className="w-100 overflow-hidden">
+                                                                    <span className="text-muted d-block fw-bold text-uppercase text-truncate" style={{ fontSize: '8.5px', letterSpacing: '0.4px' }}>Account No</span>
+                                                                    <span className="fw-bold text-dark font-monospace text-truncate d-block" style={{ fontSize: '11.5px', color: '#0F172A' }}>
+                                                                        {qrForm.account_number || data?.kyc_account?.account_number || 'N/A'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* IFSC Code (50%) */}
+                                                    <div className="col-6">
+                                                        <div className="p-2 rounded-3 border h-100" style={{ backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' }}>
+                                                            <div className="d-flex align-items-center">
+                                                                <div className="rounded-3 bg-info-subtle text-info p-1.5 me-1.5 d-flex align-items-center justify-content-center" style={{ width: '28px', height: '28px', minWidth: '28px' }}>
+                                                                    <iconify-icon icon="solar:banknote-bold-duotone" style={{ fontSize: '15px' }}></iconify-icon>
+                                                                </div>
+                                                                <div className="w-100 overflow-hidden">
+                                                                    <span className="text-muted d-block fw-bold text-uppercase text-truncate" style={{ fontSize: '8.5px', letterSpacing: '0.4px' }}>IFSC Code</span>
+                                                                    <span className="fw-bold text-primary font-monospace text-truncate d-block" style={{ fontSize: '11.5px' }}>
+                                                                        {qrForm.account_ifsc || data?.kyc_account?.ifsc_code || 'N/A'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Fallback inputs if KYC bank details are missing */}
+                                                {(!qrForm.account_number || !qrForm.account_ifsc) && (
+                                                    <div className="p-2 bg-warning-subtle rounded-3 border border-warning">
+                                                        <div className="text-warning-emphasis fw-bold mb-1" style={{ fontSize: '10px' }}>
+                                                            <iconify-icon icon="solar:danger-triangle-bold" className="me-1 align-middle"></iconify-icon>
+                                                            KYC Bank details missing. Please enter below:
+                                                        </div>
+                                                        <div className="row g-1.5">
+                                                            <div className="col-6">
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control form-control-sm rounded-2 fw-bold"
+                                                                    placeholder="Account Number"
+                                                                    value={qrForm.account_number}
+                                                                    onChange={(e) => setQrForm(prev => ({ ...prev, account_number: e.target.value }))}
+                                                                    required
+                                                                />
+                                                            </div>
+                                                            <div className="col-6">
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-control form-control-sm rounded-2 fw-bold text-uppercase"
+                                                                    placeholder="IFSC Code"
+                                                                    value={qrForm.account_ifsc}
+                                                                    onChange={(e) => setQrForm(prev => ({ ...prev, account_ifsc: e.target.value.toUpperCase() }))}
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Generate Button */}
+                                            <button
+                                                type="submit"
+                                                disabled={qrLoading}
+                                                className="btn btn-primary btn-sm w-100 rounded-pill py-2.5 fw-bold shadow-sm d-flex align-items-center justify-content-center text-white"
+                                                style={{ fontSize: '12.5px', background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)', border: 'none' }}
+                                            >
+                                                {qrLoading ? (
+                                                    <>
+                                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                        &nbsp;Generating QR Code...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <iconify-icon icon="solar:qr-code-bold" className="me-2 fs-5 text-warning"></iconify-icon>
+                                                        &nbsp;Click to Generate Virtual QR
+                                                    </>
+                                                )}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Rendered when Virtual Account (vaData) exists */
+                                <div className="card border-0 rounded-4 shadow-sm h-100 bg-white overflow-hidden" style={{ border: '1px solid #CBD5E1' }}>
+                                    {/* Header */}
+                                    <div className="card-header border-0 py-2.5 px-3" style={{ background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)' }}>
+                                        <div className="d-flex justify-content-between align-items-center">
+                                            <div className="d-flex align-items-center">
+                                                <div className="bg-white bg-opacity-20 text-white rounded-circle me-2 d-flex align-items-center justify-content-center" style={{ width: '32px', height: '32px', minWidth: '32px' }}>
+                                                    <iconify-icon icon="solar:qr-code-bold-duotone" style={{ fontSize: '20px' }}></iconify-icon>
+                                                </div>
+                                                <div>
+                                                    <h6 className="fw-bold mb-0 text-white tracking-wide d-flex align-items-center" style={{ fontSize: '13.5px' }}>
+                                                        UPI Virtual QR Code
+                                                    </h6>
+                                                    <small className="text-white-50" style={{ fontSize: '10px' }}>Linked with Verified KYC Bank Account</small>
+                                                </div>
+                                            </div>
+                                            <span className="badge bg-warning text-dark fw-bold px-2 py-1 shadow-sm" style={{ fontSize: '9.5px', borderRadius: '6px' }}>
+                                                ✓ ACTIVE
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Body */}
+                                    <div className="card-body p-3 d-flex align-items-center">
+                                        <div className="row g-2 align-items-center w-100 mx-0">
+                                            {/* LEFT SIDE: QR CODE */}
+                                            <div className="col-5 text-center p-0">
+                                                <div className="bg-white shadow-sm p-2 rounded-3 border d-inline-block mw-100">
+                                                    {qrImageUrl ? (
+                                                        <img
+                                                            src={qrImageUrl}
+                                                            alt="QR Code"
+                                                            className="img-fluid rounded-2"
+                                                            style={{ width: '125px', height: '125px', objectFit: 'contain' }}
+                                                        />
+                                                    ) : (
+                                                        <div className="p-3 text-muted fw-bold" style={{ fontSize: '11px' }}>QR Code Ready</div>
+                                                    )}
+                                                </div>
+                                                <div className="text-dark fw-bold mt-1.5 d-flex align-items-center justify-content-center" style={{ fontSize: '11px', color: '#1E293B' }}>
+                                                    <iconify-icon icon="solar:camera-bold-duotone" className="me-1 text-primary" style={{ fontSize: '14px' }}></iconify-icon>
+                                                    Scan &amp; Add Fund
+                                                </div>
+                                            </div>
+
+                                            {/* RIGHT SIDE: UPI ID CARD & BUTTONS */}
+                                            <div className="col-7 ps-2 pe-0 d-flex flex-column justify-content-center">
+                                                {/* UPI ID BOX CARD */}
+                                                <div className="p-2.5 rounded-3 border mb-2.5 shadow-xs" style={{ backgroundColor: '#F8FAFC', borderColor: '#CBD5E1' }}>
+                                                    <div className="d-flex justify-content-between align-items-center mb-1">
+                                                        <span className="text-muted fw-bold text-uppercase d-flex align-items-center" style={{ fontSize: '9px', letterSpacing: '0.5px' }}>
+                                                            <iconify-icon icon="solar:wallet-money-bold-duotone" className="me-1 text-primary" style={{ fontSize: '13px' }}></iconify-icon>
+                                                            Virtual UPI ID
+                                                        </span>
+                                                        {copiedField === 'upi' && (
+                                                            <span className="badge bg-success-subtle text-success fw-bold px-1.5 py-0.5" style={{ fontSize: '8.5px' }}>
+                                                                ✓ Copied
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="d-flex justify-content-between align-items-center gap-1">
+                                                        <span className="fw-bold text-dark font-monospace text-truncate user-select-all" style={{ fontSize: '12.5px', color: '#0F172A' }} title={vaData.virtual_upi_handle || vaData.virtual_account_number}>
+                                                            {vaData.virtual_upi_handle || vaData.virtual_account_number || 'N/A'}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm btn-white border rounded-pill px-2 py-0.5 d-flex align-items-center text-primary shadow-xs flex-shrink-0"
+                                                            onClick={() => handleCopy(vaData.virtual_upi_handle || vaData.virtual_account_number || '', 'upi')}
+                                                            title="Copy UPI ID"
+                                                            style={{ fontSize: '10.5px', fontWeight: '600', backgroundColor: '#FFFFFF' }}
+                                                        >
+                                                            <iconify-icon icon={copiedField === 'upi' ? "solar:check-circle-bold" : "solar:copy-bold"} className="me-1" style={{ fontSize: '13px', color: copiedField === 'upi' ? '#10B981' : '#2563EB' }}></iconify-icon>
+                                                            {copiedField === 'upi' ? 'Copied' : 'Copy'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* ACTION BUTTONS: DOWNLOAD QR & SHARE QR WITH MARGIN/GAP */}
+                                                <div className="d-flex flex-column gap-2">
+                                                    {/* 1. DOWNLOAD QR BUTTON */}
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-success btn-sm rounded-pill py-2 px-3 fw-bold d-flex align-items-center justify-content-center text-white shadow-sm text-decoration-none hover-scale"
+                                                        onClick={handleDownloadPdf}
+                                                        style={{ fontSize: '12px', background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', border: 'none' }}
+                                                    >
+                                                        <iconify-icon icon="solar:download-minimalistic-bold-duotone" className="me-1.5 fs-5"></iconify-icon>
+                                                        Download QR
+                                                    </button>
+
+                                                    {/* 2. SHARE QR BUTTON */}
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-outline-primary btn-sm rounded-pill py-2 px-3 fw-bold d-flex align-items-center justify-content-center shadow-sm text-decoration-none hover-scale"
+                                                        onClick={() => handleShare(`UPI ID: ${vaData.virtual_upi_handle || vaData.virtual_account_number || ''}`, 'Share Payment QR')}
+                                                        style={{ fontSize: '12px', borderColor: '#2563EB', color: '#2563EB' }}
+                                                    >
+                                                        <iconify-icon icon="solar:share-bold-duotone" className="me-1.5 fs-5"></iconify-icon>
+                                                        Share QR
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
