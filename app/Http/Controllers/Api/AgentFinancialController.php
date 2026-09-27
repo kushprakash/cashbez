@@ -2237,7 +2237,7 @@ class AgentFinancialController extends Controller
                     ?? DB::table('settings')->first();
         }
         return [
-            'company_name' => $setting->company_name ?? 'Enexa Banking',
+            'company_name' => $setting->company_name ?? 'Enexa Bankings',
             'logo'         => $setting->logo ?? null,
             'footer_logo'  => $setting->footer_logo ?? null,
             'favicon'      => $setting->favicon ?? null,
@@ -2255,7 +2255,7 @@ class AgentFinancialController extends Controller
     protected function getCompanyName($adminId = 1)
     {
         $s = $this->getAdminSettings($adminId);
-        return $s['company_name'] ?? 'Enexa Banking';
+        return $s['company_name'] ?? 'Enexa Bankings';
     }
 }
 
