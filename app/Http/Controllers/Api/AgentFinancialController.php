@@ -931,6 +931,11 @@ class AgentFinancialController extends Controller
      */
     public function verifyMemberBankAccount(Request $request)
     {
+        $ifsc = $request->ifsc_code ?? $request->ifsc ?? $request->ifsccode;
+        if ($ifsc) {
+            $request->merge(['ifsc_code' => strtoupper($ifsc)]);
+        }
+
         $validator = Validator::make($request->all(), [
             'member_id' => 'required|integer',
             'account_number' => 'required|string',
