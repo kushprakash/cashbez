@@ -830,10 +830,20 @@ class AgentFinancialController extends Controller
 
             $response = curl_exec($curl);
             curl_close($curl);
+
+            Log::info('AgentFinancialController [verifyMemberAadhaarOtp] Raw Response: ' . $response);
             $rj = json_decode($response, true);
 
-            if (isset($rj['status']) && $rj['status'] == 1) {
-                $aadhaarInfo = $rj['data'];
+            $isSuccess = false;
+            if (is_array($rj)) {
+                $st = $rj['status'] ?? null;
+                if ($st === 1 || $st === '1' || $st === 'SUCCESS' || $st === true || !empty($rj['data']) || !empty($rj['aadhaar_data'])) {
+                    $isSuccess = true;
+                }
+            }
+
+            if ($isSuccess) {
+                $aadhaarInfo = $rj['data'] ?? $rj['aadhaar_data'] ?? [];
 
                 // Format photo if needed
                 $photo = $aadhaarInfo['photo_link'] ?? null;
