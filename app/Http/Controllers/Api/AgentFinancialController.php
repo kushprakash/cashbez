@@ -1167,9 +1167,16 @@ class AgentFinancialController extends Controller
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
 
-            $query = FinancialScopeService::applyScope(FinancialAccount::query(), $user)
-                                     ->where('service_type', 'SAVING')
-                                     ->with(['member']);
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+
+            $query = FinancialAccount::query()
+                ->where(function($q) use ($user, $adminId) {
+                    $q->where('admin_id', $adminId)
+                      ->orWhere('user_id', $user->id)
+                      ->orWhere('created_by', $user->id);
+                })
+                ->whereIn('service_type', ['SAVING', 'Saving', 'SB', 'SAVINGS', 'saving'])
+                ->with(['member']);
 
             if ($request->filled('search')) {
                 $s = trim($request->search);
@@ -2018,6 +2025,8 @@ class AgentFinancialController extends Controller
         try {
             $user = $request->user();
             if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
 
             $query = FinancialScopeService::applyScope(FinancialTransaction::query(), $user)
                                          ->with(['member:id,name,member_id', 'account:id,account_number,service_type']);
