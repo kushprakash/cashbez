@@ -1428,7 +1428,8 @@ class AgentFinancialController extends Controller
             $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
 
             $validator = Validator::make($request->all(), [
-                'account_id' => 'required|exists:financial_accounts,id',
+                'account_id' => 'required_without:account_number|nullable',
+                'account_number' => 'required_without:account_id|nullable',
                 'amount' => 'required|numeric|min:1',
                 'mpin' => 'required|string|size:4',
                 'narration' => 'nullable|string|max:255',
@@ -1438,9 +1439,18 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $request->account_id), $user)
-                                      ->where('service_type', 'SAVING')
-                                      ->firstOrFail();
+            $query = FinancialScopeService::applyScope(FinancialAccount::query(), $user)
+                                      ->whereIn('service_type', ['SAVING', 'Saving', 'SB', 'SAVINGS', 'saving']);
+
+            if ($request->filled('account_id')) {
+                $account = $query->where('id', $request->account_id)->first();
+            } else {
+                $account = $query->where('account_number', trim($request->account_number))->first();
+            }
+
+            if (!$account) {
+                return response()->json(['status' => 0, 'message' => 'Saving Account not found or unauthorized access.'], 404);
+            }
 
             $amount = floatval($request->amount);
             $txnId = FinancialScopeService::generateTxnId();
@@ -1918,7 +1928,8 @@ class AgentFinancialController extends Controller
             $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
 
             $validator = Validator::make($request->all(), [
-                'account_id' => 'required|exists:financial_accounts,id',
+                'account_id' => 'required_without:account_number|nullable',
+                'account_number' => 'required_without:account_id|nullable',
                 'amount' => 'required|numeric|min:1',
                 'mpin' => 'required|string|size:4',
             ]);
@@ -1927,8 +1938,16 @@ class AgentFinancialController extends Controller
                 return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
             }
 
-            $account = FinancialScopeService::applyScope(FinancialAccount::where('id', $request->account_id), $user)
-                                      ->firstOrFail();
+            $query = FinancialScopeService::applyScope(FinancialAccount::query(), $user);
+            if ($request->filled('account_id')) {
+                $account = $query->where('id', $request->account_id)->first();
+            } else {
+                $account = $query->where('account_number', trim($request->account_number))->first();
+            }
+
+            if (!$account) {
+                return response()->json(['status' => 0, 'message' => 'Account not found or unauthorized access.'], 404);
+            }
 
             $amount = floatval($request->amount);
             $txnId = FinancialScopeService::generateTxnId();
