@@ -1249,6 +1249,10 @@ Route::middleware('api.token.auth')->group(function () {
     Route::prefix('agent/financial')->group(function () {
         Route::get('dashboard', [AgentFinancialController::class, 'getDashboardSummary']);
         
+        // Plans Routes
+        Route::get('plans/membership', [AgentFinancialController::class, 'getMembershipPlans']);
+        Route::get('plans/financial', [AgentFinancialController::class, 'getFinancialPlans']);
+
         // Member Routes
         Route::get('members', [AgentFinancialController::class, 'getMembers']);
         Route::post('members', [AgentFinancialController::class, 'createMember']);

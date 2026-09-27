@@ -511,6 +511,64 @@ class AgentFinancialController extends Controller
     }
 
     /**
+     * Get Active Membership Plans
+     */
+    public function getMembershipPlans(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $adminId = $user->admin_id ?? ($user->role == 2 ? $user->id : 1);
+            $plans = MembershipPlan::where(function($q) use ($adminId, $user) {
+                        $q->where('admin_id', $adminId)->orWhere('user_id', $user->id)->orWhereNull('admin_id');
+                    })
+                    ->where('status', 'ACTIVE')
+                    ->orderBy('id', 'asc')
+                    ->get();
+
+            if ($plans->isEmpty()) {
+                $plans = MembershipPlan::where('status', 'ACTIVE')->get();
+            }
+
+            return response()->json([
+                'status' => 1,
+                'data' => $plans
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Active Financial Plans by Service Type (SAVING, DD, RD, FD, MIS)
+     */
+    public function getFinancialPlans(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $query = FinancialPlan::query();
+
+            if ($request->filled('service_type')) {
+                $query->where('service_type', strtoupper($request->service_type));
+            }
+
+            $plans = $query->where('status', 'ACTIVE')
+                           ->orderBy('id', 'asc')
+                           ->get();
+
+            return response()->json([
+                'status' => 1,
+                'data' => $plans
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Get Member 360 Details
      */
     public function getMemberDetails($id)
@@ -603,6 +661,11 @@ class AgentFinancialController extends Controller
      */
     public function sendMemberAadhaarOtp(Request $request)
     {
+        $aadharNo = $request->aadhar_number ?? $request->aadhaar_number ?? $request->aadhaar_no;
+        if ($aadharNo) {
+            $request->merge(['aadhar_number' => $aadharNo]);
+        }
+
         $validator = Validator::make($request->all(), [
             'aadhar_number' => 'required|string|size:12',
         ]);
@@ -655,24 +718,35 @@ class AgentFinancialController extends Controller
             $response = curl_exec($curl);
             curl_close($curl);
             
+            Log::info('AgentFinancialController [sendMemberAadhaarOtp] Raw Response: ' . $response);
+
             $rj = json_decode($response, true);
 
-            if (isset($rj['status']) && $rj['status'] == 1) {
-                $refid = $rj['data']['refid'] ?? '';
+            $isSuccess = false;
+            if (is_array($rj)) {
+                $st = $rj['status'] ?? null;
+                if ($st === 1 || $st === '1' || $st === 'SUCCESS' || $st === true || !empty($rj['refid']) || !empty($rj['data']['refid'])) {
+                    $isSuccess = true;
+                }
+            }
+
+            if ($isSuccess) {
+                $refid = $rj['refid'] ?? $rj['data']['refid'] ?? $rj['txnid'] ?? '';
                 return response()->json([
                     'status' => 1,
                     'message' => 'OTP sent successfully',
                     'refid' => $refid,
                     'txnid' => $refid,
-                    'otp_sent' => true
+                    'otp_sent' => true,
+                    'raw' => $rj
                 ]);
             } else {
                 return response()->json([
                     'status' => 0,
-                    'message' => $rj['message'] ?? 'Technical Issue Try again',
+                    'message' => (isset($rj['message']) && !empty($rj['message'])) ? $rj['message'] : 'Technical Issue Try again',
                     'txnid' => '',
                     'otp_sent' => false,
-                    'data' => $response
+                    'data' => $rj ?? $response
                 ]);
             }
         }
@@ -690,11 +764,16 @@ class AgentFinancialController extends Controller
      */
     public function verifyMemberAadhaarOtp(Request $request)
     {
+        $aadharNo = $request->aadhar_number ?? $request->aadhaar_number ?? $request->aadhaar_no;
+        if ($aadharNo) {
+            $request->merge(['aadhar_number' => $aadharNo]);
+        }
+
         $validator = Validator::make($request->all(), [
             'otp' => 'required|string|size:6',
             'refid' => 'nullable|string',
             'txnid' => 'nullable|string',
-            'aadhar_number' => 'required|string|size:12',
+            'aadhar_number' => 'nullable|string',
             'member_id' => 'nullable|integer',
         ]);
 
