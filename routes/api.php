@@ -1274,6 +1274,7 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('saving/withdraw', [AgentFinancialController::class, 'withdrawSaving']);
 
         // DD, RD, FD, MIS Account Routes
+        Route::get('accounts/search/query', [AgentFinancialController::class, 'searchAccounts']);
         Route::get('accounts/{type}', [AgentFinancialController::class, 'getAccountsByType']);
         Route::post('accounts/open', [AgentFinancialController::class, 'openFinancialAccount']);
         Route::post('accounts/collect', [AgentFinancialController::class, 'collectInstallment']);

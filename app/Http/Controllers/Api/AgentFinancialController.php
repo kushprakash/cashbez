@@ -1407,7 +1407,9 @@ class AgentFinancialController extends Controller
             return response()->json([
                 'status' => 1,
                 'message' => "Saving Account {$accountNumber} opened successfully!",
-                'data' => $account
+                'data' => $account,
+                'setting' => $this->getAdminSettings($adminId),
+                'company_name' => $this->getCompanyName($adminId),
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -1745,6 +1747,51 @@ class AgentFinancialController extends Controller
                 'status' => 1,
                 'data' => $accounts,
                 'company_name' => $this->getCompanyName($adminId),
+                'setting' => $this->getAdminSettings($adminId),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Search Accounts by Mobile, Name, Account Number, or Member ID
+     */
+    public function searchAccounts(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user) return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+
+            $query = FinancialScopeService::applyScope(FinancialAccount::query(), $user)
+                                     ->with(['member:id,member_id,name,mobile,kyc_status']);
+
+            if ($request->filled('service_type')) {
+                $serviceType = strtoupper($request->service_type);
+                if ($serviceType === 'SAVING') {
+                    $query->whereIn('service_type', ['SAVING', 'Saving', 'SB', 'SAVINGS', 'saving']);
+                } else {
+                    $query->where('service_type', $serviceType);
+                }
+            }
+
+            if ($request->filled('query') || $request->filled('search')) {
+                $s = trim($request->input('query', $request->input('search')));
+                $query->where(function($q) use ($s) {
+                    $q->where('account_number', 'like', "%{$s}%")
+                      ->orWhereHas('member', function($mq) use ($s) {
+                          $mq->where('name', 'like', "%{$s}%")
+                             ->orWhere('mobile', 'like', "%{$s}%")
+                             ->orWhere('member_id', 'like', "%{$s}%");
+                      });
+                });
+            }
+
+            $accounts = $query->where('status', 'ACTIVE')->orderBy('id', 'desc')->take(20)->get();
+
+            return response()->json([
+                'status' => 1,
+                'data' => $accounts
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -1850,7 +1897,9 @@ class AgentFinancialController extends Controller
             return response()->json([
                 'status' => 1,
                 'message' => "{$serviceType} Account {$accountNumber} opened successfully!",
-                'data' => $account
+                'data' => $account,
+                'setting' => $this->getAdminSettings($adminId),
+                'company_name' => $this->getCompanyName($adminId),
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -2066,6 +2115,7 @@ class AgentFinancialController extends Controller
                 'status' => 1,
                 'data' => $transactions,
                 'company_name' => $this->getCompanyName($adminId),
+                'setting' => $this->getAdminSettings($adminId),
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
