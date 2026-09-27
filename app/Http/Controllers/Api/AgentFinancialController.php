@@ -344,6 +344,7 @@ class AgentFinancialController extends Controller
                     'monthly_trend'       => $monthlyTrend,
                     'period_trend'        => $periodTrend,
                     'company_name'        => $this->getCompanyName($adminId),
+                    'setting'             => $this->getAdminSettings($adminId),
                 ]
             ]);
         } catch (\Exception $e) {
@@ -1197,6 +1198,7 @@ class AgentFinancialController extends Controller
                 'status' => 1,
                 'data' => $accounts,
                 'company_name' => $this->getCompanyName($adminId),
+                'setting' => $this->getAdminSettings($adminId),
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -2224,15 +2226,36 @@ class AgentFinancialController extends Controller
     }
 
     /**
-     * Get Company Name from admin settings
+     * Get Admin Settings array (company_name, logo, sign, etc.)
      */
-    protected function getCompanyName($adminId)
+    protected function getAdminSettings($adminId = 1)
     {
         $setting = DB::table('settings')->where('user_id', $adminId)->first();
         if (!$setting) {
-            $setting = DB::table('settings')->where('status', 1)->first() ?? DB::table('settings')->first();
+            $setting = DB::table('settings')->where('user_id', 1)->first()
+                    ?? DB::table('settings')->where('status', 1)->first()
+                    ?? DB::table('settings')->first();
         }
-        return $setting->company_name ?? 'FINANCIAL SERVICES LIMITED';
+        return [
+            'company_name' => $setting->company_name ?? 'Enexa Banking',
+            'logo'         => $setting->logo ?? null,
+            'footer_logo'  => $setting->footer_logo ?? null,
+            'favicon'      => $setting->favicon ?? null,
+            'sign'         => $setting->sign ?? null,
+            'about'        => $setting->about ?? null,
+            'email'        => $setting->email ?? null,
+            'mobile_no'    => $setting->mobile_no ?? null,
+            'address'      => $setting->address ?? null,
+        ];
+    }
+
+    /**
+     * Get Company Name from admin settings
+     */
+    protected function getCompanyName($adminId = 1)
+    {
+        $s = $this->getAdminSettings($adminId);
+        return $s['company_name'] ?? 'Enexa Banking';
     }
 }
 
