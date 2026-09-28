@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AgentFinancialController;
+use App\Http\Controllers\Api\FinancialMemberController;
 use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\ModuleController;
@@ -1292,6 +1293,29 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('daily-closing', [AgentFinancialController::class, 'submitDailyClosing']);
     });
 
+    // ==========================================
+    // Member App Direct API Routes
+    // ==========================================
+    Route::prefix('v2/member')->group(function () {
+        Route::get('profile', [FinancialMemberController::class, 'getProfile']);
+        Route::get('saving/account', [FinancialMemberController::class, 'getSavingAccount']);
+        Route::post('saving/open', [FinancialMemberController::class, 'openSavingAccount']);
+        Route::post('banking/p2p', [FinancialMemberController::class, 'p2pTransfer']);
+        Route::post('banking/dmt', [FinancialMemberController::class, 'dmtTransfer']);
+        Route::get('investments/{type}', [FinancialMemberController::class, 'getInvestmentAccounts']);
+        Route::post('investments/open', [FinancialMemberController::class, 'openInvestmentAccount']);
+        Route::post('investments/deposit', [FinancialMemberController::class, 'depositInvestmentAccount']);
+        Route::post('investments/maturity', [FinancialMemberController::class, 'requestMaturity']);
+    });
+
 });
+
+// Member Public Authentication Routes (No Token Middleware Required)
+Route::prefix('v2/member/auth')->group(function () {
+    Route::post('send-otp', [FinancialMemberController::class, 'sendOtp']);
+    Route::post('verify-otp', [FinancialMemberController::class, 'verifyOtp']);
+    Route::post('register', [FinancialMemberController::class, 'register']);
+});
+
 
 
