@@ -1738,6 +1738,23 @@ class AgentFinancialController extends Controller
                                      ->where('service_type', $type)
                                      ->with(['member']);
 
+            if ($request->filled('status')) {
+                $st = strtoupper(trim($request->status));
+                if ($st === 'MATURED') {
+                    $query->where(function($q) {
+                        $q->where('status', 'MATURED')
+                          ->orWhere(function($mq) {
+                              $mq->where('status', 'ACTIVE')
+                                 ->whereNotNull('duration_months')
+                                 ->where('duration_months', '>', 0)
+                                 ->whereRaw('DATE_ADD(created_at, INTERVAL duration_months MONTH) <= NOW()');
+                          });
+                    });
+                } else {
+                    $query->where('status', $st);
+                }
+            }
+
             if ($request->filled('search')) {
                 $s = trim($request->search);
                 $query->where(function($q) use ($s) {
