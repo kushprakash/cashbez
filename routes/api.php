@@ -1310,6 +1310,7 @@ Route::middleware('api.token.auth')->group(function () {
 
 });
 
+
 // Member Public Authentication Routes (No Token Middleware Required)
 Route::prefix('v2/member/auth')->group(function () {
     Route::post('send-otp', [FinancialMemberController::class, 'sendOtp']);
