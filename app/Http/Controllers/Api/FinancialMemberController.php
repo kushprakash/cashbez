@@ -569,7 +569,7 @@ class FinancialMemberController extends Controller
     }
 
     /**
-     * Open DD, RD, FD, or MIS Account (No KYC required to open)
+     * Open DD, RD, FD, or MIS Account (Deducted from Member's Saving Account)
      */
     public function openInvestmentAccount(Request $request)
     {
@@ -592,48 +592,99 @@ class FinancialMemberController extends Controller
         }
 
         $type = strtoupper($request->service_type);
-        $accNumber = FinancialScopeService::generateAccountNumber($type);
         $amount = floatval($request->opening_amount);
 
-        $account = FinancialAccount::create([
-            'account_number' => $accNumber,
-            'member_id' => $member->id,
-            'user_id' => $member->user_id,
-            'admin_id' => $member->admin_id,
-            'created_by' => $member->user_id,
-            'service_type' => $type,
-            'opening_amount' => $amount,
-            'current_balance' => $amount,
-            'available_balance' => $amount,
-            'interest_rate' => floatval($request->input('interest_rate', 6.5)),
-            'duration_months' => intval($request->input('duration_months', 12)),
-            'status' => 'ACTIVE',
-            'nominee_name' => $member->nominee_name,
-        ]);
+        // 1. Mandatory Saving Account Check
+        $savingAcc = FinancialAccount::where('member_id', $member->id)
+            ->where('service_type', 'SAVING')
+            ->first();
 
-        $txnId = FinancialScopeService::generateTxnId();
+        if (!$savingAcc) {
+            return response()->json([
+                'status' => 0,
+                'message' => 'A Saving Account is mandatory to open a ' . $type . ' Account. Please open your Saving Account first.'
+            ], 400);
+        }
 
-        FinancialTransaction::create([
-            'transaction_id' => $txnId,
-            'account_id' => $account->id,
-            'member_id' => $member->id,
-            'user_id' => $member->user_id,
-            'admin_id' => $member->admin_id,
-            'service_type' => $type,
-            'txn_type' => 'DEPOSIT',
-            'amount' => $amount,
-            'charges' => 0,
-            'net_amount' => $amount,
-            'payment_mode' => 'CASH',
-            'narration' => "Initial deposit for {$type} Account {$accNumber}",
-            'status' => 'SUCCESS',
-        ]);
+        // 2. Check sufficient Saving Account balance
+        if ($savingAcc->available_balance < $amount) {
+            return response()->json([
+                'status' => 0,
+                'message' => 'Insufficient Saving Account balance. Available: ₹' . number_format($savingAcc->available_balance, 2)
+            ], 400);
+        }
 
-        return response()->json([
-            'status' => 1,
-            'message' => "{$type} Account opened successfully!",
-            'data' => $account
-        ]);
+        DB::beginTransaction();
+        try {
+            // Debit Member's Saving Account
+            $savingAcc->decrement('available_balance', $amount);
+            $savingAcc->decrement('current_balance', $amount);
+
+            $accNumber = FinancialScopeService::generateAccountNumber($type);
+
+            $account = FinancialAccount::create([
+                'account_number' => $accNumber,
+                'member_id' => $member->id,
+                'user_id' => $member->user_id,
+                'admin_id' => $member->admin_id,
+                'created_by' => $member->user_id,
+                'service_type' => $type,
+                'opening_amount' => $amount,
+                'current_balance' => $amount,
+                'available_balance' => $amount,
+                'interest_rate' => floatval($request->input('interest_rate', 6.5)),
+                'duration_months' => intval($request->input('duration_months', 12)),
+                'status' => 'ACTIVE',
+                'nominee_name' => $member->nominee_name,
+            ]);
+
+            $txnId = FinancialScopeService::generateTxnId();
+
+            // Debit Txn on Saving Account
+            FinancialTransaction::create([
+                'transaction_id' => $txnId,
+                'account_id' => $savingAcc->id,
+                'member_id' => $member->id,
+                'user_id' => $member->user_id,
+                'admin_id' => $member->admin_id,
+                'service_type' => 'SAVING',
+                'txn_type' => 'INVESTMENT_DEBIT',
+                'amount' => $amount,
+                'charges' => 0,
+                'net_amount' => $amount,
+                'payment_mode' => 'INTERNAL',
+                'narration' => "Debit for {$type} Account {$accNumber} opening",
+                'status' => 'SUCCESS',
+            ]);
+
+            // Credit Txn on Investment Account
+            FinancialTransaction::create([
+                'transaction_id' => $txnId . '-INV',
+                'account_id' => $account->id,
+                'member_id' => $member->id,
+                'user_id' => $member->user_id,
+                'admin_id' => $member->admin_id,
+                'service_type' => $type,
+                'txn_type' => 'DEPOSIT',
+                'amount' => $amount,
+                'charges' => 0,
+                'net_amount' => $amount,
+                'payment_mode' => 'SAVING_ACCOUNT',
+                'narration' => "Initial deposit from Saving Account {$savingAcc->account_number}",
+                'status' => 'SUCCESS',
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 1,
+                'message' => "{$type} Account opened successfully! ₹{$amount} debited from Saving Account.",
+                'data' => $account
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
     }
 
     /**
