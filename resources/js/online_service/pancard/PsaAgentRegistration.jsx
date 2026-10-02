@@ -13,20 +13,20 @@ const PsaAgentRegistration = () => {
 
     // Refs for all form fields (uncontrolled - no re-render on typing)
     const refs = {
-        agent_id:       useRef(null),
-        name:           useRef(null),
+        agent_id: useRef(null),
+        name: useRef(null),
         contact_person: useRef(null),
-        email:          useRef(null),
-        mobile_no:      useRef(null),
-        pin:            useRef(null),
-        location:       useRef(null),
-        state:          useRef(null),
-        district:       useRef(null),
-        pan_no:         useRef(null),
-        address_1:      useRef(null),
-        address_2:      useRef(null),
-        address_3:      useRef(null),
-        address_4:      useRef(null),
+        email: useRef(null),
+        mobile_no: useRef(null),
+        pin: useRef(null),
+        location: useRef(null),
+        state: useRef(null),
+        district: useRef(null),
+        pan_no: useRef(null),
+        address_1: useRef(null),
+        address_2: useRef(null),
+        address_3: useRef(null),
+        address_4: useRef(null),
     };
 
     // Helper: set value into a ref input
@@ -36,38 +36,38 @@ const PsaAgentRegistration = () => {
 
     // Populate all inputs from data object
     const populateForm = (data, suggestedId) => {
-        setRefValue('agent_id',       data?.agent_id       || suggestedId || '');
-        setRefValue('name',           data?.name           || '');
+        setRefValue('agent_id', data?.agent_id || suggestedId || '');
+        setRefValue('name', data?.name || '');
         setRefValue('contact_person', data?.contact_person || '');
-        setRefValue('email',          data?.email          || '');
-        setRefValue('mobile_no',      data?.mobile_no      || '');
-        setRefValue('pin',            data?.pin            || '');
-        setRefValue('location',       data?.location       || '');
-        setRefValue('state',          data?.state          || '');
-        setRefValue('district',       data?.district       || '');
-        setRefValue('pan_no',         data?.pan_no         || '');
-        setRefValue('address_1',      data?.address_1      || '');
-        setRefValue('address_2',      data?.address_2      || '');
-        setRefValue('address_3',      data?.address_3      || '');
-        setRefValue('address_4',      data?.address_4      || '');
+        setRefValue('email', data?.email || '');
+        setRefValue('mobile_no', data?.mobile_no || '');
+        setRefValue('pin', data?.pin || '');
+        setRefValue('location', data?.location || '');
+        setRefValue('state', data?.state || '');
+        setRefValue('district', data?.district || '');
+        setRefValue('pan_no', data?.pan_no || '');
+        setRefValue('address_1', data?.address_1 || '');
+        setRefValue('address_2', data?.address_2 || '');
+        setRefValue('address_3', data?.address_3 || '');
+        setRefValue('address_4', data?.address_4 || '');
     };
 
     // Read all values from DOM refs
     const getFormValues = () => ({
-        agent_id:       refs.agent_id.current?.value       || '',
-        name:           refs.name.current?.value           || '',
+        agent_id: refs.agent_id.current?.value || '',
+        name: refs.name.current?.value || '',
         contact_person: refs.contact_person.current?.value || '',
-        email:          refs.email.current?.value          || '',
-        mobile_no:      refs.mobile_no.current?.value      || '',
-        pin:            refs.pin.current?.value            || '',
-        location:       refs.location.current?.value       || '',
-        state:          refs.state.current?.value          || '',
-        district:       refs.district.current?.value       || '',
-        pan_no:         refs.pan_no.current?.value         || '',
-        address_1:      refs.address_1.current?.value      || '',
-        address_2:      refs.address_2.current?.value      || '',
-        address_3:      refs.address_3.current?.value      || '',
-        address_4:      refs.address_4.current?.value      || '',
+        email: refs.email.current?.value || '',
+        mobile_no: refs.mobile_no.current?.value || '',
+        pin: refs.pin.current?.value || '',
+        location: refs.location.current?.value || '',
+        state: refs.state.current?.value || '',
+        district: refs.district.current?.value || '',
+        pan_no: refs.pan_no.current?.value || '',
+        address_1: refs.address_1.current?.value || '',
+        address_2: refs.address_2.current?.value || '',
+        address_3: refs.address_3.current?.value || '',
+        address_4: refs.address_4.current?.value || '',
     });
 
     // Fetch existing agent status on load
@@ -210,8 +210,7 @@ const PsaAgentRegistration = () => {
                                 <form onSubmit={handleSubmit}>
                                     <div className="row g-3">
 
-                                        {/* Agent ID */}
-                                        <div className="col-md-3">
+                                        <div className="col-md-3 d-none">
                                             <label className="form-label fw-bold text-secondary" style={{ fontSize: '12px' }}>
                                                 Agent ID
                                             </label>

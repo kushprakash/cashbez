@@ -15,6 +15,11 @@ use Carbon\Carbon;
 
 class PanCardController extends Controller
 {
+
+    private const BASE_URL = 'https://icchhamatidataservice.com/api/';
+    private const MID = "AGENT1475";
+    private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
+
     /**
      * Get next suggested Agent ID (e.g. ANNECHM-816 -> ANNECHM-817)
      */
@@ -140,25 +145,76 @@ class PanCardController extends Controller
                 ]);
             }
 
-            // Create new agent registration
-            $assignedAgentId = $request->agent_id ? trim($request->agent_id) : $this->getNextAgentId();
 
-            $agent = UtiPsaAgent::create(array_merge($request->only([
-                'name', 'contact_person', 'email', 'mobile_no', 'pin',
-                'location', 'state', 'district', 'pan_no',
-                'address_1', 'address_2', 'address_3', 'address_4'
-            ]), [
-                'user_id' => $user->id,
-                'admin_id' => $admin->id,
-                'agent_id' => $assignedAgentId,
-                'status' => 0, // Pending
-            ]));
+            $url = self::BASE_URL."pan-card/agent-register";
 
-            return response()->json([
-                'status' => 1,
-                'message' => 'PSA Agent Registration submitted successfully!',
-                'data' => $agent
+
+            $postData = [
+                'name'=> $request->name,
+                'contact_person'=> $request->contact_person,
+                'email'=> $request->email,
+                'mobile_no'=> $request->mobile_no,
+                'pin'=> $request->pin,
+                'location'=> $request->location,
+                'state'=> $request->state,
+                'district'=> $request->district,
+                'pan_no'=> $request->pan_no,
+                'address_1'=> $request->address_1,
+                'address_2'=> $request->address_2,
+                'address_3'=> $request->address_3,
+                'address_4'=> $request->address_4,
+            ];
+
+            $ch = curl_init($url);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($postData),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
             ]);
+
+            $response = curl_exec($ch);
+
+            $json_response = json_decode($response, true);
+
+            if(isset($json_response['status']) && $json_response['status']==1){
+
+              
+                $agent = UtiPsaAgent::create(array_merge($request->only([
+                    'name', 'contact_person', 'email', 'mobile_no', 'pin',
+                    'location', 'state', 'district', 'pan_no',
+                    'address_1', 'address_2', 'address_3', 'address_4'
+                ]), [
+                    'user_id' => $user->id,
+                    'admin_id' => $admin->id,
+                    'agent_id' => $json_response['data']['agent_id'] ?? null,
+                    'status' => 0, // Pending
+                ]));
+
+                return response()->json([
+                    'status' => 1,
+                    'message' => 'PSA Agent Registration submitted successfully!',
+                    'data' => $agent
+                ]);
+                
+            } else {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $json_response['message'] ?? 'Agent Registration failed',
+                ]);
+            }
+
+
+
+
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
         }
@@ -391,113 +447,179 @@ class PanCardController extends Controller
             $amount = floatval($request->amount);
             $txnId = 'PANFR' . date('YmdHis') . rand(100, 999);
 
-            if($user->role > 2){
+        
+            // Step 1: Prepare transaction data
+            $transactionData1 = [
+                'account_id' => $utilityWallet->id,
+                'type' => 'DR',
+                'amount' =>  $amount,
+                'description' => "PAN Card Fund Request Debit ({$txnId})",
+                'transaction_id' => $txnId,
+                'created_by' => $user->id,
+                'admin_id' => $utilityWallet->admin_id,
+                'user_id' => $user->id,
+                'category_code' => 'CHARGE'
+            ];
 
-                if(empty($request->mpin)){
-                    return response()->json([
-                        'status' => 0,
-                        'message' => 'MPIN is Required'
-                    ], 400);
+            
+            // Step 2: Create the transaction
+            $transactionData = createTransaction($transactionData1);
 
-                }
-
-                $mpin = $request->mpin;
-
-                // Step 1: Validate transaction & MPIN via Helper
-                if (!function_exists('validateTransaction') || !function_exists('processTransaction')) {
-                    require_once app_path('Helpers/TransactionHelper.php');
-                }
-
-                $validation = validateTransaction($request, $utilityWallet->id, $mpin, $amount, 'DR');
-                if (isset($validation['status']) && $validation['status'] == 0) {
-                    return response()->json([
-                        'status' => 0,
-                        'message' => $validation['message'] ?? 'Transaction validation failed'
-                    ], 400);
-                }
-
-                
-                // Step 2: Debit Utility Wallet
-                
-                $txnData = [
-                    'account_id' => $utilityWallet->id,
-                    'mpin' => $mpin,
-                    'type' => 'DR',
-                    'amount' => $amount,
-                    'description' => "PAN Card Fund Request Debit ({$txnId})",
-                    'transaction_id' => $txnId
-                ];
-
-                $processRes = processTransaction($request, $txnData, true);
-                
-                if (isset($processRes['status']) && $processRes['status'] == 0) {
-                    return response()->json([
-                        'status' => 0,
-                        'message' => $processRes['message'] ?? 'Wallet debit failed'
-                    ], 400);
-                }
-
-            } else {
-                // Step 1: Prepare transaction data
-                $transactionData1 = [
-                    'account_id' => $utilityWallet->id,
-                    'type' => 'DR',
-                    'amount' =>  $amount,
-                    'description' => "PAN Card Fund Request Debit ({$txnId})",
-                    'transaction_id' => $txnId,
-                    'created_by' => $user->id,
-                    'admin_id' => $utilityWallet->admin_id,
-                    'user_id' => $user->id,
-                    'category_code' => 'CHARGE'
-                ];
-
-                
-                // Step 2: Create the transaction
-                $transactionData = createTransaction($transactionData1);
-
-          
-                if (isset($transactionData['status']) && $transactionData['status'] == 0) {
-                    return response()->json([
-                        'status' => 0,
-                        'message' => $transactionData['message'] ?? 'Transaction failed'
-                    ], 400);
-                }
-
-
+            if($transactionData['status'] !== 1) {
+                return response()->json(['status' => 0, 'message' => $transactionData['message'], 'data' => NULL], 200);
             }
 
 
-            
+            $admin = $request->get('admin');
+
+            $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
                 
-            // Step 3: Record Pan Fund Request
-            $fundReq = PanFundRequest::create([
-                'user_id' => $user->id,
-                'admin_id' => $utilityWallet->admin_id,
-                'agent_id' => $agent->agent_id,
-                'account_id' => $utilityWallet->id,
-                'txn_id' => $txnId,
-                'coupon_qty' => 0,
-                'amount' => $amount,
-                'status' => 0, // Pending
-                'remark' => 'PAN Fund Request submitted successfully. Wallet debited.',
-            ]);
+            if($accounts && $accounts->user_id != $user->id) {
+                
+                $requestDatass=[
+                    'account_id' => $accounts->id,
+                    'type' => 'DR',
+                    'amount' => $amount,
+                    'description' => "PAN Card Fund Request Debit ({$txnId})",
+                    'transaction_id' => 'ADMIN-'.$txnId,
+                    'created_by' => $user->id,
+                    'admin_id' => $admin->id,
+                    'user_id' => $admin->id,
+                    'category_code' => 'CHARGE'
+                ];
+                
+                $resResponse=createTransaction($requestDatass);
 
 
-            //remove keys user_id, admin_id, account_id, txn_id
+                if (empty($resResponse['status']) || $resResponse['status'] != 1) {
 
-            unset($fundReq['user_id']);
-            unset($fundReq['admin_id']);
-            unset($fundReq['account_id']);
-            unset($fundReq['txn_id']);
-            unset($fundReq['remark']);
-            unset($fundReq['updated_at']);
+                    $requestDatass11=[
+                        'account_id' => $utilityWallet->id,
+                        'type' => 'CR',
+                        'amount' => $amount,
+                        'description' => "PAN Card Fund Request Faiiled & Refund ({$txnId})",
+                        'transaction_id' => 'REFUND-'.$txnId,
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $user->id,
+                        'category_code' => 'CHARGE'
+                    ];
+                    
+                    createTransaction($requestDatass11);
 
 
-            return response()->json([
-                'status' => 1,
-                'message' => 'Pan Fund Request submitted successfully. Wallet debited.',
-                'data' => $fundReq
-            ]);
+
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Some Technical Issue. Please try again.',
+                        'data' => null
+                    ], 200);
+                } 
+                
+            }
+
+
+            if(!empty($transactionData['status']) && $transactionData['status'] == 1) {
+
+
+
+                $url = self::BASE_URL."pan-card/fund-request/create";
+
+
+                $postData = [
+                    "amount"    => $amount,
+                    "mpin"      => '1234',
+                    "agent_id"  => $agent->agent_id,
+                    "txnid"     => $txnId ?? null
+                ];
+
+                $ch = curl_init($url);
+
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => json_encode($postData),
+                    CURLOPT_HTTPHEADER     => [
+                        "Content-Type: application/json",
+                        "Accept: application/json",
+                        "mid: ".self::MID,
+                        "mkey: ".self::MKEY
+                    ],
+                    CURLOPT_TIMEOUT        => 60,
+                    CURLOPT_CONNECTTIMEOUT => 20
+                ]);
+
+                $response = curl_exec($ch);
+
+                $json_response = json_decode($response, true);
+
+                if(isset($json_response['status']) && $json_response['status']==1){
+
+                        
+                    // Step 3: Record Pan Fund Request
+                    $fundReq = PanFundRequest::create([
+                        'user_id' => $user->id,
+                        'admin_id' => $utilityWallet->admin_id,
+                        'agent_id' => $agent->agent_id,
+                        'account_id' => $utilityWallet->id,
+                        'txn_id' => $txnId,
+                        'coupon_qty' => 0,
+                        'amount' => $amount,
+                        'status' => 0, // Pending
+                        'remark' => 'PAN Fund Request submitted successfully. Wallet debited.',
+                    ]);
+
+
+                    //remove keys user_id, admin_id, account_id, txn_id
+
+                    unset($fundReq['user_id']);
+                    unset($fundReq['admin_id']);
+                    unset($fundReq['account_id']);
+                    unset($fundReq['updated_at']);
+
+
+                    return response()->json([
+                        'status' => 1,
+                        'message' => 'Pan Fund Request submitted successfully. Wallet debited.',
+                        'data' => $fundReq
+                    ]);
+
+                } else {
+
+                    $requestDatass11=[
+                        'account_id' => $utilityWallet->id,
+                        'type' => 'CR',
+                        'amount' => $amount,
+                        'description' => 'PAN Card Fund Request Failed & Refund ('. $txnId .')',
+                        'transaction_id' => 'REFUND-'.$txnId,
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $user->id,
+                        'category_code' => 'CHARGE'
+                    ];
+                    
+                    createTransaction($requestDatass11);
+
+                    $requestDatass=[
+                        'account_id' => $admin->id,
+                        'type' => 'CR',
+                        'amount' => $amount,
+                        'description' => 'PAN Card Fund Request Failed & Refund ('. $txnId .')',
+                        'transaction_id' => 'TRNF' . $txnId,
+                        'created_by' => $user->id,
+                        'admin_id' => $accounts->admin_id,
+                        'user_id' => $accounts->user_id,
+                        'category_code' => 'CHARGE'
+                    ];
+                    
+                    $resResponse=createTransaction($requestDatass);
+
+                    return response()->json(['status' => 0, 'message' => $json_response['message'] ?? 'Transaction failed', 'data' => NULL], 200);
+
+
+                }
+
+            }
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
         }
@@ -914,7 +1036,24 @@ class PanCardController extends Controller
                             
                                 $postData = [
                                     "type" => "PanAplication",
-                                    "data" => $pancard
+                                    "data" => PanApplicationReport::where('application_no', $applicationNo)
+                                    ->select(
+                                        'vle_id',
+                                        'form_type',
+                                        'application_no',
+                                        'pan_card_mode',
+                                        'pan_app_mode',
+                                        'dispatch_address',
+                                        'pan_name',
+                                        'lot_no',
+                                        'lot_date',
+                                        'doa',
+                                        'application_status',
+                                        'objection_code',
+                                        'objection_code1',
+                                        'objection_code2'
+                                    )
+                                    ->first()
                                 ];
 
                                 // Initialize cURL
@@ -945,7 +1084,7 @@ class PanCardController extends Controller
                                     'request_data' => json_encode($postData),
                                     'response_data' => $response,
                                     'url'          => $setting->call_back_url,
-                                    'txnid'        => $pancard->application_no,
+                                    'txnid'        => $applicationNo,
                                     'status'       => 0,
                                     'timestamp'    => now(),
                                     'created_at'   => now()->format('Y-m-d H:i:s'),

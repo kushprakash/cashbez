@@ -6,6 +6,9 @@ use App\Models\Va;
 use App\Models\User;
 use App\Models\Setting;
 use App\Models\Account;
+use App\Models\UtiPsaAgent;
+use App\Models\PanFundRequest;
+use App\Models\PanApplicationReport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Exception;
@@ -863,6 +866,267 @@ class VaController extends Controller
                     ], 200);
 
                 }
+
+
+
+                if($response['type'] =='updateAgentStatus'){
+
+                    $panno=trim($response['data']['pan_no']);
+                    $status=trim($response['data']['status']);
+                    $remarks=trim($response['data']['remarks']);
+
+                    $agent = UtiPsaAgent::where('pan_no',$panno)->first();
+                    $newStatus = (int)$status;
+
+                    $agent->update([
+                        'status' => $newStatus,
+                        'admin_remark' => $remarks,
+                        'approved_by' => $agent->admin_id,
+                        'approved_at' => now(),
+                    ]);
+
+                }
+
+
+                if($response['type'] =='PanFundStatus'){
+
+
+                    $panno=trim($response['data']['pan_no']);
+                    $status=trim($response['data']['status']);
+                    $remarks=trim($response['data']['remarks']);
+                    $txn_id=trim($response['data']['txn_id']);
+                    
+
+                    $agent = UtiPsaAgent::where('pan_no',$panno)->first();
+                    $newStatus = (int)$status;
+
+
+                    $fundReq = PanFundRequest::where('txn_id',$txn_id)->first();
+
+                    $amount = $fundReq->amount;
+
+                    if($fundReq){
+                            
+                        if ($newStatus == 1) { // Approved (Success)
+                            $fundReq->update([
+                                'status' => 1,
+                                'admin_remark' => $remarks,
+                                'approved_by' => $agent->admin_id,
+                                'approved_at' => now(),
+                            ]);
+
+                            return response()->json([
+                                'status' => 1,
+                                'message' => 'Fund Request APPROVED successfully.',
+                                'data' => $fundReq
+                            ]);
+                        } else {
+
+                            $utilityWallet = Account::where('user_id', $agent->user_id)
+                            ->where('primary_status', false)
+                            ->first();
+
+
+                            $requestDatass11=[
+                                'account_id' => $utilityWallet->id,
+                                'type' => 'CR',
+                                'amount' => $amount,
+                                'description' => 'PAN Card Fund Request Failed & Refund ('. $txn_id .')',
+                                'transaction_id' => 'REFUND-'.$txn_id,
+                                'created_by' => $utilityWallet->user_id,
+                                'admin_id' => $utilityWallet->admin_id,
+                                'user_id' => $utilityWallet->user_id,
+                                'category_code' => 'CHARGE'
+                            ];
+                        
+                            createTransaction($requestDatass11);
+
+
+                            $accounts = Account::where('user_id', $utilityWallet->admin_id)->where('primary_status', false)->first();
+
+                            $requestDatass=[
+                                'account_id' => $accounts->id,
+                                'type' => 'CR',
+                                'amount' => $amount,
+                                'description' => 'PAN Card Fund Request Failed & Refund ('. $txn_id .')',
+                                'transaction_id' => 'TRNF' . $txn_id,
+                                'created_by' => $utilityWallet->user_id,
+                                'admin_id' => $accounts->admin_id,
+                                'user_id' => $accounts->user_id,
+                                'category_code' => 'CHARGE'
+                            ];
+                            
+                            $resResponse=createTransaction($requestDatass);
+
+
+                            $fundReq->update([
+                                'status' => 2,
+                                'admin_remark' => $remarks,
+                                'approved_by' => $agent->admin_id,
+                                'approved_at' => now(),
+                            ]);
+
+                            return response()->json([
+                                'status' => 0,
+                                'message' => 'Fund Request REJECTED.',
+                                'data' => $fundReq
+                            ]);
+                        }
+
+                    }
+
+
+                }
+
+
+                if($response['type'] =='PanAplication'){
+
+
+                    $agent = UtiPsaAgent::where('agent_id', $response['data']['vle_id'])->first();
+
+                    if(isset($agent->user_id)){
+
+
+                        PanApplicationReport::create([
+                            'user_id'            => $agent->user_id ?? 1,
+                            'vle_id'             => trim($response['data']['vle_id'] ?? ''),
+                            'form_type'          => trim($response['data']['form_type'] ?? ''),
+                            'application_no'     => trim($response['data']['application_no'] ?? ''),
+                            'pan_card_mode'      => trim($response['data']['pan_card_mode'] ?? ''),
+                            'pan_app_mode'       => trim($response['data']['pan_app_mode'] ?? ''),
+                            'dispatch_address'   => trim($response['data']['dispatch_address'] ?? ''),
+                            'pan_name'           => trim($response['data']['pan_name'] ?? ''),
+                            'lot_no'             => trim($response['data']['lot_no'] ?? ''),
+                            'lot_date'           => trim($response['data']['lot_date'] ?? ''),
+                            'doa'                => trim($response['data']['doa'] ?? ''),
+                            'application_status' => trim($response['data']['application_status'] ?? ''),
+                            'objection_code'     => trim($response['data']['objection_code'] ?? ''),
+                            'objection_code1'    => trim($response['data']['objection_code1'] ?? ''),
+                            'objection_code2'    => trim($response['data']['objection_code2'] ?? ''),
+                            'imported_by'        => $agent->admin_id ?? 1,
+                            'admin_id'           => $agent->admin_id ?? 1,
+                        ]);
+
+
+
+                        $applicationNo = trim($response['data']['application_no'] ?? '');
+
+                        $account = DB::table('accounts')->where('user_id', $agent->user_id)->where('primary_status', false)->first();
+
+                        $commissionTransactionData = [
+                            'user_id' => $agent->user_id,
+                            'account_id' => $account->id,
+                            'amount' => 0,
+                            'sub_module_id' => 84,
+                            'category_code' => 'PAN',
+                            'description' => 'PAN Card Commission - '.$applicationNo,
+                            'admin_id' => $agent->admin_id ?? 1
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+
+
+                        $accounts = DB::table('accounts')->where('user_id', $agent->admin_id)->where('primary_status', false)->first();
+
+                        if($accounts && $agent->user_id != $agent->admin_id){
+
+                            $commissionTransactionData = [
+                                'user_id' => $accounts->user_id,
+                                'account_id' => $accounts->id,
+                                'amount' => 0,
+                                'sub_module_id' => 84,
+                                'category_code' => 'PAN',
+                                'description' => 'PAN Card Commission - '.$applicationNo,
+                                'admin_id' => $accounts->admin_id
+                            ];
+
+                            processCommissionCharge($commissionTransactionData);
+
+                        }
+
+
+
+                        $is_api_partner = false;
+                        $adminData = User::where('id',$accounts->admin_id)->first();
+                        if($adminData && $adminData->is_api_partner==true) {
+                            $is_api_partner = true;
+                        } 
+
+                        if($is_api_partner == true){
+                            $setting = Setting::where('user_id', $accounts->admin_id)->first();
+                            if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
+                                // Send callback to partner URL
+                                try {
+                                
+                                    $postData = [
+                                        "type" => "PanAplication",
+                                        "data" => PanApplicationReport::where('application_no', $applicationNo)
+                                        ->select(
+                                            'vle_id',
+                                            'form_type',
+                                            'application_no',
+                                            'pan_card_mode',
+                                            'pan_app_mode',
+                                            'dispatch_address',
+                                            'pan_name',
+                                            'lot_no',
+                                            'lot_date',
+                                            'doa',
+                                            'application_status',
+                                            'objection_code',
+                                            'objection_code1',
+                                            'objection_code2'
+                                        )
+                                        ->first()
+                                    ];
+
+                                    // Initialize cURL
+                                    $ch = curl_init($setting->call_back_url);
+
+                                    // Encode POST data as JSON
+                                    $payload = json_encode($postData);
+
+                                    // Set cURL options
+                                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                                    curl_setopt($ch, CURLOPT_POST, true);
+                                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                                        'Content-Type: application/json',
+                                        'Content-Length: ' . strlen($payload)
+                                    ]);
+                                    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+                                    // Execute and get response
+                                    $response = curl_exec($ch);
+
+
+                                    // ✅ Step 7: Log API Request BEFORE Call
+                                    DB::table('logs')->insert([
+                                        'mid'          => $adminData->mid ?? null,
+                                        'type'         => 'PanAplication',
+                                        'platform'     => 'API',
+                                        'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
+                                        'request_data' => json_encode($postData),
+                                        'response_data' => $response,
+                                        'url'          => $setting->call_back_url,
+                                        'txnid'        => $applicationNo,
+                                        'status'       => 0,
+                                        'timestamp'    => now(),
+                                        'created_at'   => now()->format('Y-m-d H:i:s'),
+                                    ]);
+                                    
+                                } catch (\Exception $e) {
+                                    \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                                }   
+
+                            }
+                        }
+
+                    }
+                    
+                }
+
+           
 
                 
         } catch (Exception $e) {
