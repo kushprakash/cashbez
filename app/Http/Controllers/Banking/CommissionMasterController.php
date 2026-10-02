@@ -322,7 +322,8 @@ class CommissionMasterController extends Controller
     {
         try {
             $user = $request->get('user');
-            $query = CommissionPackageAssignment::with(['package:id,name,api_id', 'roleInfo:id,name', 'userInfo:id,name,mobile,email,mid']);
+            $query = CommissionPackageAssignment::has('package')
+                ->with(['package:id,name,api_id', 'roleInfo:id,name', 'userInfo:id,name,mobile,email,mid']);
 
             if ($user) {
                 if ($user->role == 1 || $user->role === '1') {
@@ -367,18 +368,21 @@ class CommissionMasterController extends Controller
             $validator = Validator::make($request->all(), [
                 'role_id' => 'required|exists:roles,id',
                 'package_ids' => 'nullable|array',
-                'package_ids.*' => 'exists:commission_packages,id',
-                'package_id' => 'nullable|exists:commission_packages,id'
+                'package_ids.*' => 'integer',
+                'package_id' => 'nullable|integer'
             ]);
 
             if ($validator->fails()) {
                 return response()->json(['status' => 0, 'errors' => $validator->errors()], 422);
             }
 
-            $packageIds = $request->input('package_ids', []);
-            if (empty($packageIds) && $request->has('package_id') && !empty($request->package_id)) {
-                $packageIds = [$request->package_id];
+            $rawPackageIds = $request->input('package_ids', []);
+            if (empty($rawPackageIds) && $request->has('package_id') && !empty($request->package_id)) {
+                $rawPackageIds = [$request->package_id];
             }
+
+            // Strictly filter package_ids to existing active packages in commission_packages table
+            $packageIds = CommissionPackage::whereIn('id', (array)$rawPackageIds)->pluck('id')->toArray();
 
             // Remove existing role assignments for this role
             CommissionPackageAssignment::where('assign_type', 'role')
@@ -412,18 +416,21 @@ class CommissionMasterController extends Controller
             $validator = Validator::make($request->all(), [
                 'user_id' => 'required|exists:users,id',
                 'package_ids' => 'nullable|array',
-                'package_ids.*' => 'exists:commission_packages,id',
-                'package_id' => 'nullable|exists:commission_packages,id'
+                'package_ids.*' => 'integer',
+                'package_id' => 'nullable|integer'
             ]);
 
             if ($validator->fails()) {
                 return response()->json(['status' => 0, 'errors' => $validator->errors()], 422);
             }
 
-            $packageIds = $request->input('package_ids', []);
-            if (empty($packageIds) && $request->has('package_id') && !empty($request->package_id)) {
-                $packageIds = [$request->package_id];
+            $rawPackageIds = $request->input('package_ids', []);
+            if (empty($rawPackageIds) && $request->has('package_id') && !empty($request->package_id)) {
+                $rawPackageIds = [$request->package_id];
             }
+
+            // Strictly filter package_ids to existing active packages in commission_packages table
+            $packageIds = CommissionPackage::whereIn('id', (array)$rawPackageIds)->pluck('id')->toArray();
 
             // Remove existing user assignments for this user
             CommissionPackageAssignment::where('assign_type', 'user')

@@ -45,19 +45,25 @@ const CommissionAssignments = () => {
             if (rolesRes.data && rolesRes.data.status === 1) {
                 setRoles(rolesRes.data.data || []);
             }
+            let activePkgIds = [];
             if (pkgRes.data && pkgRes.data.status === 1) {
-                setPackages(pkgRes.data.data || []);
+                const pkgList = pkgRes.data.data || [];
+                setPackages(pkgList);
+                activePkgIds = pkgList.map(p => Number(p.id));
             }
             if (assignRes.data && assignRes.data.status === 1) {
                 const list = assignRes.data.data || [];
                 setAssignments(list);
 
-                // Populate rolePackages matrix (array of package IDs per role)
+                // Populate rolePackages matrix (only for valid active packages)
                 const roleMap = {};
                 list.filter(a => a.assign_type === 'role').forEach(a => {
-                    if (!roleMap[a.role_id]) roleMap[a.role_id] = [];
-                    if (!roleMap[a.role_id].includes(a.package_id)) {
-                        roleMap[a.role_id].push(a.package_id);
+                    const numericPkgId = Number(a.package_id);
+                    if (activePkgIds.length === 0 || activePkgIds.includes(numericPkgId)) {
+                        if (!roleMap[a.role_id]) roleMap[a.role_id] = [];
+                        if (!roleMap[a.role_id].includes(numericPkgId)) {
+                            roleMap[a.role_id].push(numericPkgId);
+                        }
                     }
                 });
                 setRolePackages(roleMap);
