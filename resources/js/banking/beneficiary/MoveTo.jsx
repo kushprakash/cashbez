@@ -95,7 +95,7 @@ const BeneficiaryList = () => {
                 }
             } else {
                 setAccounts([]);
-            }
+            }mpin
         } catch (error) {
             console.error('Failed to fetch accounts:', error);
             setAccounts([]);

@@ -1063,6 +1063,34 @@ class BeneficiaryController extends Controller
     }
 
     /**
+     * Get account selected by user, or auto-select wallet with sufficient balance
+     */
+    private function getSelectedOrFundedAccount($userId, $requestedAccountId = null, $requiredAmount = 0)
+    {
+        if (!empty($requestedAccountId)) {
+            $selectedAccount = Account::where('user_id', $userId)->where('id', $requestedAccountId)->first();
+            if ($selectedAccount) {
+                return $selectedAccount;
+            }
+        }
+
+        // 1. Check Utility Wallet (primary_status = false)
+        $utilityAccount = Account::where('user_id', $userId)->where('primary_status', false)->first();
+        if ($utilityAccount && (float)$utilityAccount->balance >= (float)$requiredAmount) {
+            return $utilityAccount;
+        }
+
+        // 2. Check Trade Wallet (primary_status = true)
+        $tradeAccount = Account::where('user_id', $userId)->where('primary_status', true)->first();
+        if ($tradeAccount && (float)$tradeAccount->balance >= (float)$requiredAmount) {
+            return $tradeAccount;
+        }
+
+        // 3. Fallback
+        return $utilityAccount ?? $tradeAccount ?? Account::where('user_id', $userId)->first();
+    }
+
+    /**
      * Handle beneficiary payment
      */
     public function beneficiaryPayment(Request $request)
@@ -1074,7 +1102,7 @@ class BeneficiaryController extends Controller
             ]);
             
             $validator = Validator::make($request->all(), [
-                'account_id' => 'required|int',
+                'account_id' => 'nullable|int',
                 'beneficiary_id' => 'required|int',
                 'amount' => 'required|numeric|min:1',
                 'details' => 'nullable|string',
@@ -1089,13 +1117,13 @@ class BeneficiaryController extends Controller
                     'status' => 0,
                     'message' => 'Validation failed',
                     'errors' => $validator->errors()
-                ], 400);
+                ], 200);
             }
 
             $user = $request->get('user');
             $admin = $request->get('admin');
-            // Get the beneficiary
 
+            // Get the beneficiary
             $beneficiary = Beneficiary::where('id', $request->beneficiary_id)
                 ->where('user_id', $user->id)
                 ->first();
@@ -1132,18 +1160,26 @@ class BeneficiaryController extends Controller
                 ], 200);
             }
 
-            $transactionData = [
-                'account_id' => $request->account_id,
-                'mpin' => $request->mpin,
+            $account = $this->getSelectedOrFundedAccount($user->id, $request->account_id, $request->amount);
+
+            if(!$account) {
+                return response()->json(['status' => 0, 'message' => 'Wallet not found', 'data' => NULL], 200);
+            }
+
+
+            $requestDatass=[
+                'account_id' => $account->id,
                 'type' => 'DR',
                 'amount' => $request->amount,
-                'transaction_amount' => $request->amount,
                 'description' => $category_code.' - '.$beneficiary->account,
                 'transaction_id' => $request->transaction_id,
+                'created_by' => $user->id,
+                'admin_id' => $admin->id,
+                'user_id' => $user->id,
                 'category_code' => $category_code
             ];
-
-            $transactionData = processTransaction($request, $transactionData);
+            
+            $transactionData=createTransaction($requestDatass);
 
 
             if($transactionData['status'] !== 1) {
@@ -1154,7 +1190,7 @@ class BeneficiaryController extends Controller
             $user = $request->get('user');
             $admin = $request->get('admin');
 
-            $accounts = Account::where('user_id', $admin->id)->where('primary_status', true)->first();
+            $accounts = Account::where('user_id', $admin->id)->where('primary_status', $account->primary_status)->first();
                 
             if($accounts && $accounts->user_id != $user->id) {
                 
@@ -1175,19 +1211,19 @@ class BeneficiaryController extends Controller
 
                 if (empty($resResponse['status']) || $resResponse['status'] != 1) {
 
-                    
-                    $transactionData = [
-                        'account_id' => $request->account_id,
-                        'mpin' => $request->mpin,
+                    $requestDatass11=[
+                        'account_id' => $account->id,
                         'type' => 'CR',
                         'amount' => $request->amount,
-                        'transaction_amount' => $request->amount,
                         'description' => $category_code.' - '.$beneficiary->account,
                         'transaction_id' => 'REFUND-'.$request->transaction_id,
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $user->id,
                         'category_code' => $category_code
                     ];
-
-                    processTransaction($request, $transactionData);
+                    
+                    createTransaction($requestDatass11);
 
 
 
@@ -1207,7 +1243,7 @@ class BeneficiaryController extends Controller
                 $url = self::BASE_URL."v2/beneficiaries/beneficiary-payment";
 
                 $data = [
-                    "account_id"      => 2667,
+                    "account_id"      => 2666,
                     "beneficiary_id"    => $beneficiary->bid,
                     "amount"    => $request->amount,
                     "details"    => $request->details,
@@ -1311,9 +1347,6 @@ class BeneficiaryController extends Controller
 
                         processCommissionCharge($commissionTransactionData);
 
-
-
-
                     } else {
 
                         $commissionTransactionData = [
@@ -1349,24 +1382,24 @@ class BeneficiaryController extends Controller
                     return response()->json(['status' => 1, 'message' => 'Transaction Accepted', 'data'=>$transactionData], 200);
                 } else {
 
-
-                    $transactionData = [
-                        'account_id' => $request->account_id,
-                        'mpin' => $request->mpin,
+                    $requestDatass11=[
+                        'account_id' => $account->id,
                         'type' => 'CR',
                         'amount' => $request->amount,
-                        'transaction_amount' => $request->amount,
                         'description' => $category_code.' - '.$beneficiary->account,
-                        'transaction_id' => $request->transaction_id,
+                        'transaction_id' => 'REFUND-'.$request->transaction_id,
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $user->id,
                         'category_code' => $category_code
                     ];
-
-                    processTransaction($request, $transactionData);
+                    
+                    createTransaction($requestDatass11);
 
                     $requestDatass=[
                         'account_id' => $accounts->id,
                         'type' => 'CR',
-                        'amount' => 1.10,
+                        'amount' => $request->amount,
                         'description' => $category_code.' - '.$beneficiary->account,
                         'transaction_id' => 'TRNF' . $request->transaction_id,
                         'created_by' => $user->id,
@@ -1426,10 +1459,10 @@ class BeneficiaryController extends Controller
             }
 
             $credit_user_id = $request->get('user')->id;
-            $account = DB::table('accounts')->where('user_id', $credit_user_id)->where('primary_status', false)->first();
+            $account = $this->getSelectedOrFundedAccount($credit_user_id, $request->account_id, $request->amount);
         
             if(!$account) {
-                return response()->json(['status' => 0, 'message' => 'Primary account not found', 'data' => NULL], 200);
+                return response()->json(['status' => 0, 'message' => 'Wallet not found', 'data' => NULL], 200);
             }
 
           
@@ -1477,7 +1510,7 @@ class BeneficiaryController extends Controller
                 'account_id' => $account->id,
                 'type' => 'DR',
                 'amount' => $request->amount,
-                'description' => $request->details,
+                'description' => $category_code.' - '.$beneficiary->account,
                 'transaction_id' => $request->transaction_id,
                 'created_by' => $user->id,
                 'admin_id' => $admin->id,
@@ -1489,48 +1522,242 @@ class BeneficiaryController extends Controller
             // Step 2: Create the transaction
             $transactionData = createTransaction($transactionData1);
 
-          
 
-            if($transactionData['status'] === 1) {
+            if($transactionData['status'] !== 1) {
+                return response()->json(['status' => 0, 'message' => $transactionData['message'], 'data' => NULL], 200);
+            }
 
-                // Create payout record
-                $payout = Payout::create([
-                    'user_id' => $user->id,
-                    'beneficiary_id' => $beneficiary->id,
-                    'account_id' => $account->id,
-                    'bank_name' => $beneficiary->branch,
-                    'ifsc' => $beneficiary->ifsc,
-                    'name' => $beneficiary->name,
-                    'mobile' => $beneficiary->mobile,
-                    'account' => $beneficiary->account,
+
+            $user = $request->get('user');
+            $admin = $request->get('admin');
+
+            $accounts = Account::where('user_id', $admin->id)->where('primary_status', $account->primary_status)->first();
+                
+            if($accounts && $accounts->user_id != $user->id) {
+                
+                $requestDatass=[
+                    'account_id' => $accounts->id,
+                    'type' => 'DR',
                     'amount' => $request->amount,
-                    'transaction_id' => $request->transaction_id,
-                    'charge' => 0,
-                    'type' => 'IMPS',
-                    'status' => 'pending',
-                    'status_number' => 0,
-                    'call_back_url' => '',
+                    'description' => $category_code.' - '.$beneficiary->account,
+                    'transaction_id' => 'ADMIN-'.$request->transaction_id,
+                    'created_by' => $user->id,
                     'admin_id' => $admin->id,
-                    'created_by' => $user->id
-                ]);
+                    'user_id' => $admin->id,
+                    'category_code' => $category_code
+                ];
+                
+                $resResponse=createTransaction($requestDatass);
 
-                 $commissionTransactionData = [
-                        'user_id' => $user->id,
+
+                if (empty($resResponse['status']) || $resResponse['status'] != 1) {
+
+                    
+                    $transactionData11 = [
+                        'account_id' => $account->id,
+                        'type' => 'CR',
                         'amount' => $request->amount,
-                        'sub_module_id' => $module_id,
-                        'description' => $category_code.' Charge '.$beneficiary->account,
+                        'description' => $category_code.' - '.$beneficiary->account,
+                        'transaction_id' => 'REFUND-'.$request->transaction_id,
+                        'created_by' => $user->id,
                         'admin_id' => $admin->id,
-                        'category_code' => $category_code,
-                        'txn_type' => 'debit',
-                        'account_id' => $account->id
+                        'user_id' => $user->id,
+                        'category_code' => $category_code
                     ];
 
-                    processCommissionCharge($commissionTransactionData);
+                    $transactionData = createTransaction($transactionData11);
+
+
+
+
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Some Technical Issue. Please try again.',
+                        'data' => null
+                    ], 200);
+                } 
+                
+            }
+
+
+            if(!empty($transactionData['status']) && $transactionData['status'] == 1) {
+
+                $url = self::BASE_URL."v2/beneficiaries/beneficiary-payment";
+
+                $data = [
+                    "account_id"      => 2666,
+                    "beneficiary_id"    => $beneficiary->bid,
+                    "amount"    => $request->amount,
+                    "details"    => $request->details,
+                    "mpin"        => '1234',
+                    "transaction_id"  => $request->transaction_id,
+                    "channel"=> 1,
+                    "txn_type"=> 'IMPS'
+                ];
+
+                $ch = curl_init($url);
+
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => json_encode($data),
+                    CURLOPT_HTTPHEADER     => [
+                        "Content-Type: application/json",
+                        "Accept: application/json",
+                        "mid: ".self::MID,
+                        "mkey: ".self::MKEY
+                    ],
+                    CURLOPT_TIMEOUT        => 60,
+                    CURLOPT_CONNECTTIMEOUT => 20
+                ]);
+
+                $response = curl_exec($ch);
+
+
+                DB::table('logs')->insert([
+                    'mid'          => $user->mid ?? '',
+                    'type'         => 'Beneficiary Payout',
+                    'platform'     => 'WEB',
+                    'headers'      => json_encode([
+                        'Accept'       => 'application/json',
+                        'Content-Type' => 'application/json',
+                        'mid' => self::MID,
+                        'mkey' => self::MKEY,
+                    ]),
+                    'request_data'  => json_encode($data),
+                    'response_data'  => $response,
+                    'url'           => $url,
+                    'txnid'         => 0,
+                    'status'        => 0,
+                    'timestamp'    => now(),
+                    'created_at'   => now()->format('Y-m-d H:i:s'),
+                ]);
+
+
+                $json_response = json_decode($response, true);
+
+                if(isset($json_response['status']) && $json_response['status']==1){
+
+                    // Create payout record
+                    $payout = Payout::create([
+                        'user_id' => $user->id,
+                        'beneficiary_id' => $beneficiary->id,
+                        'account_id' => $account->id,
+                        'bank_name' => $beneficiary->branch,
+                        'ifsc' => $beneficiary->ifsc,
+                        'name' => $beneficiary->name,
+                        'mobile' => $beneficiary->mobile,
+                        'account' => $beneficiary->account,
+                        'amount' => $request->amount,
+                        'transaction_id' => $request->transaction_id,
+                        'charge' => 0,
+                        'type' => 'IMPS',
+                        'status' => 'pending',
+                        'status_number' => 0,
+                        'call_back_url' => '',
+                        'admin_id' => $admin->id,
+                        'created_by' => $user->id
+                    ]);
+
+                     if($beneficiary->type==3){
+
+                        $commissionTransactionData = [
+                            'user_id' => $user->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 51,
+                            'description' => 'MOVE_TO Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $account->id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+
+                        $commissionTransactionData = [
+                            'user_id' => $admin->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 51,
+                            'description' => 'MOVE_TO Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $accounts->id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+                    } else {
+
+                        $commissionTransactionData = [
+                            'user_id' => $user->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 49,
+                            'description' => 'DMT Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $account->id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+
+
+
+
+                        $commissionTransactionData = [
+                            'user_id' => $admin->id,
+                            'amount' => $request->amount,
+                            'sub_module_id' => 49,
+                            'description' => 'DMT Charge '.$beneficiary->account,
+                            'admin_id' => $admin->id,
+                            'category_code' => $category_code,
+                            'txn_type' => 'debit',
+                            'account_id' => $accounts->id
+                        ];
+
+                        processCommissionCharge($commissionTransactionData);
+                    }
 
                     return response()->json(['status' => 1, 'message' => 'Transaction Accepted', 'data'=> $transactionData], 200);
               
                 } else {
-                    return response()->json(['status' => 0, 'message' => $transactionData['message'] ?? 'Transaction failed', 'data' => NULL], 200);
+
+                    // Step 1: Prepare transaction data
+                    $transactionData1 = [
+                        'account_id' => $account->id,
+                        'type' => 'CR',
+                        'amount' => $request->amount,
+                        'description' => $category_code.' - '.$beneficiary->account,
+                        'transaction_id' => $request->transaction_id,
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $user->id,
+                        'category_code' => $category_code
+                    ];
+
+                    
+                    // Step 2: Create the transaction
+                    $transactionData = createTransaction($transactionData1);
+
+
+                    $requestDatass=[
+                        'account_id' => $accounts->id,
+                        'type' => 'CR',
+                        'amount' => $request->amount,
+                        'description' => $category_code.' - '.$beneficiary->account,
+                        'transaction_id' => 'TRNF' . $request->transaction_id,
+                        'created_by' => $user->id,
+                        'admin_id' => $accounts->admin_id,
+                        'user_id' => $accounts->user_id,
+                        'category_code' => $category_code
+                    ];
+                    
+                    $resResponse=createTransaction($requestDatass);
+
+                    return response()->json(['status' => 0, 'message' => 'Transaction failed', 'data' => NULL], 200);
+                }
             }
 
         } catch (\Exception $e) {
@@ -1572,10 +1799,10 @@ class BeneficiaryController extends Controller
             }
 
             $credit_user_id = $request->get('user')->id;
-            $account = DB::table('accounts')->where('user_id', $credit_user_id)->where('primary_status', true)->first();
+            $account = $this->getSelectedOrFundedAccount($credit_user_id, $request->account_id, $request->amount);
         
             if(!$account) {
-                return response()->json(['status' => 0, 'message' => 'Primary account not found', 'data' => NULL], 200);
+                return response()->json(['status' => 0, 'message' => 'Wallet not found', 'data' => NULL], 200);
             }
 
             // TO DO: MERCHANT PAYOUT Beneficiary
@@ -1746,7 +1973,7 @@ class BeneficiaryController extends Controller
                 if($tcharge > 0) {
 
                     $txnid = 'MOVE_TO' . rand(111111, 999999);
-                    $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', true)->first();
+                    $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
 
                     $transactionData1 = [
                         'account_id' => $account->id,
