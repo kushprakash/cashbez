@@ -36,14 +36,17 @@ const SpecialOfferCommissions = () => {
         try {
             const [offRes, apiRes, circRes, roleRes, userRes] = await Promise.all([
                 apiService.vGet('/api/commission-master/special-offers'),
-                apiService.vGet('/api/api-pending-settings?service_type=Prepaid'),
+                apiService.vGet('/api/api-settings?per_page=all'),
                 apiService.vGet('/api/utility-circles'),
                 apiService.vGet('/api/commission-master/roles'),
                 apiService.vGet('/api/commission-master/users/search?q=')
             ]);
 
             if (offRes.data && offRes.data.status === 1) setOffers(offRes.data.data || []);
-            if (apiRes.data && apiRes.data.status === 1 && apiRes.data.data?.apis) setApis(apiRes.data.data.apis);
+            if (apiRes.data && apiRes.data.status === 1) {
+                const apiList = Array.isArray(apiRes.data.data) ? apiRes.data.data : (apiRes.data.data?.apis || []);
+                setApis(apiList);
+            }
             if (circRes.data && circRes.data.status === 1) setCircles(circRes.data.data || []);
             if (roleRes.data && roleRes.data.status === 1) setRoles(roleRes.data.data || []);
             if (userRes.data && userRes.data.status === 1) {

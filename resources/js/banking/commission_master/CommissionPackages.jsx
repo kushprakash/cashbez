@@ -62,7 +62,7 @@ const CommissionPackages = () => {
             const [pkgRes, catRes, apiRes, opRes] = await Promise.all([
                 apiService.vGet(`/api/commission-master/packages?search=${encodeURIComponent(search)}`),
                 apiService.vGet('/api/service-categories'),
-                apiService.vGet('/api/api-pending-settings?service_type=Prepaid'),
+                apiService.vGet('/api/api-settings?per_page=all'),
                 apiService.vGet('/api/commission-master/category-operators')
             ]);
 
@@ -72,8 +72,9 @@ const CommissionPackages = () => {
             if (catRes.data && catRes.data.status === 1 && Array.isArray(catRes.data.data)) {
                 setCategories(catRes.data.data);
             }
-            if (apiRes.data && apiRes.data.status === 1 && apiRes.data.data?.apis) {
-                setApis(apiRes.data.data.apis);
+            if (apiRes.data && apiRes.data.status === 1) {
+                const apiList = Array.isArray(apiRes.data.data) ? apiRes.data.data : (apiRes.data.data?.apis || []);
+                setApis(apiList);
             }
             if (opRes.data && opRes.data.status === 1) {
                 setCategoryOperators(opRes.data.data || {});
