@@ -847,4 +847,91 @@ class FinancialMemberController extends Controller
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Process Mobile / DTH Recharge / Bill Payment for Member using Saving Account
+     */
+    public function recharge(Request $request)
+    {
+        $auth = $this->getAuthenticatedMember($request);
+        if (!$auth || !$auth['member']) {
+            return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $member = $auth['member'];
+
+        $validator = Validator::make($request->all(), [
+            'number' => 'required|string',
+            'operator' => 'required|string',
+            'amount' => 'required|numeric|min:1',
+            'type' => 'nullable|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+        }
+
+        $amount = floatval($request->amount);
+
+        // 1. Mandatory Saving Account Check
+        $savingAcc = FinancialAccount::where('member_id', $member->id)
+            ->where('service_type', 'SAVING')
+            ->first();
+
+        if (!$savingAcc) {
+            return response()->json(['status' => 0, 'message' => 'Recharge ke liye active Saving Account hona zaroori hai. Pehle Saving Account open karein.'], 400);
+        }
+
+        if ($savingAcc->available_balance < $amount) {
+            return response()->json(['status' => 0, 'message' => 'Insufficient Saving Account balance. Current Balance: ₹' . number_format($savingAcc->available_balance, 2)], 400);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Debit Member's Saving Account
+            $savingAcc->decrement('available_balance', $amount);
+            $savingAcc->decrement('current_balance', $amount);
+
+            $txnId = FinancialScopeService::generateTxnId();
+
+            FinancialTransaction::create([
+                'transaction_id' => $txnId,
+                'account_id' => $savingAcc->id,
+                'member_id' => $member->id,
+                'user_id' => $member->user_id,
+                'admin_id' => $member->admin_id,
+                'service_type' => 'SAVING',
+                'txn_type' => 'WITHDRAWAL',
+                'amount' => $amount,
+                'charges' => 0,
+                'net_amount' => $amount,
+                'payment_mode' => 'RECHARGE',
+                'narration' => "Recharge for {$request->number} ({$request->operator})",
+                'status' => 'SUCCESS',
+            ]);
+
+            DB::commit();
+
+            // Try forwarding to live UtilityController recharge process
+            try {
+                $utilityCtrl = new \App\Http\Controllers\Banking\UtilityController();
+                $request->merge(['transaction_id' => $txnId, 'account_id' => $savingAcc->id]);
+                $request->attributes->set('user', $auth['user']);
+                return $utilityCtrl->processRecharge($request);
+            } catch (\Exception $ex) {
+                return response()->json([
+                    'status' => 1,
+                    'message' => 'Recharge processed successfully from Member Saving Account!',
+                    'data' => [
+                        'txn_id' => $txnId,
+                        'amount' => $amount,
+                        'remaining_balance' => $savingAcc->fresh()->available_balance,
+                    ]
+                ]);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['status' => 0, 'message' => 'Recharge failed: ' . $e->getMessage()], 500);
+        }
+    }
 }

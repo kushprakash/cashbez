@@ -207,8 +207,7 @@ class BeneficiaryController extends Controller
             }
 
 
-            $url = self::BASE_URL."v2/beneficiaries";
-
+            $url = self::BASE_URL."v2/beneficiaries/create";
 
             $data = [
                 "name"      => $request->name,
@@ -216,8 +215,7 @@ class BeneficiaryController extends Controller
                 "account"    => $request->account,
                 "confirmAccount"    => $request->confirmAccount,
                 "ifsc"        => $request->ifsc,
-                "type"  =>5,
-                "otp"=> $request->otp
+                "type"        => $request->type
             ];
 
             $ch = curl_init($url);
@@ -239,26 +237,6 @@ class BeneficiaryController extends Controller
             $response = curl_exec($ch);
 
 
-             DB::table('logs')->insert([
-                'mid'          => $user->mid ?? '',
-                'type'         => 'Add Beneficiary',
-                'platform'     => 'WEB',
-                'headers'      => json_encode([
-                    'Accept'       => 'application/json',
-                    'Content-Type' => 'application/json',
-                    'mid' => self::MID,
-                    'mkey' => self::MKEY,
-                ]),
-                'request_data'  => json_encode($data),
-                'response_data'  => $response,
-                'url'           => $url,
-                'txnid'         => 0,
-                'status'        => 0,
-                'timestamp'    => now(),
-                'created_at'   => now()->format('Y-m-d H:i:s'),
-            ]);
-
-
             $json_response = json_decode($response, true);
 
             if(isset($json_response['status']) && $json_response['status']==1){
@@ -268,7 +246,7 @@ class BeneficiaryController extends Controller
 
             $beneficiaryData = [
                 'user_id' => $user->id,
-                'bid'   => $json_response['data']['id'],
+                'bid'   => $json_response['data']['id'] ?? 0,
                 'name' => $request->name,
                 'mobile' => $request->mobile,
                 'account' => $request->account,
@@ -289,6 +267,12 @@ class BeneficiaryController extends Controller
             ];
 
             $beneficiary = Beneficiary::create($beneficiaryData);
+
+            // Clear beneficiary cache for this user
+            $this->clearBeneficiaryCache($user->id);
+
+
+            $beneficiary = Beneficiary::where('id' , $beneficiary->id)->select('id','bid','name','mobile','account','ifsc','bank','branch','status','created_by')->first();
 
           
             return response()->json([
@@ -383,7 +367,8 @@ class BeneficiaryController extends Controller
                 "mobile"    => $request->mobile,
                 "account"    => $request->account,
                 "confirmAccount"    => $request->confirmAccount,
-                "ifsc"        => $request->ifsc
+                "ifsc"        => $request->ifsc,
+                "type"        => $type
             ];
 
             $ch = curl_init($url);
@@ -411,6 +396,7 @@ class BeneficiaryController extends Controller
 
             $beneficiaryData = [
                 'user_id' => $user->id,
+                'bid'=>$json_response['data']['id']??0,
                 'name' => data_get($accountVerification, 'account_holder_name', $request->name),
                 'mobile' => $request->mobile,
                 'account' => $request->account,

@@ -1306,6 +1306,7 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('investments/open', [FinancialMemberController::class, 'openInvestmentAccount']);
         Route::post('investments/deposit', [FinancialMemberController::class, 'depositInvestmentAccount']);
         Route::post('investments/maturity', [FinancialMemberController::class, 'requestMaturity']);
+        Route::post('recharge', [FinancialMemberController::class, 'recharge']);
     });
 
 });
