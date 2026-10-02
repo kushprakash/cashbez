@@ -135,8 +135,12 @@ class FinancialMasterController extends Controller
      */
     protected function resolveAdminId($user, $filterAdminId = null)
     {
+        if ($filterAdminId) {
+            return (int)$filterAdminId;
+        }
+
         if ($user->id == 1 || $user->role == 1) {
-            return $filterAdminId ? (int)$filterAdminId : null;
+            return $user->id;
         }
 
         if ($user->role == 2) {
@@ -193,29 +197,6 @@ class FinancialMasterController extends Controller
             }
 
             $plans = $query->orderBy('id', 'desc')->get();
-
-            // Fallback for agent if specific admin has no membership plans
-            if ($plans->isEmpty() && $adminId && $adminId != 1) {
-                $fallbackQuery = MembershipPlan::query();
-                $fallbackQuery->where(function($q) {
-                    $q->where('admin_id', 1)
-                      ->orWhere('user_id', 1)
-                      ->orWhere('created_by', 1);
-                });
-                if ($search) {
-                    $fallbackQuery->where(function($q) use ($search) {
-                        $q->where('membership_name', 'like', "%{$search}%")
-                          ->orWhere('membership_code', 'like', "%{$search}%");
-                    });
-                }
-                if ($status) {
-                    $fallbackQuery->where('status', $status);
-                }
-                $fallbackPlans = $fallbackQuery->orderBy('id', 'desc')->get();
-                if ($fallbackPlans->isNotEmpty()) {
-                    $plans = $fallbackPlans;
-                }
-            }
 
             return response()->json([
                 'status' => 1,
@@ -360,33 +341,6 @@ class FinancialMasterController extends Controller
 
             $plans = $query->orderBy('id', 'desc')->get();
 
-            // Fallback: If agent's admin has not created specific plans for this service type,
-            // check if super admin (id = 1) has active system default plans
-            if ($plans->isEmpty() && $adminId && $adminId != 1) {
-                $fallbackQuery = FinancialPlan::query();
-                $fallbackQuery->where(function($q) {
-                    $q->where('admin_id', 1)
-                      ->orWhere('user_id', 1)
-                      ->orWhere('created_by', 1);
-                });
-                if ($serviceType) {
-                    $fallbackQuery->where('service_type', strtoupper($serviceType));
-                }
-                if ($search) {
-                    $fallbackQuery->where(function($q) use ($search) {
-                        $q->where('plan_name', 'like', "%{$search}%")
-                          ->orWhere('plan_code', 'like', "%{$search}%");
-                    });
-                }
-                if ($status) {
-                    $fallbackQuery->where('status', $status);
-                }
-                $fallbackPlans = $fallbackQuery->orderBy('id', 'desc')->get();
-                if ($fallbackPlans->isNotEmpty()) {
-                    $plans = $fallbackPlans;
-                }
-            }
-
             return response()->json([
                 'status' => 1,
                 'message' => 'Financial plans fetched successfully',
@@ -507,25 +461,6 @@ class FinancialMasterController extends Controller
             }
 
             $items = $query->orderBy('id', 'desc')->get();
-
-            if ($items->isEmpty() && $adminId && $adminId != 1) {
-                $fallbackQuery = FinancialChargePenalty::query();
-                $fallbackQuery->where(function($q) {
-                    $q->where('admin_id', 1)
-                      ->orWhere('user_id', 1)
-                      ->orWhere('created_by', 1);
-                });
-                if ($category) {
-                    $fallbackQuery->where('category', strtoupper($category));
-                }
-                if ($search) {
-                    $fallbackQuery->where('name', 'like', "%{$search}%");
-                }
-                $fallbackItems = $fallbackQuery->orderBy('id', 'desc')->get();
-                if ($fallbackItems->isNotEmpty()) {
-                    $items = $fallbackItems;
-                }
-            }
 
             return response()->json([
                 'status' => 1,

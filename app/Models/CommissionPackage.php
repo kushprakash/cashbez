@@ -15,12 +15,18 @@ class CommissionPackage extends Model
         'name',
         'api_id',
         'description',
+        'created_by',
         'is_active'
     ];
 
     protected $casts = [
         'is_active' => 'boolean'
     ];
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
     public function items()
     {

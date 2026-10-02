@@ -85,7 +85,7 @@ const FinancialMasterHub = ({ initialTab = 'SETTINGS' }) => {
                                     value={selectedAdminId}
                                     onChange={(e) => setSelectedAdminId(e.target.value)}
                                 >
-                                    <option value="">All Admins / Aggregate Data</option>
+                                    <option value="">My Master Data (Default)</option>
                                     {adminsList.map(a => (
                                         <option key={a.id} value={a.id}>
                                             {a.name} ({a.email || a.mobile || `MID: ${a.mid}`})

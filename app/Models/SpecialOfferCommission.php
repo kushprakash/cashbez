@@ -22,6 +22,7 @@ class SpecialOfferCommission extends Model
         'assign_type',
         'role_id',
         'user_id',
+        'created_by',
         'is_active'
     ];
 
@@ -44,5 +45,10 @@ class SpecialOfferCommission extends Model
     public function userInfo()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 }

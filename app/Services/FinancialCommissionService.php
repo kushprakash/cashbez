@@ -324,6 +324,18 @@ class FinancialCommissionService
         try {
             if (!$targetUser) return ['status' => 0, 'message' => 'Target user invalid'];
 
+            // Exclude Admin & Super-Admin users from receiving Agent Financial commissions
+            if ($targetUser->role == 1 || $targetUser->role == 2 || $targetUser->id == $targetAdminId || $targetUser->role === '1' || $targetUser->role === '2') {
+                return [
+                    'status' => 1,
+                    'user_id' => $targetUser->id,
+                    'user_name' => $targetUser->name,
+                    'role_id' => $targetUser->role,
+                    'commission' => 0,
+                    'message' => 'Admin user excluded from financial commission credit'
+                ];
+            }
+
             $isWorker = ($targetUser->id == $sessionUser->id);
 
             // Fetch active rules for this service and admin

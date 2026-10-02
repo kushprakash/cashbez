@@ -24,7 +24,20 @@ class CommissionMasterController extends Controller
     public function getPackages(Request $request)
     {
         try {
+            $user = $request->get('user');
             $query = CommissionPackage::with(['items', 'api:id,api_name,api_short_name', 'assignments.roleInfo', 'assignments.userInfo']);
+
+            if ($user) {
+                if ($user->role == 1 || $user->role === '1') {
+                    $query->where(function($q) use ($user) {
+                        $q->where('created_by', $user->id)
+                          ->orWhere('created_by', 1)
+                          ->orWhereNull('created_by');
+                    });
+                } else {
+                    $query->where('created_by', $user->id);
+                }
+            }
 
             if ($request->has('search') && !empty($request->search)) {
                 $search = $request->search;
@@ -177,10 +190,12 @@ class CommissionMasterController extends Controller
                 ], 422);
             }
 
+            $user = $request->get('user');
             $package = CommissionPackage::create([
                 'name' => $request->name,
                 'api_id' => $request->api_id ?: null,
                 'description' => $request->description ?: null,
+                'created_by' => $user ? $user->id : null,
                 'is_active' => true
             ]);
 
@@ -306,9 +321,36 @@ class CommissionMasterController extends Controller
     public function getAssignments(Request $request)
     {
         try {
-            $assignments = CommissionPackageAssignment::with(['package:id,name,api_id', 'roleInfo:id,name', 'userInfo:id,name,mobile,email,mid'])
-                ->orderBy('id', 'desc')
-                ->get();
+            $user = $request->get('user');
+            $query = CommissionPackageAssignment::with(['package:id,name,api_id', 'roleInfo:id,name', 'userInfo:id,name,mobile,email,mid']);
+
+            if ($user) {
+                if ($user->role == 1 || $user->role === '1') {
+                    $superAdminRoles = Role::where(function($q) use ($user) {
+                        $q->where('user_id', $user->id)
+                          ->orWhere('user_id', 1)
+                          ->orWhereNull('user_id');
+                    })->pluck('id')->toArray();
+
+                    $query->where(function($q) use ($user, $superAdminRoles) {
+                        $q->whereHas('package', function($pq) use ($user) {
+                            $pq->where('created_by', $user->id)->orWhere('created_by', 1)->orWhereNull('created_by');
+                        })
+                        ->orWhereIn('role_id', $superAdminRoles);
+                    });
+                } else {
+                    $adminRoles = Role::where('user_id', $user->id)->pluck('id')->toArray();
+                    $query->where(function($q) use ($user, $adminRoles) {
+                        $q->whereHas('package', function($pq) use ($user) {
+                            $pq->where('created_by', $user->id);
+                        })
+                        ->orWhereIn('role_id', $adminRoles)
+                        ->orWhere('user_id', $user->id);
+                    });
+                }
+            }
+
+            $assignments = $query->orderBy('id', 'desc')->get();
 
             return response()->json([
                 'status' => 1,
@@ -423,10 +465,28 @@ class CommissionMasterController extends Controller
         }
     }
 
-    public function getRoles()
+    public function getRoles(Request $request)
     {
         try {
-            $roles = Role::select('id', 'name')->get();
+            $user = $request->get('user');
+            if ($user) {
+                if ($user->role == 1 || $user->role === '1') {
+                    $roles = Role::select('id', 'name')
+                        ->where(function($q) use ($user) {
+                            $q->where('user_id', $user->id)
+                              ->orWhere('user_id', 1)
+                              ->orWhereNull('user_id');
+                        })
+                        ->get();
+                } else {
+                    $roles = Role::select('id', 'name')
+                        ->where('user_id', $user->id)
+                        ->get();
+                }
+            } else {
+                $roles = Role::select('id', 'name')->get();
+            }
+
             return response()->json(['status' => 1, 'data' => $roles]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -436,10 +496,18 @@ class CommissionMasterController extends Controller
     public function searchUsers(Request $request)
     {
         try {
+            $user = $request->get('user');
             $query = $request->input('q', '');
             $roleId = $request->input('role_id', '');
 
             $usersQuery = User::query();
+
+            if ($user && ($user->role != 1 && $user->role !== '1')) {
+                $usersQuery->where(function($q) use ($user) {
+                    $q->where('admin_id', $user->id)
+                      ->orWhere('id', $user->id);
+                });
+            }
 
             if (!empty($roleId)) {
                 $usersQuery->where('role', $roleId);
@@ -471,9 +539,22 @@ class CommissionMasterController extends Controller
     public function getSpecialOffers(Request $request)
     {
         try {
-            $offers = SpecialOfferCommission::with(['api:id,api_name', 'roleInfo:id,name', 'userInfo:id,name,mobile,mid'])
-                ->orderBy('id', 'desc')
-                ->get();
+            $user = $request->get('user');
+            $query = SpecialOfferCommission::with(['api:id,api_name', 'roleInfo:id,name', 'userInfo:id,name,mobile,mid']);
+
+            if ($user) {
+                if ($user->role == 1 || $user->role === '1') {
+                    $query->where(function($q) use ($user) {
+                        $q->where('created_by', $user->id)
+                          ->orWhere('created_by', 1)
+                          ->orWhereNull('created_by');
+                    });
+                } else {
+                    $query->where('created_by', $user->id);
+                }
+            }
+
+            $offers = $query->orderBy('id', 'desc')->get();
 
             return response()->json(['status' => 1, 'data' => $offers]);
         } catch (\Exception $e) {
@@ -501,6 +582,8 @@ class CommissionMasterController extends Controller
                 return response()->json(['status' => 0, 'errors' => $validator->errors()], 422);
             }
 
+            $user = $request->get('user');
+
             $offer = SpecialOfferCommission::create([
                 'title' => $request->title,
                 'api_id' => $request->api_id ?: null,
@@ -512,6 +595,7 @@ class CommissionMasterController extends Controller
                 'assign_type' => $request->assign_type,
                 'role_id' => $request->assign_type === 'role' ? $request->role_id : null,
                 'user_id' => $request->assign_type === 'user' ? $request->user_id : null,
+                'created_by' => $user ? $user->id : null,
                 'is_active' => true
             ]);
 
