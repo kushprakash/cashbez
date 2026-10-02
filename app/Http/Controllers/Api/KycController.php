@@ -522,26 +522,6 @@ class KycController extends Controller
                         }
                     }
 
-                    $beneficiaryData = [
-                        'user_id' => $user->id,
-                        'name' => $kyc->name,
-                        'mobile' => $kyc->phone,
-                        'account' => $request->account_number,
-                        'ifsc' => $request->ifsc_code,
-                        'bank' => $bankResponse['bank_name'],
-                        'branch' => $bankResponse['branch'],
-                        'type' => 3,
-                        'status' => 1,
-                        'admin_id' => $admin->id,
-                        'created_by' => $user->id,
-                        'ifsc_verified' => 1,
-                        'account_verified' => 1,
-                        'verification_data' => json_encode([
-                            'account_data' => $rj,
-                            'verified_at' => now()->toISOString()
-                        ])
-                    ];
-                    Beneficiary::create($beneficiaryData);
 
                     return response()->json([
                         'status' => 1,
