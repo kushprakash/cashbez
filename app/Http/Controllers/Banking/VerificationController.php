@@ -293,7 +293,7 @@ class VerificationController extends Controller
 
         } else {
           DB::table('verifications')->where('refid', $request->refid)->update(['status' => 2]);
-          return response()->json(['status' => 0, 'message' => 'Technical Issue try again..', 'data' => []], 200);
+          return response()->json(['status' => 0, 'message' => $rj['message'] ?? 'Technical Issue try again..', 'data' => []], 200);
         }
 
       } else {
