@@ -690,8 +690,7 @@ if (!function_exists('processMemberTransaction')) {
                 $newBalance=$validation['available_balance']+$transactionDataxyz['amount'];
             }
 
-          
-            FinancialTransaction::create([
+          \App\Models\Financial\FinancialTransaction::create([
                 'transaction_id' => $validation['transaction_id'],
                 'account_id' => $validation['account_id'],
                 'member_id' => $validation['member_id'],
