@@ -29,6 +29,7 @@ class FinancialMember extends Model
         'district',
         'pincode',
         'occupation',
+        'mpin',
         'photo',
         'signature',
         'membership_plan_id',

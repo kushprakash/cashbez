@@ -16,6 +16,9 @@ use App\Models\Recharge;
 use App\Models\UtilityOperator;
 use App\Models\BbpsCategory;
 use App\Models\User;
+use App\Models\Financial\FinancialMember;
+use App\Models\Financial\FinancialAccount;
+use App\Models\Financial\FinancialTransaction;
 use App\Models\ApiSetting;
 use App\Models\ApiOperatorMapping;
 use App\Models\ApiPendingSetting;
@@ -175,13 +178,763 @@ class UtilityController extends Controller
         }
     }
 
+
+    public function processRechargeMember(Request $request,$api_count=1,$transactionData=[])
+    {
+        try {
+            // Sanitize $api_count if injected from route defaults (e.g. smodule=2) on initial request
+            if (empty($transactionData) || !is_numeric($api_count)) {
+                $api_count = 1;
+            } else {
+                $api_count = (int)$api_count;
+            }
+            // ✅ Step 1: Validate required fields
+            $requiredFields = ['type', 'transaction_id', 'number', 'amount', 'operator'];
+            foreach ($requiredFields as $field) {
+                if (empty($request->$field)) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => ucfirst(str_replace('_', ' ', $field)) . ' is required',
+                        'data' => null
+                    ], 200);
+                }
+            }
+
+
+            $MyRecharge = DB::table('recharges')
+            ->where('number', $request->number)
+            ->where('amount', $request->amount)
+            ->where('created_at', '>', Carbon::now()->subMinutes(5))
+            ->first();
+
+             if($MyRecharge && $MyRecharge->status != 'failed'){
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'You have already recharged this number with this amount',
+                    'data' => $MyRecharge
+                ], 200);
+             }
+
+
+            // ✅ Step 2: Set type-dependent values
+            if ($request->type == 3 ) {
+                $circal = '';
+                $sub_module_id = 4;
+                $desc = 'Bill Payment';
+            } else if ($request->type == 2 ) {
+                $circal = '';
+                $sub_module_id = 3;
+                $desc = 'DTH Recharge';
+            } else {
+                if (empty($request->circal)) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Circle is required',
+                        'data' => null
+                    ], 200);
+                }
+                $circal = $request->circal;
+                $sub_module_id = 2;
+                $desc = 'Mobile Recharge';
+            }
+
+            $request->transaction_id = rand(1111111111,9999999999);
+            // Check Service availability & ApiSetting match FIRST before debiting money
+            $operatorInput = $request->operator;
+            $amount = $request->amount;
+            $type = $request->type;
+            $txnid = $request->transaction_id;
+            $user1 = (string) $txnid;   
+            $account_number = $number = $request->number;
+            $customer_number = $user->mobile ?? '';
+            $validity = $request->validity ?? '';
+            $plan = json_encode($request->plan ?? '');
+
+            $utilityOperator = DB::table('utility_operators')->where('code', $operatorInput)->first();
+            $mainServiceType = $utilityOperator->category ?? '';
+
+            if (empty($mainServiceType)) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Service Not Available/Invalid Operator',
+                    'data' => null
+                ], 200);
+            }
+
+            $apiSetting = null;
+
+            // Priority 1: Check Special Plan rules (Matching Circle, Operator, Amount)
+            // Order by specificity: (Circle match > ALL) -> (Operator match > ALL) -> (Amount match > 0)
+            $specialRule = ApiSpecialSetting::where('is_active', true)
+                ->where(function($q) use ($operatorInput) {
+                    $q->where('operator_code', strtoupper($operatorInput))
+                      ->orWhere('operator_code', 'ALL')
+                      ->orWhereNull('operator_code');
+                })
+                ->where(function($q) use ($amount) {
+                    $q->where('amount', $amount)
+                      ->orWhere('amount', 0)
+                      ->orWhereNull('amount');
+                })
+                ->where(function($q) use ($circal) {
+                    $q->where('circle', 'ALL')
+                      ->orWhereNull('circle')
+                      ->orWhere('circle', '');
+                    if (!empty($circal)) {
+                        $q->orWhere('circle', strtoupper($circal))
+                          ->orWhere('circle', $circal);
+                    }
+                })
+                ->orderByRaw("
+                    (CASE WHEN circle != 'ALL' AND circle IS NOT NULL AND circle != '' THEN 4 ELSE 0 END) +
+                    (CASE WHEN operator_code != 'ALL' AND operator_code IS NOT NULL THEN 2 ELSE 0 END) +
+                    (CASE WHEN amount > 0 THEN 1 ELSE 0 END) DESC
+                ")
+                ->first();
+
+            if ($specialRule) {
+                $specialApi = ApiSetting::where('id', $specialRule->api_id)
+                    ->where('is_active', true)
+                    ->whereJsonContains('services', $mainServiceType)
+                    ->first();
+                if ($specialApi) {
+                    $apiSetting = $specialApi;
+                }
+            }
+
+
+
+            $serviceSetting = ApiServiceSetting::where('service_type', 'LIKE', '%' . $mainServiceType . '%')->first();
+            $api1=$serviceSetting->api_1 ?? null;
+            $api2=$serviceSetting->api_2 ?? null;
+            $api3=$serviceSetting->api_3 ?? null;
+            $api4=$serviceSetting->api_4 ?? null;
+
+            $total_api_count=0;
+
+            if(!empty($api4)){
+                $total_api_count=4;   
+            }elseif(!empty($api3)){
+                $total_api_count=3;
+            }elseif(!empty($api2)){
+                $total_api_count=2;
+            }else{
+                $total_api_count=1;
+            }
+
+            // Priority 2: Service-Wise API Setting (Serial number sequence configured by Admin)
+            if (!$apiSetting && $total_api_count>0) {
+                if ($serviceSetting) {
+                    $api_id=$serviceSetting->{'api_' . $api_count};
+                    $apiSetting = ApiSetting::where('id', $api_id)->first();
+                }
+            }
+            
+            // Priority 3: Fallback Active API selection considering Pending Thresholds & Circle restriction
+            if (!$apiSetting) {
+                $candidateApis = ApiSetting::where('is_active', true)
+                    ->where(function($q) use ($circal) {
+                        $q->where('circle', 'ALL')
+                          ->orWhereNull('circle')
+                          ->orWhere('circle', '');
+                        if (!empty($circal)) {
+                            $q->orWhere('circle', strtoupper($circal))
+                              ->orWhere('circle', $circal);
+                        }
+                    })
+                    ->whereJsonContains('services', $mainServiceType)
+                    ->orderBy('id', 'desc')
+                    ->get();
+
+                // Determine current time frame (7AM- 12PM, 5PM- 10PM, OTHER)
+                $currentHour = (int) now()->format('H');
+                if ($currentHour >= 7 && $currentHour < 12) {
+                    $currentTimeFrame = '7AM- 12PM';
+                } elseif ($currentHour >= 17 && $currentHour < 22) {
+                    $currentTimeFrame = '5PM- 10PM';
+                } else {
+                    $currentTimeFrame = 'OTHER';
+                }
+
+                foreach ($candidateApis as $candApi) {
+                    // Check if pending threshold is configured for this API, Service, Operator, and Timeframe
+                    $pendingRule = ApiPendingSetting::where('api_id', $candApi->id)
+                        ->where('service_type', $mainServiceType)
+                        ->where('operator_code', strtoupper($operatorInput))
+                        ->where(function($q) use ($currentTimeFrame) {
+                            $q->where('time_frame', $currentTimeFrame)
+                              ->orWhere('time_frame', str_replace(' ', '', $currentTimeFrame));
+                        })
+                        ->first();
+
+                    if ($pendingRule && $pendingRule->max_pending_count > 0) {
+                        // Count current pending recharges for this API & operator
+                        $currentPendingCount = Recharge::where(function($q) use ($candApi) {
+                                $q->where('api_id', $candApi->id)
+                                  ->orWhere('api_settings', $candApi->id);
+                            })
+                            ->where('oprator', $operatorInput)
+                            ->where('status', 'pending')
+                            ->count();
+
+                        if ($currentPendingCount >= $pendingRule->max_pending_count) {
+                            Log::info("Pending API limit reached for API ID {$candApi->id} ({$candApi->api_name}). Current: {$currentPendingCount}, Max: {$pendingRule->max_pending_count}. Switching to next API.");
+                            continue;
+                        }
+                    }
+
+                    // Valid API found!
+                    $apiSetting = $candApi;
+                    break;
+                }
+
+                // Fallback to first candidate API if all are at capacity or none matched rule
+                if (!$apiSetting && $candidateApis->isNotEmpty()) {
+                    $apiSetting = $candidateApis->first();
+                }
+            }
+
+            if (!$apiSetting || empty($apiSetting->recharge_config)) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Service Not Available',
+                    'data' => null
+                ], 200);
+            }
+
+            //return response()->json(['status' => 0,'message' => 'API Service','data' => $apiSetting], 200);
+
+            if($api_count==1 || empty($transactionData)){
+
+                $savingAcc = FinancialAccount::where('member_id', $member->id)
+                    ->where('service_type', 'SAVING')
+                    ->first();
+
+                // ✅ Step 3: Prepare transaction data & debit wallet
+                $transactionData = [
+                    'account_id' => $savingAcc->id,
+                    'mpin_status' => true,
+                    'mpin' => $request->mpin,
+                    'type' => 'DR',
+                    'service_type'=>'SAVING',
+                    'txn_type' => 'RECHARGE',
+                    'payment_type' => 'SELF',
+                    'charges' => 0,
+                    'amount' => $request->amount,
+                    'transaction_amount' => $request->amount,
+                    'description' => $desc.' - '.$request->number,
+                    'transaction_id' => $txnid
+                ];
+
+
+                // Debit transaction
+                $transactionData = processMemberTransaction($request, $transactionData);
+
+                if (empty($transactionData['status']) || $transactionData['status'] != 1) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => $transactionData['message'] ?? 'Recharge Transaction failed',
+                        'data' => null
+                    ], 200);
+                }
+
+                $user = $request->get('user');
+                $admin = $request->get('admin');
+
+                $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
+                    
+                if($accounts && $accounts->user_id != $user->id) {
+                   
+                    $requestDatass=[
+                        'account_id' => $accounts->id,
+                        'type' => 'DR',
+                        'amount' => $request->amount,
+                        'description' => $desc.' - '.$request->number,
+                        'transaction_id' => 'RECH' . rand(111111, 999999),
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $admin->id,
+                        'category_code' => 'RECHARGE'
+                    ];
+                    
+                    $resResponse=createTransaction($requestDatass);
+
+
+                    if (empty($resResponse['status']) || $resResponse['status'] != 1) {
+
+                        $transactionData = [
+                            'account_id' => $request->account_id,
+                            'mpin' => $request->mpin,
+                            'type' => 'CR',
+                            'amount' => $request->amount,
+                            'transaction_amount' => $request->amount,
+                            'description' => 'Recharge Failed. Refund of amount '.$desc.' - '.$request->number,
+                            'transaction_id' => 'REF_'.$txnid,
+                            'category_code' => 'RECHARGE'
+                        ];
+
+                      
+                        $transactionData = processTransaction($request, $transactionData);
+
+
+                        return response()->json([
+                            'status' => 0,
+                            'message' => 'Some Technical Issue. Please try again.',
+                            'data' => null
+                        ], 200);
+                    } 
+                    
+                }
+
+
+            }
+
+
+            // Continue if wallet debit transaction was successful
+            if (!empty($transactionData['status']) && $transactionData['status'] == 1) {
+
+                $rechargeConfig = is_array($apiSetting->recharge_config) 
+                    ? $apiSetting->recharge_config 
+                    : json_decode($apiSetting->recharge_config, true);
+
+                // ✅ Step 5: Lookup Operator Code for Provider (from api_operator_mappings or utility_operators)
+                $mappedOperatorCode = $operatorInput;
+                $utilityOp = UtilityOperator::where('code', $operatorInput)->first();
+
+             
+
+                if ($utilityOp) {
+                    $mapping = ApiOperatorMapping::where('api_id', $apiSetting->id)
+                        ->where('utility_operator_id', $utilityOp->id)
+                        ->first();
+                    if ($mapping && !empty($mapping->api_operator_code)) {
+                        $mappedOperatorCode = $mapping->api_operator_code;
+                    } else if (!empty($utilityOp->code)) {
+                        $mappedOperatorCode = $utilityOp->code;
+                    }
+                }
+
+
+                // ✅ Step 6: Dynamically Build API Parameters from recharge_config
+                $targetUrl = $rechargeConfig['url'] ?? '';
+                $requestType = strtoupper($rechargeConfig['request_type'] ?? 'GET');
+                $paramsConfig = $rechargeConfig['params'] ?? [];
+                $finalParams = [];
+
+                $context = [
+                    'number'          => $number,
+                    'customer_number' => $customer_number,
+                    'account_number'  => $account_number,
+                    'amount'          => $amount,
+                    'operator'        => $mappedOperatorCode,
+                    'circle'          => $circal,
+                    'txnid'           => $user1,
+                    'oid'             => $user1,
+                    'refrence_id'     => $user1,
+                    'reference_id'    => $user1,
+                    'account_id'      => $request->account_id,
+                    'type'            => $type,
+                    'user'            => $request->get('user'),
+                    'request'         => $request,
+                ];
+
+                if (is_array($paramsConfig)) {
+                    foreach ($paramsConfig as $p) {
+                        $paramKey = $p['key'] ?? $p['name'] ?? null;
+                        if (empty($paramKey)) continue;
+
+                        $finalParams[$paramKey] = $this->resolveApiParameter($p, $context);
+                    }
+                }
+
+                // ✅ Step 7: Log API Request BEFORE Call
+                DB::table('logs')->insert([
+                    'mid'          => $request->get('user')->mid ?? null,
+                    'type'         => $request->type == 2 ? 'DTH_Recharge' : 'Mobile_Recharge',
+                    'platform'     => 'API',
+                    'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
+                    'request_data' => json_encode([
+                        'api_id' => $apiSetting->id,
+                        'api_name' => $apiSetting->api_name,
+                        'target_url' => $targetUrl,
+                        'request_type' => $requestType,
+                        'parameters' => $finalParams
+                    ]),
+                    'url'          => $targetUrl,
+                    'txnid'        => $user1,
+                    'status'       => 0,
+                    'timestamp'    => now(),
+                    'created_at'   => now()->format('Y-m-d H:i:s'),
+                ]);
+
+               
+
+             
+
+                // ✅ Step 8: Safe cURL Execution according to request_type (GET, POST, POST JSON)
+                $ch = curl_init();
+                $actualUrl = $targetUrl;
+
+                if (str_contains($requestType, 'POST')) {
+                    curl_setopt($ch, CURLOPT_URL, $actualUrl);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    if (str_contains($requestType, 'JSON')) {
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($finalParams));
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                    } else {
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($finalParams));
+                    }
+                } else {
+                    // GET Request
+                    if (!empty($finalParams)) {
+                        $actualUrl .= (str_contains($targetUrl, '?') ? '&' : '?') . http_build_query($finalParams);
+                    }
+                    curl_setopt($ch, CURLOPT_URL, $actualUrl);
+                }
+
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT => 90,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+                ]);
+
+                $res_data = curl_exec($ch);
+                $curl_error = curl_error($ch);
+                curl_close($ch);
+
+                if ($curl_error) {
+                    throw new \Exception("CURL Error: " . $curl_error);
+                }
+
+                // Parse JSON or XML response to associative array
+                $rj = $this->parseApiResponseToArray($res_data);
+
+                // ✅ Step 9: Dynamic Status & Field Extraction from recharge_config
+                $statusKey = !empty($rechargeConfig['key_for_status']) ? $rechargeConfig['key_for_status'] : 'status';
+                $rawStatus = data_get($rj, $statusKey);
+
+                // Fallback to common status keys if primary key is missing/null in JSON or XML
+                if ($rawStatus === null) {
+                    $rawStatus = data_get($rj, 'status') 
+                        ?? data_get($rj, 'Status') 
+                        ?? data_get($rj, 'STATUS') 
+                        ?? data_get($rj, 'data.status') 
+                        ?? data_get($rj, 'data.Status') 
+                        ?? data_get($rj, 'response_status') 
+                        ?? data_get($rj, 'status_code') 
+                        ?? data_get($rj, 'ERRORCODE') 
+                        ?? data_get($rj, 'errorcode') 
+                        ?? data_get($rj, 'data.errorcode') 
+                        ?? data_get($rj, 'resCode');
+                }
+
+                $evalStatus = $this->evaluateStatusResponse(
+                    $rawStatus,
+                    $rechargeConfig['result_success'] ?? '',
+                    $rechargeConfig['result_failure'] ?? ''
+                );
+
+                if ($evalStatus === 'success') {
+                    $sts = 1;
+                    $sts2 = 'success';
+                } elseif ($evalStatus === 'failed') {
+                    $sts = 0;
+                    $sts2 = 'failed';
+                } else {
+                    // Default to pending if ambiguous or unlisted status
+                    $sts = 2;
+                    $sts2 = 'pending';
+                }
+
+                 DB::table('logs')
+                ->where('txnid', (string) $user1)
+                ->where('type', $request->type == 2 ? 'DTH_Recharge' : 'Mobile_Recharge')
+                ->update([
+                    'response_data' => json_encode($rj),
+                    'status'        => $sts,
+                    'updated_at'    => now(),
+                ]);
+
+                
+                if($sts==0 && $api_count<$total_api_count){
+                    $api_count=$api_count+1;
+                    return $this->processRecharge($request,$api_count,$transactionData);
+                }
+
+
+               
+
+                // Log Recharge entry in `recharges` DB table
+                $rdata = [
+                    'api_id' => $apiSetting->id ?? null,
+                    'api_settings' => $apiSetting->id ?? 0,
+                    'user_id' => $request->get('user')->id,
+                    'number' => $number,
+                    'oprator' => $mappedOperatorCode,
+                    'amount' => $amount,
+                    'status' => "pending",
+                    'validity' => $validity,
+                    'plan' => $plan,
+                    'type' => $type,
+                    'oid' => $user1,
+                    'txnid' => $user1,
+                    'call_back_url' => $request->call_back_url ?? '',
+                    'admin_id' => $request->get('admin')->id,
+                    'created_by' => $request->get('user')->id,
+                    'request_data' => json_encode([
+                        'url' => $targetUrl,
+                        'api_id' => $apiSetting->id,
+                        'parameters' => $finalParams
+                    ])
+                ];
+
+                Recharge::create($rdata);
+
+                $supplierKey = $rechargeConfig['supplier_id_key'] ?? 'txn_id';
+                $oprTxnKey = $rechargeConfig['opr_txn_id_key'] ?? 'opt_id';
+
+                $msgKey = $rechargeConfig['message_key'] ?? $rechargeConfig['msg_key'] ?? null;
+
+                $txn = data_get($rj, $supplierKey) 
+                    ?? data_get($rj, 'txn_id') 
+                    ?? data_get($rj, 'RPID') 
+                    ?? data_get($rj, 'rpid') 
+                    ?? data_get($rj, 'orderId') 
+                    ?? data_get($rj, 'data.rpid') 
+                    ?? $user1;
+
+                $ope = data_get($rj, $oprTxnKey) 
+                    ?? data_get($rj, 'opt_id') 
+                    ?? data_get($rj, 'OPID') 
+                    ?? data_get($rj, 'opid') 
+                    ?? data_get($rj, 'operator') 
+                    ?? data_get($rj, 'data.opid') 
+                    ?? $mappedOperatorCode;
+                
+                $rem = ($msgKey ? data_get($rj, $msgKey) : null)
+                    ?? data_get($rj, 'message')
+                    ?? data_get($rj, 'Message')
+                    ?? data_get($rj, 'MESSAGE')
+                    ?? data_get($rj, 'resText')
+                    ?? data_get($rj, 'res_text')
+                    ?? data_get($rj, 'msg')
+                    ?? data_get($rj, 'MSG')
+                    ?? data_get($rj, 'Msg')
+                    ?? data_get($rj, 'error')
+                    ?? data_get($rj, 'error_message')
+                    ?? data_get($rj, 'remark')
+                    ?? data_get($rj, 'remarks')
+                    ?? data_get($rj, 'description')
+                    ?? data_get($rj, 'data.msg')
+                    ?? data_get($rj, 'data.message')
+                    ?? data_get($rj, 'data.Message')
+                    ?? data_get($rj, 'data.error')
+                    ?? data_get($rj, 'data.remark')
+                    ?? data_get($rj, 'data.description')
+                    ?? null;
+
+                if (empty($rem) && is_array($rj)) {
+                    $iterator = new \RecursiveIteratorIterator(
+                        new \RecursiveArrayIterator($rj),
+                        \RecursiveIteratorIterator::SELF_FIRST
+                    );
+                    foreach ($iterator as $k => $v) {
+                        if (in_array(strtolower((string)$k), ['message', 'restext', 'msg', 'error', 'remark', 'remarks', 'description', 'detail', 'details', 'reason', 'errmsg'])) {
+                            if (is_string($v) || is_numeric($v)) {
+                                $rem = (string) $v;
+                                if (!empty($rem)) break;
+                            } elseif (is_array($v) || is_object($v)) {
+                                $rem = json_encode($v);
+                                if (!empty($rem)) break;
+                            }
+                        }
+                    }
+                }
+
+                if (is_array($rem) || is_object($rem)) {
+                    $rem = json_encode($rem);
+                }
+
+                if (empty($rem)) {
+                    $rem = 'No Response Message';
+                }
+
+                $rem1 = ($rem === 'Insufficient Balance') ? 'Server Down Try again' : $rem;
+
+                $jsonResponseData = is_array($rj) ? json_encode($rj, JSON_UNESCAPED_SLASHES) : $res_data;
+                $opeStr = (is_array($ope) || is_object($ope)) ? '' : (string)$ope;
+                $txnStr = (is_array($txn) || is_object($txn)) ? '' : (string)$txn;
+
+                // Update Recharge DB Record
+                Recharge::where('oid', (string) $user1)->update([
+                    'status' => $sts2,
+                    'rrmarks' => $rem1,
+                    'oprator' => $opeStr,
+                    'txnid' => $txnStr,
+                    'response_data' => $jsonResponseData
+                ]);
+
+                // Update logs table
+              
+
+                // ✅ Step 10: Handle Failed Recharge (Refund Wallet)
+                if ($sts === 0) {
+                    $transactionData1 = [
+                        'account_id' => $request->account_id,
+                        'mpin' => $request->mpin,
+                        'type' => 'CR',
+                        'amount' => $request->amount,
+                        'transaction_amount' => $request->amount,
+                        'description' => 'Recharge Failed & Refund',
+                        'transaction_id' => $request->transaction_id . '-0',
+                        'category_code' => 'RECHARGE'
+                    ];
+                    processTransaction($request, $transactionData1);
+
+                    $keysToRemove = ['Bal', 'bal', 'balance', 'utilityBalance', 'mainBalance', 'aepsBalance'];
+                    $rj1 = is_array($rj) ? array_diff_key($rj, array_flip($keysToRemove)) : $rj;
+
+
+
+                    $user = $request->get('user');
+                    $admin = $request->get('admin');
+
+                    $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
+                        
+                    if($accounts && $accounts->user_id != $user->id) {
+                    
+                        $requestDatass=[
+                            'account_id' => $accounts->id,
+                            'type' => 'CR',
+                            'amount' => $request->amount,
+                            'description' => 'RECH-REFUND - '.$desc.' - '.$request->number,
+                            'transaction_id' => 'RECH-REFUND-' . $request->transaction_id,
+                            'created_by' => $user->id,
+                            'admin_id' => $admin->id,
+                            'user_id' => $admin->id,
+                            'category_code' => 'RECHARGE'
+                        ];
+                        
+                        createTransaction($requestDatass);
+
+
+                    }
+
+
+
+
+                    return response()->json([
+                        'status' => 0,
+                        'message' => (!empty($rem1) && $rem1 !== 'No Response Message') ? $rem1 : 'Recharge Failed with technical issue',
+                        'data' => $rj1
+                    ], 200);
+                }
+
+                // ✅ Step 11: Handle Success Recharge (Process Commission)
+                if ($sts === 1) {
+                    $userObj = $request->get('user');
+
+                    $taems=$userObj->root;
+                    $userid=$userObj->id;
+                    $string1 = $userid . ',' . $taems;
+
+                    $rootArrays = explode(",",$string1);
+                    
+
+                    foreach($rootArrays as $user)
+                    {
+
+                        $user=User::where('id',$user)->first();
+
+                        if ($user) {
+                            $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
+                                $user,
+                                $apiSetting->id ?? null,
+                                $mainServiceType ?? 'Prepaid',
+                                $operatorInput ?? 'ALL',
+                                $circal ?? 'ALL',
+                                $amount
+                            );
+
+                            $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
+
+                        
+                            $transactionData13 = [
+                                'account_id' => $account->id,
+                                'type' => 'CR',
+                                'amount' => $commResult['calculated_commission'],
+                                'description' => $request->type == 3 ? 'Bill Payment Commission' : 'Recharge Commission',
+                                'transaction_id' => $request->transaction_id.'_comm',
+                                'created_by' => $account->user_id,
+                                'admin_id' => $account->admin_id,
+                                'user_id' => $account->user_id,
+                                'category_code' => 'RECHARGE'
+                            ];
+
+                            $transactionData2 = createTransaction($transactionData13);
+                        }
+                        
+                    }
+
+                   
+                    
+                }
+
+                // ✅ Step 12: Return Final Response
+                $transactionData = [
+                    'orderId' => $txn,
+                    'txnId' => $user1,
+                    'resText' => $rem,
+                    'operator' => $ope
+                ];
+
+                return response()->json([
+                    'status' => $sts === 2 ? 2 : 1,
+                    'message' => (!empty($rem1) && $rem1 !== 'No Response Message') ? $rem1 : ($sts === 2 ? 'Recharge is pending' : 'Recharge processed successfully'),
+                    'data' => $transactionData
+                ], 200);
+            }
+
+
+
+           
+            // Fallback if transaction validation failed
+            return response()->json([
+                'status' => 0,
+                'message' => $transactionData['message'] ?? 'Transaction failed',
+                'data' => null
+            ], 200);
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            CatchLogService::logException($request, 'mobileRecharge', $e, [
+                'context' => 'Mobile Recharge Database Error',
+            ]);
+            return response()->json([
+                'status' => 0,
+                'message' => 'Database error occurred: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+
+        } catch (\Exception $e) {
+            CatchLogService::logException($request, 'mobileRecharge', $e, [
+                'context' => 'Mobile Recharge Error',
+            ]);
+            return response()->json([
+                'status' => 0,
+                'message' => 'An unexpected error occurred: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
     /**
      * Process mobile recharge request
      */
 
 
 
-  public function processRecharge(Request $request,$api_count=1,$transactionData=[])
+    public function processRecharge(Request $request,$api_count=1,$transactionData=[])
     {
         try {
             // Sanitize $api_count if injected from route defaults (e.g. smodule=2) on initial request

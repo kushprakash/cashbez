@@ -262,6 +262,7 @@ if (!function_exists('validateTransaction')) {
     //also make transaction in passbook
 }
 
+
 if (!function_exists('getCategoryIdByCode')) {
     /**
      * Get transaction category ID by code
@@ -510,6 +511,205 @@ if (!function_exists('processTransaction')) {
             // Step 3: Return combined success response
             return [
                 'status' => 1,
+                'message' => 'Transaction processed successfully',
+                'error_code' => null,
+                'validation' => $validation,
+                'transaction' => $transaction
+            ];
+
+        } catch (\Exception $e) {
+         
+
+            return [
+                'status' => 0,
+                'message' => 'Transaction processing failed due to system error: ' . $e->getMessage(),
+                'error_code' => 'SYSTEM_ERROR',
+                'transaction_id' => null,
+                'debug_info' => [
+                    'error_message' => $e->getMessage(),
+                    'error_file' => $e->getFile(),
+                    'error_line' => $e->getLine()
+                ]
+            ];
+        }
+    }
+}
+
+
+if (!function_exists('validateMemberTransaction')) {
+    /**
+     * Global function to validate Financial Member Account transaction balance & status
+     * 
+     * @param int|string $accountId (FinancialAccount ID or Account Number)
+     * @param float $amount
+     * @param string $type ('DR' or 'CR')
+     * @return array
+     */
+    function validateMemberTransaction($transactionDataxyz)
+    {
+        try {
+            if (!$transactionDataxyz['account_id']) {
+                return [
+                    'status' => 0,
+                    'message' => 'Member Account ID or Number is required',
+                    'error_code' => 'ACCOUNT_REQUIRED',
+                    'available_balance' => 0
+                ];
+            }
+
+            $amount = floatval($amount);
+            if ($amount <= 0 && strtoupper($type) === 'DR') {
+                return [
+                    'status' => 0,
+                    'message' => 'Invalid transaction amount',
+                    'error_code' => 'INVALID_AMOUNT',
+                    'available_balance' => 0
+                ];
+            }
+
+            // Find FinancialAccount by ID or Account Number
+            $account = \App\Models\Financial\FinancialAccount::where('id', $transactionDataxyz['account_id'])->first();
+
+            if (!$account) {
+                return [
+                    'status' => 0,
+                    'message' => 'Account not found',
+                    'error_code' => 'ACCOUNT_NOT_FOUND',
+                    'available_balance' => 0
+                ];
+            }
+
+            if (isset($account->status) && $account->status !== 'ACTIVE') {
+                return [
+                    'status' => 0,
+                    'message' => 'Account is inactive or Closed',
+                    'error_code' => 'ACCOUNT_INACTIVE',
+                    'available_balance' => (float)$account->available_balance
+                ];
+            }
+
+            $member = \App\Models\Financial\FinancialMember::where('id', $account->member_id)->first();
+            
+            if (!$member) {
+                return [
+                    'status' => 0,
+                    'message' => 'Member not found',
+                    'error_code' => 'MEMBER_NOT_FOUND',
+                    'available_balance' => 0
+                ];
+            }
+
+            if($transactionDataxyz['mpin_status']==true){
+                if($member->mpin != $transactionDataxyz['mpin']){
+                    return [
+                        'status' => 0,
+                        'message' => 'Invalid MPIN',
+                        'error_code' => 'INVALID_MPIN',
+                        'available_balance' => 0
+                    ];
+                }
+            }
+          
+
+            $availableBalance = (float)$account->available_balance;
+
+            if (strtoupper($type) === 'DR' && $availableBalance < $amount) {
+                return [
+                    'status' => 0,
+                    'message' => 'Insufficient Balance. Available: ₹' . number_format($availableBalance, 2),
+                    'error_code' => 'INSUFFICIENT_BALANCE',
+                    'current_balance' => (float)$account->current_balance,
+                    'available_balance' => $availableBalance,
+                    'required_amount' => $amount,
+                    'shortage' => $amount - $availableBalance
+                ];
+            }
+
+            return [
+                'status' => 1,
+                'message' => 'Member transaction validation successful',
+                'account' => $account,
+                'account_id' => $account->id,
+                'account_number' => $account->account_number,
+                'member_id' => $account->member_id,
+                'user_id' => $account->user_id,
+                'admin_id' => $account->admin_id,
+                'current_balance' => (float)$account->current_balance,
+                'available_balance' => $availableBalance,
+                'transaction_amount' => $amount,
+                'remaining_balance' => strtoupper($type) === 'DR' ? ($availableBalance - $amount) : ($availableBalance + $amount)
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 0,
+                'message' => 'Member validation error: ' . $e->getMessage(),
+                'error_code' => 'SYSTEM_ERROR',
+                'available_balance' => 0
+            ];
+        }
+    }
+}
+
+if (!function_exists('processMemberTransaction')) {
+    /**
+     * Global function to validate and create a transaction in one go
+     * 
+     * @param \Illuminate\Http\Request $request
+     * @param array $transactionDataxyz
+     * @return array
+     */
+    function processMemberTransaction($request, $transactionDataxyz , $checkType = true)
+    {
+        try {
+           
+
+     
+            // Step 1: Validate the transaction
+            $validation = validateMemberTransaction(
+                $request,
+                $transactionDataxyz['account_id'] ?? null,
+                $transactionDataxyz['mpin_status'] ?? false,
+                $transactionDataxyz['mpin'] ?? null,
+                $transactionDataxyz['amount'] ?? null,
+                $transactionDataxyz['type'] ?? 'DR'
+            );
+
+        
+            // If validation fails, return the validation error
+            if ($validation['status'] == 0) {
+                return $validation; die;
+            }
+              
+     
+            if($transactionDataxyz['type']=='DR'){
+                $newBalance=$validation['available_balance']-$transactionDataxyz['amount'];
+            } else {
+                $newBalance=$validation['available_balance']+$transactionDataxyz['amount'];
+            }
+
+          
+            FinancialTransaction::create([
+                'transaction_id' => $validation['transaction_id'],
+                'account_id' => $validation['account_id'],
+                'member_id' => $validation['member_id'],
+                'user_id' => $validation['user_id'],
+                'admin_id' => $validation['admin_id'],
+                'service_type' => $transactionDataxyz['service_type'] ?? 'SAVING',
+                'txn_type' => $transactionDataxyz['txn_type'] ?? 'WITHDRAWAL',
+                'amount' => $validation['transaction_amount'],
+                'charges' => $transactionDataxyz['charges'] ?? 0,
+                'net_amount' => $validation['transaction_amount'] - ($transactionDataxyz['charges'] ?? 0),
+                'balance_before'=>$validation['available_balance'],
+                'balance_after'=>$newBalance,
+                'payment_mode' => $transactionDataxyz['payment_type'] ?? 'SELF',
+                'narration' => $transactionDataxyz['description'],
+                'status' => 'SUCCESS',
+            ]);
+
+            // Step 3: Return combined success response
+            return [
+                'status' => 1,  
                 'message' => 'Transaction processed successfully',
                 'error_code' => null,
                 'validation' => $validation,

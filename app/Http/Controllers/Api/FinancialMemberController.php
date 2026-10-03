@@ -263,9 +263,116 @@ class FinancialMemberController extends Controller
             return response()->json(['status' => 0, 'message' => 'Unauthenticated or Member profile not found.'], 401);
         }
 
+        $memberData = $auth['member']->toArray();
+        $memberData['has_mpin'] = !empty($auth['member']->mpin);
+
         return response()->json([
             'status' => 1,
-            'data' => $auth['member']
+            'data' => $memberData
+        ]);
+    }
+
+    /**
+     * Check MPIN Status for Member
+     */
+    public function checkMpinStatus(Request $request)
+    {
+        $auth = $this->getAuthenticatedMember($request);
+        if (!$auth || !$auth['member']) {
+            return response()->json(['status' => 0, 'message' => 'Unauthenticated or Member profile not found.'], 401);
+        }
+
+        $member = $auth['member'];
+        $hasMpin = !empty($member->mpin);
+
+        return response()->json([
+            'status' => 1,
+            'has_mpin' => $hasMpin,
+            'mpin' => $member->mpin,
+            'message' => $hasMpin ? 'MPIN is set' : 'MPIN is not set',
+        ]);
+    }
+
+    /**
+     * Set MPIN (Normal text 4-digit code)
+     */
+    public function setMpin(Request $request)
+    {
+        $auth = $this->getAuthenticatedMember($request);
+        if (!$auth || !$auth['member']) {
+            return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'mpin' => 'required|string|digits:4',
+            'confirm_mpin' => 'required|string|same:mpin',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+        }
+
+        $member = $auth['member'];
+        $member->mpin = $request->mpin;
+        $member->save();
+
+        return response()->json([
+            'status' => 1,
+            'message' => 'MPIN set successfully!',
+            'data' => [
+                'has_mpin' => true,
+                'mpin' => $member->mpin,
+            ]
+        ]);
+    }
+
+    /**
+     * Update MPIN (Normal text 4-digit code)
+     */
+    public function updateMpin(Request $request)
+    {
+        $auth = $this->getAuthenticatedMember($request);
+        if (!$auth || !$auth['member']) {
+            return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'old_mpin' => 'nullable|string|digits:4',
+            'new_mpin' => 'required|string|digits:4',
+            'confirm_mpin' => 'required|string|same:new_mpin',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+        }
+
+        $member = $auth['member'];
+
+        if (empty($member->mpin)) {
+            $member->mpin = $request->new_mpin;
+            $member->save();
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'MPIN set successfully!',
+                'data' => ['has_mpin' => true, 'mpin' => $member->mpin]
+            ]);
+        }
+
+        if (!empty($request->old_mpin) && (string)$member->mpin !== (string)$request->old_mpin) {
+            return response()->json(['status' => 0, 'message' => 'Old MPIN does not match.'], 400);
+        }
+
+        $member->mpin = $request->new_mpin;
+        $member->save();
+
+        return response()->json([
+            'status' => 1,
+            'message' => 'MPIN updated successfully!',
+            'data' => [
+                'has_mpin' => true,
+                'mpin' => $member->mpin,
+            ]
         ]);
     }
 
@@ -886,7 +993,7 @@ class FinancialMemberController extends Controller
             return response()->json(['status' => 0, 'message' => 'Insufficient Saving Account balance. Current Balance: ₹' . number_format($savingAcc->available_balance, 2)], 400);
         }
 
-        DB::beginTransaction();
+
         try {
             // Debit Member's Saving Account
             $savingAcc->decrement('available_balance', $amount);
@@ -894,43 +1001,31 @@ class FinancialMemberController extends Controller
 
             $txnId = FinancialScopeService::generateTxnId();
 
-            FinancialTransaction::create([
-                'transaction_id' => $txnId,
-                'account_id' => $savingAcc->id,
-                'member_id' => $member->id,
-                'user_id' => $member->user_id,
-                'admin_id' => $member->admin_id,
-                'service_type' => 'SAVING',
-                'txn_type' => 'WITHDRAWAL',
-                'amount' => $amount,
-                'charges' => 0,
-                'net_amount' => $amount,
-                'payment_mode' => 'RECHARGE',
-                'narration' => "Recharge for {$request->number} ({$request->operator})",
-                'status' => 'SUCCESS',
-            ]);
+            // FinancialTransaction::create([
+            //     'transaction_id' => $txnId,
+            //     'account_id' => $savingAcc->id,
+            //     'member_id' => $member->id,
+            //     'user_id' => $member->user_id,
+            //     'admin_id' => $member->admin_id,
+            //     'service_type' => 'SAVING',
+            //     'txn_type' => 'WITHDRAWAL',
+            //     'amount' => $amount,
+            //     'charges' => 0,
+            //     'net_amount' => $amount,
+            //     'payment_mode' => 'RECHARGE',
+            //     'narration' => "Recharge for {$request->number} ({$request->operator})",
+            //     'status' => 'SUCCESS',
+            // ]);
 
-            DB::commit();
+   
 
-            // Try forwarding to live UtilityController recharge process
-            try {
-                $utilityCtrl = new \App\Http\Controllers\Banking\UtilityController();
-                $request->merge(['transaction_id' => $txnId, 'account_id' => $savingAcc->id]);
-                $request->attributes->set('user', $auth['user']);
-                return $utilityCtrl->processRecharge($request);
-            } catch (\Exception $ex) {
-                return response()->json([
-                    'status' => 1,
-                    'message' => 'Recharge processed successfully from Member Saving Account!',
-                    'data' => [
-                        'txn_id' => $txnId,
-                        'amount' => $amount,
-                        'remaining_balance' => $savingAcc->fresh()->available_balance,
-                    ]
-                ]);
-            }
+            $utilityCtrl = new \App\Http\Controllers\Banking\UtilityController();
+            $request->merge(['transaction_id' => $txnId, 'SavingAcc' => $savingAcc]);
+            $request->attributes->set('user', $auth['user']);
+            $res= $utilityCtrl->processRechargeMember($request);
+            return $res;
+
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json(['status' => 0, 'message' => 'Recharge failed: ' . $e->getMessage()], 500);
         }
     }

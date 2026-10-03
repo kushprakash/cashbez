@@ -1312,6 +1312,9 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('investments/deposit', [FinancialMemberController::class, 'depositInvestmentAccount']);
         Route::post('investments/maturity', [FinancialMemberController::class, 'requestMaturity']);
         Route::post('recharge', [FinancialMemberController::class, 'recharge']);
+        Route::get('check-mpin', [FinancialMemberController::class, 'checkMpinStatus']);
+        Route::post('set-mpin', [FinancialMemberController::class, 'setMpin']);
+        Route::post('update-mpin', [FinancialMemberController::class, 'updateMpin']);
     });
 
 });
