@@ -691,16 +691,16 @@ if (!function_exists('processMemberTransaction')) {
             }
 
           \App\Models\Financial\FinancialTransaction::create([
-                'transaction_id' => $validation['transaction_id'],
-                'account_id' => $validation['account_id'],
+                'transaction_id' => $transactionDataxyz['transaction_id'],
+                'account_id' => $transactionDataxyz['account_id'],
                 'member_id' => $validation['member_id'],
                 'user_id' => $validation['user_id'],
                 'admin_id' => $validation['admin_id'],
                 'service_type' => $transactionDataxyz['service_type'] ?? 'SAVING',
                 'txn_type' => $transactionDataxyz['txn_type'] ?? 'WITHDRAWAL',
-                'amount' => $validation['transaction_amount'],
+                'amount' => $transactionDataxyz['amount'],
                 'charges' => $transactionDataxyz['charges'] ?? 0,
-                'net_amount' => $validation['transaction_amount'] - ($transactionDataxyz['charges'] ?? 0),
+                'net_amount' => $transactionDataxyz['amount'] - ($transactionDataxyz['charges'] ?? 0),
                 'balance_before'=>$validation['available_balance'],
                 'balance_after'=>$newBalance,
                 'payment_mode' => $transactionDataxyz['payment_type'] ?? 'SELF',
