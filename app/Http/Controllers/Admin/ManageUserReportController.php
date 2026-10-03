@@ -14,6 +14,7 @@ use App\Models\NotificationLog;
 use App\Models\UserKyc;
 use App\Models\Role;
 use App\Models\Payout;
+use App\Models\Beneficiary;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -216,7 +217,30 @@ class ManageUserReportController extends Controller
                 $adminId = $authUser->id;
             }
             
-            $rolesList = Role::where('user_id', $adminId)->where('status', 1)->select('id','name')->get();
+            $rolesList = Role::where(function ($q) use ($adminId) {
+                if ($adminId) {
+                    $q->where('user_id', $adminId);
+                } else {
+                    $q->where('user_id', 1);
+                }
+            })
+                ->whereNotIn('id', [1, 2])
+                ->whereNotIn('name', ['Super Admin', 'Admin'])
+                ->select('id', 'name', 'guest')
+                ->orderBy('guest', 'asc')
+                ->get();
+
+            if ($rolesList->isEmpty()) {
+                $rolesList = Role::where('user_id', 1)
+                    ->whereNotIn('id', [1, 2])
+                    ->whereNotIn('name', ['Super Admin', 'Admin'])
+                    ->select('id', 'name', 'guest')
+                    ->orderBy('guest', 'asc')
+                    ->get();
+            }
+
+            // Fetch list of all Admin users (role == 2)
+            $adminsList = User::where('role', 2)->select('id', 'mid', 'name', 'mobile')->orderBy('name')->get();
 
             // Parse Root Hierarchy Chain (e.g. "4,36,1155")
             $rootChain = [];
@@ -270,11 +294,19 @@ class ManageUserReportController extends Controller
                 ],
                 'accounts' => $accountsList,
                 'roles' => $rolesList,
+                'admins' => $adminsList,
                 'wallet' => [
                     'total' => $primaryAcc ? (float) ($primaryAcc['total'] ?? 0) : 0,
                     'hold' => $primaryAcc ? (float) ($primaryAcc['hold'] ?? 0) : 0,
                     'available' => $primaryAcc ? (float) ($primaryAcc['available'] ?? 0) : 0
-                ]
+                ],
+                'move_to_accounts' => Beneficiary::where('user_id', $user->id)
+                    ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                    ->orderBy('id', 'desc')
+                    ->get(),
+                'move_to_accounts_count' => Beneficiary::where('user_id', $user->id)
+                    ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                    ->count()
             ]);
 
         } catch (\Throwable $e) {
@@ -289,6 +321,48 @@ class ManageUserReportController extends Controller
                 'trace' => explode("\n", $e->getTraceAsString()),
                 'refId' => $refId
             ], 500);
+        }
+    }
+
+    /**
+     * Fetch roles created by a specific Admin (role == 2 user)
+     */
+    public function getRolesByAdmin(Request $request, $adminIdentifier)
+    {
+        try {
+            $adminUser = User::where('mid', $adminIdentifier)
+                ->orWhere('id', $adminIdentifier)
+                ->first();
+
+            if (!$adminUser) {
+                return response()->json(['status' => 0, 'message' => 'Admin not found', 'roles' => []], 404);
+            }
+
+            $roles = Role::where('user_id', $adminUser->id)
+                ->whereNotIn('id', [1, 2])
+                ->whereNotIn('name', ['Super Admin', 'Admin'])
+                ->select('id', 'name', 'guest')
+                ->orderBy('guest', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            if ($roles->isEmpty()) {
+                // Fallback: get non-admin roles created by Super Admin (user_id = 1) ordered by guest ascending
+                $roles = Role::where('user_id', 1)
+                    ->whereNotIn('id', [1, 2])
+                    ->whereNotIn('name', ['Super Admin', 'Admin'])
+                    ->select('id', 'name', 'guest')
+                    ->orderBy('guest', 'asc')
+                    ->orderBy('id', 'asc')
+                    ->get();
+            }
+
+            return response()->json([
+                'status' => 1,
+                'roles' => $roles
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage(), 'roles' => []], 500);
         }
     }
 
@@ -314,6 +388,7 @@ class ManageUserReportController extends Controller
                 'email' => 'nullable|email|max:255',
                 'role' => 'required|integer',
                 'status' => 'required|integer',
+                'admin_mid' => 'nullable|string',
                 'aadhar_number' => 'nullable|string|max:20',
                 'pan_card' => 'nullable|string|max:20',
                 'shop_name' => 'nullable|string|max:255',
@@ -330,6 +405,7 @@ class ManageUserReportController extends Controller
             }
 
             $oldRole = $user->role;
+            $oldAdminMid = $user->admin_mid;
             $newRole = $request->role;
 
             $user->name = $request->name;
@@ -337,6 +413,19 @@ class ManageUserReportController extends Controller
             $user->email = $request->email;
             $user->role = $request->role;
             $user->status = $request->status;
+
+            $newAdmin = null;
+            if ($request->filled('admin_mid')) {
+                $newAdmin = User::where('mid', $request->admin_mid)
+                    ->orWhere('id', $request->admin_mid)
+                    ->first();
+                if ($newAdmin) {
+                    $user->admin_mid = $newAdmin->mid;
+                } else {
+                    $user->admin_mid = $request->admin_mid;
+                }
+            }
+
             if ($request->has('aadhar_number')) {
                 $user->aadhar_number = $request->aadhar_number;
             }
@@ -382,7 +471,6 @@ class ManageUserReportController extends Controller
                     }
                 }
                 
-           
                 $user->root = implode(',', array_unique($parentIds));
             } elseif ($request->filled('root')) {
                 $user->root = trim($request->root);
@@ -402,7 +490,22 @@ class ManageUserReportController extends Controller
                 $kyc->save();
             }
 
-            if($oldRole!=$newRole){
+            $adminChanged = ($newAdmin && $oldAdminMid != $newAdmin->mid) || ($oldAdminMid != $user->admin_mid);
+            $roleChanged = ($oldRole != $newRole);
+
+            // If Admin changed, update admin_id in aeps_draft table
+            if ($adminChanged && $newAdmin) {
+                $draft = AepsDraft::where('mid', $user->mid)
+                    ->orWhere('phone', $user->mobile)
+                    ->orWhere('created_by', $user->id)
+                    ->first();
+                if ($draft) {
+                    $draft->admin_id = $newAdmin->id;
+                    $draft->save();
+                }
+            }
+
+            if ($adminChanged || $roleChanged) {
                 $this->assignRolePermissionsAndCommissions($user->id, $newRole);
             }
 
@@ -455,9 +558,25 @@ class ManageUserReportController extends Controller
     {
         try {
             $authUser = $request->get('user') ?? auth()->user();
-            $query = User::where('role', $roleId);
+            $query = User::query();
 
-            if ($authUser && !($authUser->id == 1 || $authUser->role == 1)) {
+            // Filter by role only if roleId is specific and not 'all'/0 and all_users flag is false
+            if ($roleId && $roleId !== 'all' && $roleId !== '0' && !$request->boolean('all_users')) {
+                $query->where('role', $roleId);
+            }
+
+            if ($request->filled('admin_mid') || $request->filled('admin_id')) {
+                $adminMid = $request->admin_mid ?: $request->admin_id;
+                $adminUser = User::where('mid', $adminMid)->orWhere('id', $adminMid)->first();
+                if ($adminUser) {
+                    $query->where(function ($q) use ($adminUser) {
+                        $q->where('admin_mid', $adminUser->mid)
+                          ->orWhere('refer_by', $adminUser->mid)
+                          ->orWhere('root', 'LIKE', "%{$adminUser->id}%")
+                          ->orWhere('root', 'LIKE', "%{$adminUser->mid}%");
+                    });
+                }
+            } elseif ($authUser && !($authUser->id == 1 || $authUser->role == 1)) {
                 $query->where(function ($sub) use ($authUser) {
                     $sub->where('users.admin_mid', $authUser->mid)
                         ->orWhereRaw("FIND_IN_SET(?, users.root)", [$authUser->id])
@@ -482,13 +601,32 @@ class ManageUserReportController extends Controller
                 }
             }
 
+            if ($request->filled('exclude_user_id')) {
+                $query->where('id', '!=', $request->exclude_user_id);
+            }
+
             $users = $query->select('id', 'name', 'mid', 'mobile', 'role')
                            ->orderBy('id', 'asc')
                            ->get();
 
+            // Pre-load roles for fast lookup
+            $roleIds = $users->pluck('role')->unique()->filter()->toArray();
+            $rolesMap = Role::whereIn('id', $roleIds)->pluck('name', 'id')->toArray();
+
+            $usersData = $users->map(function ($u) use ($rolesMap) {
+                return [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'mid' => $u->mid,
+                    'mobile' => $u->mobile,
+                    'role' => $u->role,
+                    'role_name' => $rolesMap[$u->role] ?? ('Role #' . $u->role)
+                ];
+            });
+
             return response()->json([
                 'status' => 1,
-                'users' => $users
+                'users' => $usersData
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
@@ -721,8 +859,6 @@ class ManageUserReportController extends Controller
             $admin = User::where('mid', $user->admin_mid)->first();
             $adminId = $admin->id ?? auth()->id() ?? 1;
 
-
-
             // 1. Create Trade Wallet (as Primary = 1)
             Account::create([
                 'user_id' => $user->id,
@@ -885,6 +1021,29 @@ class ManageUserReportController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
+
+            if ($account) {
+                $adminAccount = Account::where('user_id', $adminId)->where('primary_status', $account->primary_status)->first();
+                if ($adminAccount) {
+                    $latestTxn1 = Passbook::where('user_id', $adminId)->where('account_id', $adminAccount->id)->orderBy('id', 'DESC')->first();
+                    $preBal1 = $latestTxn1 ? $latestTxn1->balance : 0;
+                    Passbook::create([
+                        'user_id' => $adminId,
+                        'account_id' => $adminAccount->id,
+                        'transaction_id' => 'Admin-'.$txnId,
+                        'type' => $type,
+                        'amount' => $amount,
+                        'balance' => $preBal1 + $amount,
+                        'pre_balance' => $preBal1,
+                        'description' => "Admin " . ucfirst($action) . " (" . ($account->name ?? 'Wallet') . "): " . $desc,
+                        'status' => 1,
+                        'created_by' => auth()->id() ?? 1,
+                        'admin_id' => $adminId,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                }
+            }
 
             // Re-fetch all accounts list with updated balances
             $accounts = Account::where('user_id', $userId)->orderBy('primary_status', 'desc')->get();
@@ -1421,6 +1580,235 @@ class ManageUserReportController extends Controller
                 'line' => $e->getLine(),
                 'trace' => explode("\n", $e->getTraceAsString())
             ], 500);
+        }
+    }
+
+    /**
+     * Get Move To Accounts for a user
+     */
+    public function getMoveToAccounts($userId)
+    {
+        try {
+            $user = User::find($userId);
+            if (!$user) {
+                return response()->json(['status' => 0, 'message' => 'User not found'], 404);
+            }
+
+            $accounts = Beneficiary::where('user_id', $userId)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->orderBy('id', 'desc')
+                ->get();
+
+            return response()->json([
+                'status' => 1,
+                'data' => $accounts,
+                'count' => $accounts->count()
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Add Move To Account for a user (Admin)
+     */
+    public function addMoveToAccount(Request $request, $userId)
+    {
+        try {
+            $user = User::find($userId);
+            if (!$user) {
+                return response()->json(['status' => 0, 'message' => 'User not found'], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'account' => 'required|string|max:30',
+                'confirm_account' => 'required|same:account',
+                'ifsc' => 'required|string|size:11|regex:/^[A-Z]{4}0[A-Z0-9]{6}$/i',
+                'bank' => 'nullable|string|max:255',
+                'branch' => 'nullable|string|max:255',
+            ], [
+                'confirm_account.same' => 'Confirm Account Number does not match Account Number.',
+                'ifsc.regex' => 'Invalid IFSC code format (e.g. SBIN0001234).'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $validator->errors()->first(),
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $account = trim($request->account);
+            $ifsc = strtoupper(trim($request->ifsc));
+
+            // Check if duplicate Move To Account already exists for this user
+            $existing = Beneficiary::where('user_id', $userId)
+                ->where('account', $account)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->first();
+
+            if ($existing) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Move To Account with this account number already exists for this user.'
+                ], 422);
+            }
+
+            $adminId = $user->admin_id ?? ($user->admin_mid ? User::where('mid', $user->admin_mid)->value('id') : 1);
+            $currentUser = $request->user();
+
+            $beneficiary = Beneficiary::create([
+                'user_id' => $user->id,
+                'name' => trim($request->name),
+                'account' => $account,
+                'ifsc' => $ifsc,
+                'bank' => $request->bank ? trim($request->bank) : null,
+                'branch' => $request->branch ? trim($request->branch) : null,
+                'type' => Beneficiary::TYPE_MOVE_TO_ACCOUNT, // 3
+                'status' => Beneficiary::STATUS_ACTIVE, // 1
+                'admin_id' => $adminId ?: 1,
+                'created_by' => $currentUser ? $currentUser->id : ($adminId ?: 1),
+                'account_verified' => true,
+                'ifsc_verified' => true
+            ]);
+
+            $allAccounts = Beneficiary::where('user_id', $userId)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->orderBy('id', 'desc')
+                ->get();
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Move To Account added successfully!',
+                'data' => $beneficiary,
+                'accounts' => $allAccounts,
+                'count' => $allAccounts->count()
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update Move To Account (Admin)
+     */
+    public function updateMoveToAccount(Request $request, $userId, $id)
+    {
+        try {
+            $beneficiary = Beneficiary::where('id', $id)
+                ->where('user_id', $userId)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->first();
+
+            if (!$beneficiary) {
+                return response()->json(['status' => 0, 'message' => 'Move To Account not found'], 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'account' => 'required|string|max:30',
+                'confirm_account' => 'nullable|same:account',
+                'ifsc' => 'required|string|size:11|regex:/^[A-Z]{4}0[A-Z0-9]{6}$/i',
+                'bank' => 'nullable|string|max:255',
+                'branch' => 'nullable|string|max:255',
+                'status' => 'nullable|in:0,1,2,3'
+            ], [
+                'confirm_account.same' => 'Confirm Account Number does not match Account Number.',
+                'ifsc.regex' => 'Invalid IFSC code format (e.g. SBIN0001234).'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => $validator->errors()->first(),
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $account = trim($request->account);
+            $ifsc = strtoupper(trim($request->ifsc));
+
+            // Check if account number conflicts with another record of same user
+            $conflict = Beneficiary::where('user_id', $userId)
+                ->where('account', $account)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->where('id', '!=', $id)
+                ->first();
+
+            if ($conflict) {
+                return response()->json([
+                    'status' => 0,
+                    'message' => 'Another Move To Account already exists with this account number for this user.'
+                ], 422);
+            }
+
+            $updateData = [
+                'name' => trim($request->name),
+                'account' => $account,
+                'ifsc' => $ifsc,
+            ];
+
+            if ($request->filled('bank')) {
+                $updateData['bank'] = trim($request->bank);
+            }
+            if ($request->filled('branch')) {
+                $updateData['branch'] = trim($request->branch);
+            }
+            if ($request->has('status')) {
+                $updateData['status'] = (int) $request->status;
+            }
+
+            $beneficiary->update($updateData);
+
+            $allAccounts = Beneficiary::where('user_id', $userId)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->orderBy('id', 'desc')
+                ->get();
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Move To Account updated successfully!',
+                'data' => $beneficiary->fresh(),
+                'accounts' => $allAccounts,
+                'count' => $allAccounts->count()
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete Move To Account (Admin)
+     */
+    public function deleteMoveToAccount(Request $request, $userId, $id)
+    {
+        try {
+            $beneficiary = Beneficiary::where('id', $id)
+                ->where('user_id', $userId)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->first();
+
+            if (!$beneficiary) {
+                return response()->json(['status' => 0, 'message' => 'Move To Account not found'], 404);
+            }
+
+            $beneficiary->delete();
+
+            $allAccounts = Beneficiary::where('user_id', $userId)
+                ->where('type', Beneficiary::TYPE_MOVE_TO_ACCOUNT)
+                ->orderBy('id', 'desc')
+                ->get();
+
+            return response()->json([
+                'status' => 1,
+                'message' => 'Move To Account removed successfully!',
+                'accounts' => $allAccounts,
+                'count' => $allAccounts->count()
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['status' => 0, 'message' => $e->getMessage()], 500);
         }
     }
 }

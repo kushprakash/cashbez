@@ -947,6 +947,7 @@ Route::middleware('api.token.auth')->group(function () {
     // Admin Manage User & Report Routes
     Route::prefix('admin/manage-user-report')->group(function () {
         Route::get('/search', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'search']);
+        Route::get('/roles-by-admin/{adminIdentifier}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'getRolesByAdmin']);
         Route::post('/update-user/{id}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'updateUser']);
         Route::post('/update-merchant/{draftId}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'updateMerchant']);
         Route::post('/wallet-action', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'walletAction']);
@@ -960,6 +961,10 @@ Route::middleware('api.token.auth')->group(function () {
         Route::get('/users-by-role/{roleId}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'getUsersByRole']);
         Route::post('/impersonate', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'impersonate']);
         Route::post('/revert-impersonate', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'revertImpersonate']);
+        Route::get('/move-to-accounts/{userId}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'getMoveToAccounts']);
+        Route::post('/move-to-accounts/{userId}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'addMoveToAccount']);
+        Route::post('/move-to-accounts/{userId}/update/{id}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'updateMoveToAccount']);
+        Route::match(['delete', 'post'], '/move-to-accounts/{userId}/delete/{id}', [\App\Http\Controllers\Admin\ManageUserReportController::class, 'deleteMoveToAccount']);
     });
 
     // Remark Presets (for WhatsApp Share modal — cached, version-aware)
