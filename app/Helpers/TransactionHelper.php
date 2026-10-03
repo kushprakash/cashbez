@@ -557,7 +557,7 @@ if (!function_exists('validateMemberTransaction')) {
                 ];
             }
 
-            $amount = floatval($amount);
+            $amount = floatval($transactionDataxyz['amount']);
             if ($amount <= 0 && strtoupper($type) === 'DR') {
                 return [
                     'status' => 0,
