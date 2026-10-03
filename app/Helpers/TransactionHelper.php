@@ -558,7 +558,7 @@ if (!function_exists('validateMemberTransaction')) {
             }
 
             $amount = floatval($transactionDataxyz['amount']);
-            if ($amount <= 0 && strtoupper($type) === 'DR') {
+            if ($amount <= 0 && strtoupper($transactionDataxyz['type']) === 'DR') {
                 return [
                     'status' => 0,
                     'message' => 'Invalid transaction amount',
