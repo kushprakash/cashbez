@@ -191,8 +191,8 @@ class BeneficiaryController extends Controller
                 }
             }
 
-
-            $auth = $this->getAuthenticatedMember($request);
+            $FinancialMemberController = new \App\Http\Controllers\Api\Financial\FinancialMemberController();
+            $auth = $FinancialMemberController->getAuthenticatedMember($request);
             $member = $auth['member'] ?? NULL;
             
 
