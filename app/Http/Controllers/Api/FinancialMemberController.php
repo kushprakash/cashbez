@@ -21,7 +21,7 @@ class FinancialMemberController extends Controller
     /**
      * Helper to authenticate and return current Member model from Request
      */
-    private function getAuthenticatedMember(Request $request)
+    public function getAuthenticatedMember(Request $request)
     {
         $user = $request->user();
         if (!$user) {
