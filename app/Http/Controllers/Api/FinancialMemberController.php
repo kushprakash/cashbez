@@ -1001,26 +1001,8 @@ class FinancialMemberController extends Controller
 
             $txnId = FinancialScopeService::generateTxnId();
 
-            // FinancialTransaction::create([
-            //     'transaction_id' => $txnId,
-            //     'account_id' => $savingAcc->id,
-            //     'member_id' => $member->id,
-            //     'user_id' => $member->user_id,
-            //     'admin_id' => $member->admin_id,
-            //     'service_type' => 'SAVING',
-            //     'txn_type' => 'WITHDRAWAL',
-            //     'amount' => $amount,
-            //     'charges' => 0,
-            //     'net_amount' => $amount,
-            //     'payment_mode' => 'RECHARGE',
-            //     'narration' => "Recharge for {$request->number} ({$request->operator})",
-            //     'status' => 'SUCCESS',
-            // ]);
-
-   
-
             $utilityCtrl = new \App\Http\Controllers\Banking\UtilityController();
-            $request->merge(['transaction_id' => $txnId, 'SavingAcc' => $savingAcc]);
+            $request->merge(['transaction_id' => $txnId, 'member_id' => $member->id]);
             $request->attributes->set('user', $auth['user']);
             $res= $utilityCtrl->processRechargeMember($request);
             return $res;

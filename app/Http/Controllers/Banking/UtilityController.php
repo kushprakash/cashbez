@@ -406,7 +406,7 @@ class UtilityController extends Controller
 
             if($api_count==1 || empty($transactionData)){
 
-                $savingAcc = FinancialAccount::where('member_id', $member->id)
+                $savingAcc = FinancialAccount::where('member_id', $request->member_id)
                     ->where('service_type', 'SAVING')
                     ->first();
 
@@ -438,53 +438,53 @@ class UtilityController extends Controller
                     ], 200);
                 }
 
-                $user = $request->get('user');
-                $admin = $request->get('admin');
+                $admin = User::where('id', $savingAcc->admin_id)->first();
 
                 $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
-                    
-                if($accounts && $accounts->user_id != $user->id) {
                    
-                    $requestDatass=[
-                        'account_id' => $accounts->id,
-                        'type' => 'DR',
+                $requestDatass=[
+                    'account_id' => $accounts->id,
+                    'type' => 'DR',
+                    'amount' => $request->amount,
+                    'description' => $desc.' - '.$request->number,
+                    'transaction_id' => 'RECH' . rand(111111, 999999),
+                    'created_by' => $accounts->admin_id,
+                    'admin_id' => $accounts->admin_id,
+                    'user_id' => $accounts->admin_id,
+                    'category_code' => 'RECHARGE'
+                ];
+                
+                $resResponse=createTransaction($requestDatass);
+
+
+                if (empty($resResponse['status']) || $resResponse['status'] != 1) {
+
+                    $transactionData = [
+                        'account_id' => $savingAcc->id,
+                        'mpin_status' => false,
+                        'mpin' => $request->mpin ?? '',
+                        'type' => 'CR',
+                        'service_type'=>'SAVING',
+                        'txn_type' => 'RECHARGE',
+                        'payment_type' => 'SELF',
+                        'charges' => 0,
                         'amount' => $request->amount,
+                        'transaction_amount' => $request->amount,
                         'description' => $desc.' - '.$request->number,
-                        'transaction_id' => 'RECH' . rand(111111, 999999),
-                        'created_by' => $user->id,
-                        'admin_id' => $admin->id,
-                        'user_id' => $admin->id,
-                        'category_code' => 'RECHARGE'
+                        'transaction_id' => $txnid
                     ];
-                    
-                    $resResponse=createTransaction($requestDatass);
 
 
-                    if (empty($resResponse['status']) || $resResponse['status'] != 1) {
-
-                        $transactionData = [
-                            'account_id' => $request->account_id,
-                            'mpin' => $request->mpin,
-                            'type' => 'CR',
-                            'amount' => $request->amount,
-                            'transaction_amount' => $request->amount,
-                            'description' => 'Recharge Failed. Refund of amount '.$desc.' - '.$request->number,
-                            'transaction_id' => 'REF_'.$txnid,
-                            'category_code' => 'RECHARGE'
-                        ];
-
-                      
-                        $transactionData = processTransaction($request, $transactionData);
+                    processMemberTransaction($request, $transactionData);
 
 
-                        return response()->json([
-                            'status' => 0,
-                            'message' => 'Some Technical Issue. Please try again.',
-                            'data' => null
-                        ], 200);
-                    } 
-                    
-                }
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'Some Technical Issue. Please try again.',
+                        'data' => null
+                    ], 200);
+                } 
+    
 
 
             }
@@ -780,46 +780,38 @@ class UtilityController extends Controller
 
                 // ✅ Step 10: Handle Failed Recharge (Refund Wallet)
                 if ($sts === 0) {
-                    $transactionData1 = [
-                        'account_id' => $request->account_id,
-                        'mpin' => $request->mpin,
+                    $transactionData = [
+                        'account_id' => $savingAcc->id,
+                        'mpin_status' => false,
+                        'mpin' => $request->mpin ?? '',
                         'type' => 'CR',
+                        'service_type'=>'SAVING',
+                        'txn_type' => 'RECHARGE',
+                        'payment_type' => 'SELF',
+                        'charges' => 0,
                         'amount' => $request->amount,
                         'transaction_amount' => $request->amount,
-                        'description' => 'Recharge Failed & Refund',
-                        'transaction_id' => $request->transaction_id . '-0',
+                        'description' => $desc.' - '.$request->number,
+                        'transaction_id' => $txnid
+                    ];
+
+
+                    processMemberTransaction($request, $transactionData);
+
+
+                    $requestDatass=[
+                        'account_id' => $accounts->id,
+                        'type' => 'CR',
+                        'amount' => $request->amount,
+                        'description' => 'RECH-REFUND - '.$desc.' - '.$request->number,
+                        'transaction_id' => 'RECH-REFUND-' . $request->transaction_id,
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $admin->id,
                         'category_code' => 'RECHARGE'
                     ];
-                    processTransaction($request, $transactionData1);
-
-                    $keysToRemove = ['Bal', 'bal', 'balance', 'utilityBalance', 'mainBalance', 'aepsBalance'];
-                    $rj1 = is_array($rj) ? array_diff_key($rj, array_flip($keysToRemove)) : $rj;
-
-
-
-                    $user = $request->get('user');
-                    $admin = $request->get('admin');
-
-                    $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
-                        
-                    if($accounts && $accounts->user_id != $user->id) {
                     
-                        $requestDatass=[
-                            'account_id' => $accounts->id,
-                            'type' => 'CR',
-                            'amount' => $request->amount,
-                            'description' => 'RECH-REFUND - '.$desc.' - '.$request->number,
-                            'transaction_id' => 'RECH-REFUND-' . $request->transaction_id,
-                            'created_by' => $user->id,
-                            'admin_id' => $admin->id,
-                            'user_id' => $admin->id,
-                            'category_code' => 'RECHARGE'
-                        ];
-                        
-                        createTransaction($requestDatass);
-
-
-                    }
+                    createTransaction($requestDatass);
 
 
 
@@ -833,50 +825,24 @@ class UtilityController extends Controller
 
                 // ✅ Step 11: Handle Success Recharge (Process Commission)
                 if ($sts === 1) {
-                    $userObj = $request->get('user');
+                   
+                    $transactionData = [
+                        'account_id' => $savingAcc->id,
+                        'mpin_status' => false,
+                        'mpin' => $request->mpin ?? '',
+                        'type' => 'CR',
+                        'service_type'=>'SAVING',
+                        'txn_type' => 'RECHARGE-COMMISSION',
+                        'payment_type' => 'SELF',
+                        'charges' => 0,
+                        'amount' => $request->amount/100*1,
+                        'transaction_amount' => $request->amount/100*1,
+                        'description' => $desc.' - COMMISSION -'.$request->number,
+                        'transaction_id' => $txnid
+                    ];
 
-                    $taems=$userObj->root;
-                    $userid=$userObj->id;
-                    $string1 = $userid . ',' . $taems;
 
-                    $rootArrays = explode(",",$string1);
-                    
-
-                    foreach($rootArrays as $user)
-                    {
-
-                        $user=User::where('id',$user)->first();
-
-                        if ($user) {
-                            $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
-                                $user,
-                                $apiSetting->id ?? null,
-                                $mainServiceType ?? 'Prepaid',
-                                $operatorInput ?? 'ALL',
-                                $circal ?? 'ALL',
-                                $amount
-                            );
-
-                            $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
-
-                        
-                            $transactionData13 = [
-                                'account_id' => $account->id,
-                                'type' => 'CR',
-                                'amount' => $commResult['calculated_commission'],
-                                'description' => $request->type == 3 ? 'Bill Payment Commission' : 'Recharge Commission',
-                                'transaction_id' => $request->transaction_id.'_comm',
-                                'created_by' => $account->user_id,
-                                'admin_id' => $account->admin_id,
-                                'user_id' => $account->user_id,
-                                'category_code' => 'RECHARGE'
-                            ];
-
-                            $transactionData2 = createTransaction($transactionData13);
-                        }
-                        
-                    }
-
+                    processMemberTransaction($request, $transactionData);
                    
                     
                 }

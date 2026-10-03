@@ -599,7 +599,7 @@ if (!function_exists('validateMemberTransaction')) {
                 ];
             }
 
-            if($transactionDataxyz['mpin_status']==true){
+            if($transactionDataxyz['mpin_status']==true && $transactionDataxyz['type']=='DR'){
                 if($member->mpin != $transactionDataxyz['mpin']){
                     return [
                         'status' => 0,
