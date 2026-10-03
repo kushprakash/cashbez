@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 
 const ManageUserReport = () => {
     const apiService = ApiService();
+    const { userData, setProfile } = useContext(AuthContext) || {};
     const isSuperAdmin = userData && (userData.id == 1 || userData.role == 1);
     const isAdmin = userData && (userData.role == 2 || !!userData.is_admin);
 

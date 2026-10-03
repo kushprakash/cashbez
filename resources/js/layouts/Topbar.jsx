@@ -201,7 +201,7 @@ const Topbar = ({ handleSidebarToggle, toggleTheme }) => {
                                     <a href="#" className="dropdown-item py-3 border-bottom text-wrap">
                                         <div className="d-flex">
                                             <div className="flex-shrink-0">
-                                                <img src="assets/images/users/avatar-1.jpg" className="img-fluid me-2 avatar-sm rounded-circle" alt="avatar-1" />
+                                                <img src={userPhoto} className="img-fluid me-2 avatar-sm rounded-circle" alt="avatar-1" />
                                             </div>
                                             <div className="flex-grow-1">
                                                 <p className="mb-0"><span className="fw-medium">Josephine Thompson </span>commented on admin panel <span>" Wow 😍! this admin looks good and awesome design"</span></p>
