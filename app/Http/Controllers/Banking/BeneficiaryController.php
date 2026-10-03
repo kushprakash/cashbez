@@ -298,7 +298,7 @@ class BeneficiaryController extends Controller
 
                return response()->json([
                 'status' => 0,
-                'message' => $json_response['message'] ?? 'Beneficiary added failed',
+                'message' => $json_response['message'].'1' ?? 'Beneficiary added failed',
             ]);
         }
 
