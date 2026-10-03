@@ -141,7 +141,7 @@ class BeneficiaryController extends Controller
         
             $otp = $request->otp;
 
-            $mobile = $user->mobile;
+            $mobile = $request->mobile;
 
             $user2 = DB::table('otps')->where('mobile', $mobile)->first();
             if (!$user2) {
