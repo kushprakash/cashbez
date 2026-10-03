@@ -138,9 +138,7 @@ class BeneficiaryController extends Controller
                 ], 400);
             }
 
-            $user = $request->get('user');
-            $admin = $request->get('admin');
-
+        
             $otp = $request->otp;
 
             $mobile = $user->mobile;
@@ -154,6 +152,8 @@ class BeneficiaryController extends Controller
                     return ['status' => 0, 'message' => 'Invalid OTP'];
                 }
             }
+
+            $user = $request->get('user') ?? NULL;
 
             // For type 3 (Move To Account), beneficiary name must match user's own KYC name
             if ((int)$request->type === 3 && !empty($user->mid)) {
@@ -191,8 +191,14 @@ class BeneficiaryController extends Controller
                 }
             }
 
+
+            $auth = $this->getAuthenticatedMember($request);
+            $member = $auth['member'] ?? NULL;
+            
+
             // Check for duplicate beneficiary
-            $existingBeneficiary = Beneficiary::where('user_id', $user->id)
+            $existingBeneficiary = Beneficiary::where('user_id', $user->id ?? NULL)
+                ->orWhere('member_id', $member->id ?? NULL)
                 ->where('account', $request->account)
                 ->where('ifsc', $request->ifsc)
                 ->where('type', $request->type)
@@ -244,8 +250,14 @@ class BeneficiaryController extends Controller
             // Verify IFSC and get branch details
             $ifscVerification = $this->verifyIfsc($request->ifsc);
 
+            $admin = $request->get('admin') ?? NULL;
+            if(!isset($admin->id)){
+                $admin=User::where('id',$member->admin_id)->first();
+            }
+
             $beneficiaryData = [
-                'user_id' => $user->id,
+                'user_id' => $user->id ?? NULL,
+                'member_id' => $member->id ?? NULL,
                 'bid'   => $json_response['data']['id'] ?? 0,
                 'name' => $request->name,
                 'mobile' => $request->mobile,
@@ -256,7 +268,7 @@ class BeneficiaryController extends Controller
                 'type' => $request->type,
                 'status' => 1,
                 'admin_id' => $admin->id,
-                'created_by' => $user->id,
+                'created_by' => $user->id ?? $member->id,
                 'ifsc_verified' => true,
                 'account_verified' => true,
                 'verification_data' => json_encode([
@@ -268,8 +280,9 @@ class BeneficiaryController extends Controller
 
             $beneficiary = Beneficiary::create($beneficiaryData);
 
-            // Clear beneficiary cache for this user
-            $this->clearBeneficiaryCache($user->id);
+            if(isset($user->id)){
+                $this->clearBeneficiaryCache($user->id);
+            }
 
 
             $beneficiary = Beneficiary::where('id' , $beneficiary->id)->select('id','bid','name','mobile','account','ifsc','bank','branch','status','created_by')->first();
