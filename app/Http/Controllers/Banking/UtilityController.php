@@ -448,7 +448,7 @@ class UtilityController extends Controller
                     'account_id' => $accounts->id,
                     'type' => 'DR',
                     'amount' => $request->amount,
-                    'description' => $desc.' - '.$request->number,
+                    'description' => $desc.' - Member - '.$request->number,
                     'transaction_id' => 'RECH' . rand(111111, 999999),
                     'created_by' => $accounts->admin_id,
                     'admin_id' => $accounts->admin_id,
