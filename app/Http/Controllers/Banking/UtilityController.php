@@ -552,7 +552,7 @@ class UtilityController extends Controller
                 // ✅ Step 7: Log API Request BEFORE Call
                 DB::table('logs')->insert([
                     'mid'          => $request->member_id ?? null,
-                    'type'         => $request->type == 2 ? 'DTH_Recharge' :  $request->type == 3 ? 'Bill_Payment':'Mobile_Recharge',
+                    'type'         => $request->type == 2 ? 'DTH_Recharge' : ($request->type == 3 ? 'Bill_Payment' : 'Mobile_Recharge'),
                     'platform'     => 'MEMBER_API',
                     'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
                     'request_data' => json_encode([
