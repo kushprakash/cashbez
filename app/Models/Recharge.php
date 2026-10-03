@@ -10,6 +10,7 @@ class Recharge extends Model
     protected $fillable = [
         'api_id',
         'user_id',
+        'member_id',
         'number',
         'oprator',
         'amount',

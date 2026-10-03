@@ -404,11 +404,13 @@ class UtilityController extends Controller
 
             //return response()->json(['status' => 0,'message' => 'API Service','data' => $apiSetting], 200);
 
-            if($api_count==1 || empty($transactionData)){
-
-                $savingAcc = FinancialAccount::where('member_id', $request->member_id)
+             $savingAcc = FinancialAccount::where('member_id', $request->member_id)
                     ->where('service_type', 'SAVING')
                     ->first();
+
+            if($api_count==1 || empty($transactionData)){
+
+               
 
                 // ✅ Step 3: Prepare transaction data & debit wallet
                 $transactionData = [
@@ -532,9 +534,9 @@ class UtilityController extends Controller
                     'oid'             => $user1,
                     'refrence_id'     => $user1,
                     'reference_id'    => $user1,
-                    'account_id'      => $request->account_id,
+                    'account_id'      => $savingAcc->id,
                     'type'            => $type,
-                    'user'            => $request->get('user'),
+                    'user'            => null,
                     'request'         => $request,
                 ];
 
@@ -549,9 +551,9 @@ class UtilityController extends Controller
 
                 // ✅ Step 7: Log API Request BEFORE Call
                 DB::table('logs')->insert([
-                    'mid'          => $request->get('user')->mid ?? null,
+                    'mid'          => $request->member_id ?? null,
                     'type'         => $request->type == 2 ? 'DTH_Recharge' : 'Mobile_Recharge',
-                    'platform'     => 'API',
+                    'platform'     => 'MEMBER_API',
                     'headers'      => json_encode(["Content-Type" => "application/x-www-form-urlencoded"]),
                     'request_data' => json_encode([
                         'api_id' => $apiSetting->id,
@@ -669,7 +671,7 @@ class UtilityController extends Controller
                 $rdata = [
                     'api_id' => $apiSetting->id ?? null,
                     'api_settings' => $apiSetting->id ?? 0,
-                    'user_id' => $request->get('user')->id,
+                    'member_id' => $request->member_id,
                     'number' => $number,
                     'oprator' => $mappedOperatorCode,
                     'amount' => $amount,
@@ -680,8 +682,8 @@ class UtilityController extends Controller
                     'oid' => $user1,
                     'txnid' => $user1,
                     'call_back_url' => $request->call_back_url ?? '',
-                    'admin_id' => $request->get('admin')->id,
-                    'created_by' => $request->get('user')->id,
+                    'admin_id' => $savingAcc->admin_id,
+                    'created_by' => $savingAcc->member_id,
                     'request_data' => json_encode([
                         'url' => $targetUrl,
                         'api_id' => $apiSetting->id,
@@ -805,9 +807,9 @@ class UtilityController extends Controller
                         'amount' => $request->amount,
                         'description' => 'RECH-REFUND - '.$desc.' - '.$request->number,
                         'transaction_id' => 'RECH-REFUND-' . $request->transaction_id,
-                        'created_by' => $user->id,
-                        'admin_id' => $admin->id,
-                        'user_id' => $admin->id,
+                        'created_by' => $savingAcc->admin_id,
+                        'admin_id' => $savingAcc->admin_id,
+                        'user_id' => $savingAcc->admin_id,
                         'category_code' => 'RECHARGE'
                     ];
                     
