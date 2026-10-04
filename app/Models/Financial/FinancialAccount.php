@@ -44,4 +44,9 @@ class FinancialAccount extends Model
     {
         return $this->hasMany(FinancialTransaction::class, 'account_id', 'id');
     }
+
+    public function plan()
+    {
+        return $this->belongsTo(\App\Models\FinancialPlan::class, 'plan_id', 'id');
+    }
 }

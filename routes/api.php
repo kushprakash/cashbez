@@ -1307,6 +1307,7 @@ Route::middleware('api.token.auth')->group(function () {
         Route::post('saving/open', [FinancialMemberController::class, 'openSavingAccount']);
         Route::post('banking/p2p', [FinancialMemberController::class, 'p2pTransfer']);
         Route::post('banking/dmt', [FinancialMemberController::class, 'dmtTransfer']);
+        Route::get('investments/plans', [FinancialMemberController::class, 'getInvestmentPlans']);
         Route::get('investments/{type}', [FinancialMemberController::class, 'getInvestmentAccounts']);
         Route::post('investments/open', [FinancialMemberController::class, 'openInvestmentAccount']);
         Route::post('investments/deposit', [FinancialMemberController::class, 'depositInvestmentAccount']);

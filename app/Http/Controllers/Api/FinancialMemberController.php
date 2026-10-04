@@ -650,6 +650,45 @@ class FinancialMemberController extends Controller
     // =========================================================================
 
     /**
+     * Get Financial Plans for Authenticated Member (Scoped strictly to Member's Admin ID)
+     */
+    public function getInvestmentPlans(Request $request)
+    {
+        $auth = $this->getAuthenticatedMember($request);
+        if (!$auth || !$auth['member']) {
+            return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $member = $auth['member'];
+        $adminId = $member->admin_id ?? ($auth['user']->admin_id ?? 1);
+
+        $query = FinancialPlan::where(function ($q) use ($adminId) {
+            $q->where('admin_id', $adminId)
+              ->orWhere('user_id', $adminId)
+              ->orWhere('created_by', $adminId);
+        })->where('status', 'ACTIVE');
+
+        if ($request->filled('service_type')) {
+            $query->where('service_type', strtoupper($request->service_type));
+        }
+
+        $plans = $query->orderBy('id', 'asc')->get();
+
+        if ($plans->isEmpty()) {
+            $fallbackQuery = FinancialPlan::where('status', 'ACTIVE');
+            if ($request->filled('service_type')) {
+                $fallbackQuery->where('service_type', strtoupper($request->service_type));
+            }
+            $plans = $fallbackQuery->orderBy('id', 'asc')->get();
+        }
+
+        return response()->json([
+            'status' => 1,
+            'data' => $plans
+        ]);
+    }
+
+    /**
      * Get List of Accounts by Service Type (DD, RD, FD, MIS)
      */
     public function getInvestmentAccounts(Request $request, $serviceType)
@@ -666,6 +705,7 @@ class FinancialMemberController extends Controller
 
         $accounts = FinancialAccount::where('member_id', $auth['member']->id)
             ->where('service_type', $type)
+            ->with('plan')
             ->orderBy('id', 'desc')
             ->get();
 
@@ -690,6 +730,7 @@ class FinancialMemberController extends Controller
         $validator = Validator::make($request->all(), [
             'service_type' => 'required|in:DD,RD,FD,MIS',
             'opening_amount' => 'required|numeric|min:100',
+            'plan_id' => 'nullable|integer',
             'duration_months' => 'nullable|integer|min:1',
             'interest_rate' => 'nullable|numeric|min:0',
         ]);
@@ -736,6 +777,7 @@ class FinancialMemberController extends Controller
                 'admin_id' => $member->admin_id,
                 'created_by' => $member->user_id,
                 'service_type' => $type,
+                'plan_id' => $request->input('plan_id'),
                 'opening_amount' => $amount,
                 'current_balance' => $amount,
                 'available_balance' => $amount,
