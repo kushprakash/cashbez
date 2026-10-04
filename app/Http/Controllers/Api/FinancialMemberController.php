@@ -729,7 +729,7 @@ class FinancialMemberController extends Controller
 
         $validator = Validator::make($request->all(), [
             'service_type' => 'required|in:DD,RD,FD,MIS',
-            'opening_amount' => 'required|numeric|min:100',
+            'opening_amount' => 'required|numeric|min:1',
             'plan_id' => 'nullable|integer',
             'duration_months' => 'nullable|integer|min:1',
             'interest_rate' => 'nullable|numeric|min:0',
@@ -741,6 +741,27 @@ class FinancialMemberController extends Controller
 
         $type = strtoupper($request->service_type);
         $amount = floatval($request->opening_amount);
+
+        // Dynamic plan-wise minimum opening amount check
+        if ($request->filled('plan_id')) {
+            $plan = FinancialPlan::find($request->plan_id);
+            if ($plan) {
+                $minPlanAmount = floatval(
+                    $plan->minimum_opening_amount ?? 
+                    $plan->minimum_daily_deposit ?? 
+                    $plan->minimum_installment ?? 
+                    $plan->minimum_investment ?? 
+                    1
+                );
+                if ($minPlanAmount > 0 && $amount < $minPlanAmount) {
+                    $formattedMin = number_format($minPlanAmount, $minPlanAmount == intval($minPlanAmount) ? 0 : 2);
+                    return response()->json([
+                        'status' => 0,
+                        'message' => "The opening amount must be at least ₹{$formattedMin} for plan: {$plan->plan_name}."
+                    ], 400);
+                }
+            }
+        }
 
         // 1. Mandatory Saving Account Check
         $savingAcc = FinancialAccount::where('member_id', $member->id)

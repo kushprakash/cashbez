@@ -251,6 +251,7 @@ class AddFundController extends Controller
                 // Fetch admin for 'admin_id' field in transactions if needed
                 // Using simplistic logic from AccountController logic
                 $user = User::find($addFund->user_id);
+               
                 // $admin = User::first(); // simplified
 
                 // We can use the existing 'Passbook' model or `createTransaction` helper.
@@ -268,8 +269,25 @@ class AddFundController extends Controller
                     'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
                     'transaction_id' => $txnid,
                     'created_by' => $user->id,
-                    'admin_id' => 1, // Default admin
+                    'admin_id' => $admin->id, // Default admin
                     'user_id' => $user->id,
+                    'category_code' => 'ADD_FUND'
+                ]);
+
+                $account = Account::where('user_id', $admin->id)
+                ->where('primary_status', false)
+                ->first();
+
+
+                createTransaction([
+                    'account_id' => $account->id,
+                    'type' => 'CR',
+                    'amount' => $addFund->amount,
+                    'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
+                    'transaction_id' => 'ADM-'.$txnid,
+                    'created_by' => $admin->id,
+                    'admin_id' => $admin->id, // Default admin
+                    'user_id' => $admin->id,
                     'category_code' => 'ADD_FUND'
                 ]);
 
