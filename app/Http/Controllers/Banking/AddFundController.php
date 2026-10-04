@@ -37,7 +37,7 @@ class AddFundController extends Controller
             $request->all(),
             [
                 'amount' => 'required|numeric|min:10|max:50000',
-                'account_id' => 'required|exists:accounts,id',
+                'account_id' => 'required',
                 'device_id' => 'required|string',
                 // 'is_sim_verified' => 'required|boolean',
                 // 'verified_mobile' => 'required_if:is_sim_verified,true|string'
@@ -298,8 +298,8 @@ class AddFundController extends Controller
                         'txn_type' => 'ADD_FUND',
                         'payment_type' => 'QR-COLLECTION',
                         'charges' => 0,
-                        'amount' => $request->amount,
-                        'transaction_amount' => $request->amount,
+                        'amount' => $addFund->amount,
+                        'transaction_amount' => $addFund->amount,
                         'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
                         'transaction_id' => $txnid
                     ];
