@@ -708,6 +708,11 @@ if (!function_exists('processMemberTransaction')) {
                 'status' => 'SUCCESS',
             ]);
 
+            // Update account available balance
+            if (isset($validation['account']) && $validation['account']) {
+                $validation['account']->update(['available_balance' => $newBalance]);
+            }
+
             // Step 3: Return combined success response
             return [
                 'status' => 1,  

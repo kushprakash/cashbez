@@ -416,6 +416,8 @@ class FinancialMemberController extends Controller
             return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
         }
 
+        
+
         $member = $auth['member'];
 
         // Rule 1: Check if saving account already exists
@@ -434,6 +436,7 @@ class FinancialMemberController extends Controller
                 'message' => 'KYC verification is mandatory to open a Saving Account. Current KYC status: ' . ($member->kyc_status ?? 'PENDING'),
             ], 400);
         }
+   
 
         $accNumber = FinancialScopeService::generateAccountNumber('SAVING');
         $virtualAcc = 'VA' . rand(1000000000, 9999999999);
@@ -689,7 +692,131 @@ class FinancialMemberController extends Controller
     }
 
     /**
-     * Get List of Accounts by Service Type (DD, RD, FD, MIS)
+     * Get Transaction History / Passbook for Member (SAVING, DD, RD, FD, MIS, etc.)
+     */
+    public function getInvestmentHistory(Request $request)
+    {
+        $auth = $this->getAuthenticatedMember($request);
+        if (!$auth || !$auth['member']) {
+            return response()->json(['status' => 0, 'message' => 'Unauthenticated'], 401);
+        }
+
+        $member = $auth['member'];
+        $serviceType = $request->filled('service_type') ? strtoupper($request->service_type) : null;
+
+        $query = FinancialTransaction::query();
+
+        if ($serviceType === 'SAVING' || $serviceType === 'SAVINGS') {
+            $savingAcc = FinancialAccount::where('member_id', $member->id)
+                ->where('service_type', 'SAVING')
+                ->first();
+
+            $savingAccId = $savingAcc ? $savingAcc->id : null;
+
+            $query->where(function ($q) use ($member, $savingAccId) {
+                $q->where('member_id', $member->id);
+                if ($savingAccId) {
+                    $q->orWhere('account_id', $savingAccId);
+                }
+            })->where(function ($q) use ($savingAccId) {
+                $q->whereIn('service_type', ['SAVING', 'SAVINGS'])
+                  ->orWhereNull('service_type')
+                  ->orWhere('txn_type', 'INVESTMENT_DEBIT')
+                  ->orWhere('txn_type', 'MATURITY_CREDIT')
+                  ->orWhere('txn_type', 'ADD_FUND')
+                  ->orWhere('txn_type', 'WITHDRAWAL')
+                  ->orWhere('txn_type', 'DEPOSIT');
+                if ($savingAccId) {
+                    $q->orWhere('account_id', $savingAccId);
+                }
+            });
+        } elseif ($serviceType) {
+            $query->where(function ($q) use ($member) {
+                $q->where('member_id', $member->id)
+                  ->orWhere('user_id', $member->user_id);
+            })->where('service_type', $serviceType);
+        } else {
+            $query->where(function ($q) use ($member) {
+                $q->where('member_id', $member->id)
+                  ->orWhere('user_id', $member->user_id);
+            });
+        }
+
+        if ($request->filled('account_id')) {
+            $query->where('account_id', $request->account_id);
+        }
+
+        if ($request->filled('account_number')) {
+            $accNo = trim($request->account_number);
+            $query->where(function($q) use ($accNo) {
+                $q->whereHas('account', function($sq) use ($accNo) {
+                    $sq->where('account_number', $accNo);
+                })
+                ->orWhere('narration', 'like', "%{$accNo}%");
+            });
+        }
+
+        $savingAccObj = FinancialAccount::where('member_id', $member->id)->where('service_type', 'SAVING')->first();
+
+        $transactions = $query->with('account')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $formatted = $transactions->map(function ($txn) use ($member, $savingAccObj) {
+            $isCredit = in_array(strtoupper($txn->txn_type), ['DEPOSIT', 'CREDIT', 'MATURITY_CREDIT', 'ADD_FUND', 'P2P_RECEIVE', 'RECHARGE_REFUND', 'ACCOUNT_OPENING']);
+            $accNo = $txn->account ? $txn->account->account_number : ($savingAccObj ? $savingAccObj->account_number : 'N/A');
+            return [
+                'id' => $txn->id,
+                'transaction_id' => $txn->transaction_id ?? ('TXN-FIN-' . $txn->id),
+                'account_number' => $accNo,
+                'service_type' => $txn->service_type ?? 'SAVING',
+                'txn_type' => $txn->txn_type,
+                'type' => $isCredit ? 'CREDIT' : 'DEBIT',
+                'particulars' => $txn->narration ?? "{$txn->service_type} {$txn->txn_type}",
+                'narration' => $txn->narration ?? "{$txn->service_type} {$txn->txn_type}",
+                'amount' => (string)number_format($txn->amount, 2, '.', ''),
+                'balance' => (string)number_format($txn->balance_after > 0 ? $txn->balance_after : $txn->amount, 2, '.', ''),
+                'status' => $txn->status ?? 'SUCCESS',
+                'created_at' => $txn->created_at ? $txn->created_at->toDateTimeString() : date('Y-m-d H:i:s'),
+                'member_name' => $member->name,
+            ];
+        });
+
+        // Fallback: If no transactions recorded yet, return initial account entries
+        if ($formatted->isEmpty() && $serviceType) {
+            $accounts = FinancialAccount::where('member_id', $member->id)
+                ->where('service_type', $serviceType)
+                ->get();
+
+            $formatted = $accounts->map(function ($acc) use ($serviceType, $member) {
+                $amt = floatval($acc->opening_amount > 0 ? $acc->opening_amount : $acc->available_balance);
+                return [
+                    'id' => 'INIT-' . $acc->id,
+                    'transaction_id' => 'TXN-' . str_replace('-', '', $acc->account_number) . '-01',
+                    'account_number' => $acc->account_number,
+                    'service_type' => $serviceType,
+                    'txn_type' => 'ACCOUNT_OPENING',
+                    'type' => 'CREDIT',
+                    'particulars' => "{$serviceType} Account Opening Balance",
+                    'narration' => "{$serviceType} Account Opening Balance",
+                    'amount' => (string)number_format($amt, 2, '.', ''),
+                    'balance' => (string)number_format($acc->available_balance, 2, '.', ''),
+                    'status' => 'SUCCESS',
+                    'created_at' => $acc->created_at ? $acc->created_at->toDateTimeString() : date('Y-m-d H:i:s'),
+                    'member_name' => $member->name,
+                ];
+            });
+        }
+
+        return response()->json([
+            'status' => 1,
+            'message' => 'History retrieved successfully',
+            'data' => $formatted
+        ]);
+    }
+
+    /**
+     * Get List of Accounts by Service Type (SAVING, DD, RD, FD, MIS)
      */
     public function getInvestmentAccounts(Request $request, $serviceType)
     {
@@ -699,7 +826,7 @@ class FinancialMemberController extends Controller
         }
 
         $type = strtoupper($serviceType);
-        if (!in_array($type, ['DD', 'RD', 'FD', 'MIS'])) {
+        if (!in_array($type, ['SAVING', 'DD', 'RD', 'FD', 'MIS'])) {
             return response()->json(['status' => 0, 'message' => 'Invalid service type.'], 400);
         }
 
@@ -737,6 +864,11 @@ class FinancialMemberController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+        }
+
+
+        if($request->has('mpin') && $request->mpin != $member->mpin){
+            return response()->json(['status' => 0, 'message' => 'Invalid MPIN.'], 400);
         }
 
         $type = strtoupper($request->service_type);
@@ -870,10 +1002,16 @@ class FinancialMemberController extends Controller
         $validator = Validator::make($request->all(), [
             'account_id' => 'required|exists:financial_accounts,id',
             'amount' => 'required|numeric|min:10',
+            'mpin' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+        }
+
+        $member = $auth['member'];
+        if ($request->has('mpin') && !empty($member->mpin) && (string)$request->mpin !== (string)$member->mpin) {
+            return response()->json(['status' => 0, 'message' => 'Invalid MPIN.'], 400);
         }
 
         $account = FinancialAccount::where('id', $request->account_id)
@@ -1039,6 +1177,10 @@ class FinancialMemberController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['status' => 0, 'message' => $validator->errors()->first()], 422);
+        }
+
+        if($request->has('mpin') && $request->mpin != $member->mpin){
+            return response()->json(['status' => 0, 'message' => 'Invalid MPIN.'], 400);
         }
 
         $amount = floatval($request->amount);
