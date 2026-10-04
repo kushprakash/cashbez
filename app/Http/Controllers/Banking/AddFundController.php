@@ -223,15 +223,25 @@ class AddFundController extends Controller
         }
 
         if(isset($addFund->member_id) && !empty($addFund->member_id)){
-
-            $account = FinancialAccount::where('id', $addFund->account_id)->where('service_type', 'SAVING')->first();
-            $member=FinancialMember::where('id', $account->member_id)->first();
-            $user=User::where('id', $account->user_id)->first();
-            $admin=User::where('id', $account->admin_id)->first();
-            
+            $account = FinancialAccount::where('id', $addFund->account_id)->first();
+            if (!$account) {
+                $account = FinancialAccount::where('member_id', $addFund->member_id)->where('service_type', 'SAVING')->first();
+            }
+            if (!$account) {
+                return response()->json(['status' => 0, 'message' => 'Member Saving Account not found.'], 200);
+            }
+            $member = FinancialMember::where('id', $account->member_id)->first();
+            $user = User::where('id', $account->user_id)->first();
+            $admin = User::where('id', $account->admin_id)->first();
+            if (!$admin) {
+                $admin = User::first();
+            }
         } else {
             $user = User::find($addFund->user_id);
             $admin = User::where('mid', $user->admin_mid)->first();
+            if (!$admin) {
+                $admin = User::first();
+            }
         }
 
 
@@ -324,22 +334,25 @@ class AddFundController extends Controller
 
                 }
 
-                $accounts = Account::where('user_id', $admin->id)
-                ->where('primary_status', false)
-                ->first();
+                if (!isset($addFund->member_id) || empty($addFund->member_id)) {
+                    $accounts = Account::where('user_id', $admin->id)
+                        ->where('primary_status', false)
+                        ->first();
 
-
-                createTransaction([
-                    'account_id' => $accounts->id,
-                    'type' => 'CR',
-                    'amount' => $addFund->amount,
-                    'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
-                    'transaction_id' => 'ADM-'.$txnid,
-                    'created_by' => $admin->id,
-                    'admin_id' => $admin->id, // Default admin
-                    'user_id' => $admin->id,
-                    'category_code' => 'ADD_FUND'
-                ]);
+                    if ($accounts) {
+                        createTransaction([
+                            'account_id' => $accounts->id,
+                            'type' => 'CR',
+                            'amount' => $addFund->amount,
+                            'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
+                            'transaction_id' => 'ADM-'.$txnid,
+                            'created_by' => $admin->id,
+                            'admin_id' => $admin->id, // Default admin
+                            'user_id' => $admin->id,
+                            'category_code' => 'ADD_FUND'
+                        ]);
+                    }
+                }
 
                 DB::commit();
 
