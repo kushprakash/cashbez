@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use App\Models\AddFund;
 use App\Models\Account;
 use App\Models\User;
+use App\Models\Financial\FinancialMember;
+use App\Models\Financial\FinancialAccount;
+use App\Models\Financial\FinancialTransaction;
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -68,45 +71,67 @@ class AddFundController extends Controller
             ], 200);
         }
 
-        $user = $request->get('user');
-        $admin = $request->get('admin');
-
-
-        if (isset($request->verified_mobile) && !empty($request->verified_mobile)) {
-            
-            // 1. Device Binding Check
-            // if ($user->device_id && $user->device_id !== $request->device_id) { ... }
-
-            // 2. SIM Verification & Mobile Match Check
-            if (!$request->is_sim_verified) {
-                return response()->json([
-                    'status' => 0,
-                    'message' => 'SIM verification failed. Security check required.'
-                ], 403);
-            }
-
-            // Normalize registered phone
-            $registeredPhone = preg_replace('/\D/', '', $user->mobile);
-            $registeredPhone = substr($registeredPhone, -10);
-
-            // Normalize verified mobile
-            $verifiedMobile = preg_replace('/\D/', '', $request->verified_mobile);
-            $verifiedMobile = substr($verifiedMobile, -10);
-
-            if ($registeredPhone !== $verifiedMobile) {
-                return response()->json([
-                    'status' => 0,
-                    'message' => 'SIM card does not match registered mobile number. Transaction blocked.'
-                ], 200);
-            }
-        }
-
-        $account = Account::where('id', $request->account_id)
-            ->where('user_id', $user->id)
+        if(isset($request->member_id)){
+            $account = FinancialAccount::where('id', $request->account_id)
+            ->where('service_type', 'SAVING')
             ->first();
 
-        if (!$account) {
-            return response()->json(['status' => 0, 'message' => 'Invalid Account Request'], 200);
+            if(!$account){
+                return response()->json(['status' => 0, 'message' => 'Invalid account request'], 200);
+            }
+
+            $member=FinancialMember::where('id', $account->member_id)->first();
+            $user=User::where('id', $account->user_id)->first();
+            $admin=User::where('id', $account->admin_id)->first();
+            
+        } else {
+            $user = $request->get('user');
+            $admin = $request->get('admin');
+        }
+
+        
+
+
+       
+        if(!isset($request->member_id)){
+
+            if (isset($request->verified_mobile) && !empty($request->verified_mobile)) {
+                
+                // 1. Device Binding Check
+                // if ($user->device_id && $user->device_id !== $request->device_id) { ... }
+
+                // 2. SIM Verification & Mobile Match Check
+                if (!$request->is_sim_verified) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'SIM verification failed. Security check required.'
+                    ], 403);
+                }
+
+                // Normalize registered phone
+                $registeredPhone = preg_replace('/\D/', '', $user->mobile);
+                $registeredPhone = substr($registeredPhone, -10);
+
+                // Normalize verified mobile
+                $verifiedMobile = preg_replace('/\D/', '', $request->verified_mobile);
+                $verifiedMobile = substr($verifiedMobile, -10);
+
+                if ($registeredPhone !== $verifiedMobile) {
+                    return response()->json([
+                        'status' => 0,
+                        'message' => 'SIM card does not match registered mobile number. Transaction blocked.'
+                    ], 200);
+                }
+            }
+
+
+            $account = Account::where('id', $request->account_id)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$account) {
+                return response()->json(['status' => 0, 'message' => 'Invalid Account Request'], 200);
+            }
         }
 
         // Get Paytm Credentials from Settings
@@ -124,7 +149,8 @@ class AddFundController extends Controller
 
         // Create Pending Transaction
         $addFund = AddFund::create([
-            'user_id' => $user->id,
+            'user_id' => isset($request->member_id)? NULL : $user->id,
+            'member_id' => isset($request->member_id)? $request->member_id : NULL,
             'account_id' => $account->id,
             'amount' => $amount,
             'txnid' => $txnid,
@@ -196,9 +222,20 @@ class AddFundController extends Controller
             return response()->json(['status' => 1, 'message' => 'Transaction already successful', 'data' => ['utr' => $addFund->utr]]);
         }
 
-        $admin = $request->get('admin');
+        if(isset($addFund->member_id) && !empty($addFund->member_id)){
 
-         $settings = Setting::where('user_id', $admin->id)->first();
+            $account = FinancialAccount::where('id', $addFund->account_id)->where('service_type', 'SAVING')->first();
+            $member=FinancialMember::where('id', $account->member_id)->first();
+            $user=User::where('id', $account->user_id)->first();
+            $admin=User::where('id', $account->admin_id)->first();
+            
+        } else {
+            $user = User::find($addFund->user_id);
+            $admin = User::where('mid', $user->admin_mid)->first();
+        }
+
+
+        $settings = Setting::where('user_id', $admin->id)->first();
         if (!$settings || empty($settings->paytm_mid)) {
             return response()->json(['status' => 0, 'message' => 'Service Currently not available'], 200);
         }
@@ -245,42 +282,55 @@ class AddFundController extends Controller
                 $addFund->utr = $responseArray['BANKTXNID'] ?? $responseArray['TXNID'];
                 $addFund->save();
 
-                // Credit the User's Account via createTransaction helper or manual insert
-                // Assuming `createTransaction` global helper exists as per `AccountController`
-                
-                // Fetch admin for 'admin_id' field in transactions if needed
-                // Using simplistic logic from AccountController logic
-                $user = User::find($addFund->user_id);
+
+
                
-                // $admin = User::first(); // simplified
 
-                // We can use the existing 'Passbook' model or `createTransaction` helper.
-                // Replicating AccountController logic:
-                // createTransaction([...])
-                
-                // Let's use DB insert for reliability if helper not available in this scope, 
-                // but better to use the helper if it's autoloaded. 
-                // Based on `AccountController.php`, `createTransaction` is a global function.
-                
-                createTransaction([
-                    'account_id' => $addFund->account_id,
-                    'type' => 'CR',
-                    'amount' => $addFund->amount,
-                    'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
-                    'transaction_id' => $txnid,
-                    'created_by' => $user->id,
-                    'admin_id' => $admin->id, // Default admin
-                    'user_id' => $user->id,
-                    'category_code' => 'ADD_FUND'
-                ]);
+                if (isset($addFund->member_id) && !empty($addFund->member_id)){
 
-                $account = Account::where('user_id', $admin->id)
+
+                     $transactionData = [
+                        'account_id' => $account->id,
+                        'mpin_status' => false,
+                        'mpin' => $request->mpin ?? '',
+                        'type' => 'CR',
+                        'service_type'=>'SAVING',
+                        'txn_type' => 'ADD_FUND',
+                        'payment_type' => 'QR-COLLECTION',
+                        'charges' => 0,
+                        'amount' => $request->amount,
+                        'transaction_amount' => $request->amount,
+                        'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
+                        'transaction_id' => $txnid
+                    ];
+
+
+                    processMemberTransaction($request, $transactionData);
+                    
+
+                } else {
+
+                    createTransaction([
+                        'account_id' => $addFund->account_id,
+                        'type' => 'CR',
+                        'amount' => $addFund->amount,
+                        'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
+                        'transaction_id' => $txnid,
+                        'created_by' => $user->id,
+                        'admin_id' => $admin->id, // Default admin
+                        'user_id' => $user->id,
+                        'category_code' => 'ADD_FUND'
+                    ]);
+
+                }
+
+                $accounts = Account::where('user_id', $admin->id)
                 ->where('primary_status', false)
                 ->first();
 
 
                 createTransaction([
-                    'account_id' => $account->id,
+                    'account_id' => $accounts->id,
                     'type' => 'CR',
                     'amount' => $addFund->amount,
                     'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),

@@ -13,6 +13,7 @@ class AddFund extends Model
 
     protected $fillable = [
         'user_id',
+        'member_id',
         'account_id',
         'amount',
         'txnid',
