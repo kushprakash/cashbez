@@ -296,7 +296,7 @@ class AddFundController extends Controller
                         'type' => 'CR',
                         'service_type'=>'SAVING',
                         'txn_type' => 'ADD_FUND',
-                        'payment_type' => 'QR-COLLECTION',
+                        'payment_type' => 'ADD_FUND',
                         'charges' => 0,
                         'amount' => $addFund->amount,
                         'transaction_amount' => $addFund->amount,
