@@ -627,55 +627,6 @@ class VaController extends Controller
                                                 'status'         => 'SUCCESS',
                                             ]);
 
-
-
-
-
-                                            $adminAccount = Account::where('user_id', $finAccount->admin_id)
-                                                ->where(function ($q) {
-                                                    $q->where('primary_status', false)->orWhere('primary_status', 0);
-                                                })->first();
-
-                                            if (!$adminAccount && $finAccount->admin_id) {
-                                                $adminAccount = Account::where('user_id', $finAccount->admin_id)->first();
-                                            }
-
-                                            if ($adminAccount && $finAccount->admin_id) {
-
-                                                $settings = DB::table('settings')->where('user_id', 1)->first();
-                                                $charge = (float) ($settings->va_receive_charge ?? 4);
-
-                                                // Create passbook entry
-                                                $passbookData = [
-                                                    'account_id' => $adminAccount->id,
-                                                    'type' => 'CR',
-                                                    'amount' => $amt,
-                                                    'description' => 'UPI QR Deposit from '.$remitter,
-                                                    'transaction_id' => $txnId.'-1',
-                                                    'created_by' => 1,
-                                                    'admin_id' => $adminAccount->admin_id ?? $finAccount->admin_id,
-                                                    'user_id' => $adminAccount->user_id,
-                                                    'category_code' => 'UPI_QR'
-                                                ];
-
-                                                $transactionData12 = createTransaction($passbookData);
-
-                                                if ($charge > 0) {
-                                                    $passbookData2 = [
-                                                        'account_id' => $adminAccount->id,
-                                                        'type' => 'DR',
-                                                        'amount' => $charge,
-                                                        'description' => 'VPA Credit Charge',
-                                                        'transaction_id' => $txnId.'-2',
-                                                        'created_by' => 1,
-                                                        'admin_id' => $adminAccount->admin_id ?? $finAccount->admin_id,
-                                                        'user_id' => $adminAccount->user_id,
-                                                        'category_code' => 'CHARGE'
-                                                    ];
-
-                                                    $transactionData2 = createTransaction($passbookData2);
-                                                }
-                                            }
                                         });
                                     }
                                 } else {
@@ -760,51 +711,7 @@ class VaController extends Controller
                                                     $transactionData2 = createTransaction($transactionData13);
                                                 }
 
-                                                // Admin credit (only if admin is a different user)
-                                                if ($adminId && $adminId != $account->user_id) {
-                                                    $adminAccount = Account::where('user_id', $adminId)
-                                                        ->where(function ($q) {
-                                                            $q->where('primary_status', false)->orWhere('primary_status', 0);
-                                                        })->first();
-
-                                                    if (!$adminAccount) {
-                                                        $adminAccount = Account::where('user_id', $adminId)->first();
-                                                    }
-
-                                                    if ($adminAccount) {
-                                                        // Create passbook entry for Admin Deposit
-                                                        $passbookData = [
-                                                            'account_id' => $adminAccount->id,
-                                                            'type' => 'CR',
-                                                            'amount' => $amt,
-                                                            'description' => 'VPA Deposit',
-                                                            'transaction_id' => $txnId.'-1',
-                                                            'created_by' => $credit_user_id,
-                                                            'admin_id' => $adminAccount->admin_id ?? $adminId,
-                                                            'user_id' => $adminAccount->user_id,
-                                                            'category_code' => 'DEPOSIT'
-                                                        ];
-
-                                                        $transactionData12 = createTransaction($passbookData);
-
-                                                        if ($charge > 0) {
-                                                            $passbookData2 = [
-                                                                'account_id' => $adminAccount->id,
-                                                                'type' => 'DR',
-                                                                'amount' => $charge,
-                                                                'description' => 'VPA Credit Charge',
-                                                                'transaction_id' => $txnId.'-2',
-                                                                'created_by' => $credit_user_id,
-                                                                'admin_id' => $adminAccount->admin_id ?? $adminId,
-                                                                'user_id' => $adminAccount->user_id,
-                                                                'category_code' => 'CHARGE'
-                                                            ];
-
-                                                            $transactionData2 = createTransaction($passbookData2);
-                                                        }
-                                                    }
-                                                }
-
+                                          
                                                 if ($is_api_partner == true) {
 
                                                     $setting = Setting::where('user_id', $credit_user_id)->first();
@@ -942,23 +849,6 @@ class VaController extends Controller
                             createTransaction($requestDatass11);
 
 
-                            $accounts = Account::where('user_id', $utilityWallet->admin_id)->where('primary_status', false)->first();
-
-                            $requestDatass=[
-                                'account_id' => $accounts->id,
-                                'type' => 'CR',
-                                'amount' => $amount,
-                                'description' => 'PAN Card Fund Request Failed & Refund ('. $txn_id .')',
-                                'transaction_id' => 'TRNF' . $txn_id,
-                                'created_by' => $utilityWallet->user_id,
-                                'admin_id' => $accounts->admin_id,
-                                'user_id' => $accounts->user_id,
-                                'category_code' => 'CHARGE'
-                            ];
-                            
-                            $resResponse=createTransaction($requestDatass);
-
-
                             $fundReq->update([
                                 'status' => 2,
                                 'admin_remark' => $remarks,
@@ -1024,27 +914,6 @@ class VaController extends Controller
                         ];
 
                         processCommissionCharge($commissionTransactionData);
-
-
-
-                        $accounts = DB::table('accounts')->where('user_id', $agent->admin_id)->where('primary_status', false)->first();
-
-                        if($accounts && $agent->user_id != $agent->admin_id){
-
-                            $commissionTransactionData = [
-                                'user_id' => $accounts->user_id,
-                                'account_id' => $accounts->id,
-                                'amount' => 0,
-                                'sub_module_id' => 84,
-                                'category_code' => 'PAN',
-                                'description' => 'PAN Card Commission - '.$applicationNo,
-                                'admin_id' => $accounts->admin_id
-                            ];
-
-                            processCommissionCharge($commissionTransactionData);
-
-                        }
-
 
 
                         $is_api_partner = false;

@@ -12,64 +12,45 @@ const AddFundRequest = () => {
     const [loading, setLoading] = useState(false);
     const [wallets, setWallets] = useState([]);
     const [refreshingBalance, setRefreshingBalance] = useState(false);
-    const [easebuzzLoaded, setEasebuzzLoaded] = useState(false);
-    const [hasAutoTriggered, setHasAutoTriggered] = useState(false);
 
-    // QR Code State
-    const [vaData, setVaData] = useState(null);
-    const [qrLoading, setQrLoading] = useState(false);
+    // Active UPI QR Code State
+    const [qrData, setQrData] = useState(null);
+    const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
     const [copiedField, setCopiedField] = useState('');
-    const [qrForm, setQrForm] = useState({
-        name: '',
-        account_number: '',
-        account_ifsc: ''
-    });
 
     const apiService = ApiService();
 
-    // Easebuzz Environment
-    const easebuzzEnv = 'prod'; // Change to 'test' for testing
-
-    // Load Easebuzz Checkout SDK
-    useEffect(() => {
-        if (window.EasebuzzCheckout) {
-            setEasebuzzLoaded(true);
-            return;
+    // Helper to trigger SweetAlert2 modal
+    const fireSwal = async (options) => {
+        const swal = window.Swal || window.sweetAlert || window.SweetAlert || window.Sweetalert2;
+        if (swal) {
+            return swal.fire(options);
         }
+        alert((options.title || '') + '\n' + (options.text || ''));
+        return { isConfirmed: true };
+    };
 
-        const script = document.createElement('script');
-        script.src =
-            'https://ebz-static.s3.ap-south-1.amazonaws.com/easecheckout/v2.0.0/easebuzz-checkout-v2.min.js';
-        script.async = true;
+    // Helper for device ID
+    const getDeviceId = () => {
+        let devId = localStorage.getItem('app_device_id');
+        if (!devId) {
+            devId = 'DEV_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now();
+            localStorage.setItem('app_device_id', devId);
+        }
+        return devId;
+    };
 
-        script.onload = () => {
-            console.log('Easebuzz Checkout SDK loaded');
-            setEasebuzzLoaded(true);
-        };
-
-        script.onerror = () => {
-            console.error('Failed to load Easebuzz Checkout SDK');
-            toast.error('Failed to load payment gateway');
-        };
-
-        document.body.appendChild(script);
-
-        return () => {
-            // Script is kept for reuse
-        };
-    }, []);
-
-    // Fetch Wallets Function
+    // Fetch Wallets
     const fetchWallets = useCallback(async () => {
         setRefreshingBalance(true);
         try {
             const res = await apiService.vGet('/api/accounts');
 
-            if (res.data && res.data.data && res.data.data.accounts) {
+            if (res?.data?.data?.accounts) {
                 setWallets(res.data.data.accounts);
-            } else if (res.data && res.data.accounts) {
+            } else if (res?.data?.accounts) {
                 setWallets(res.data.accounts);
-            } else if (res.data && Array.isArray(res.data)) {
+            } else if (Array.isArray(res?.data)) {
                 setWallets(res.data);
             }
         } catch (err) {
@@ -84,50 +65,6 @@ const AddFundRequest = () => {
         fetchWallets();
     }, [fetchWallets]);
 
-    // Fetch existing QR / Virtual Account details on page load
-    const fetchVaData = useCallback(async () => {
-        try {
-            const res = await apiService.vGet('/api/qr-details');
-            if (res?.data?.status === 1 && res?.data?.data) {
-                setVaData(res.data.data);
-            }
-        } catch (err) {
-            console.error('Error fetching VA details:', err);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchVaData();
-    }, [fetchVaData]);
-
-    // Fetch KYC details for pre-filling QR form hidden fields
-    useEffect(() => {
-        const fetchKycAccountDetails = async () => {
-            try {
-                const res = await apiService.vGet('/api/dashboard');
-                const kyc = res?.data?.data?.kyc_account || res?.data?.kyc_account;
-                const user = res?.data?.data?.user || res?.data?.user;
-
-                if (kyc) {
-                    setQrForm({
-                        name: kyc.name || user?.name || '',
-                        account_number: kyc.account_number || '',
-                        account_ifsc: kyc.ifsc_code || kyc.account_ifsc || ''
-                    });
-                } else if (user?.name) {
-                    setQrForm(prev => ({
-                        ...prev,
-                        name: prev.name || user.name
-                    }));
-                }
-            } catch (err) {
-                console.error('Error fetching KYC details:', err);
-            }
-        };
-
-        fetchKycAccountDetails();
-    }, []);
-
     // Automatically select Utility Wallet (primary_status === false / 0)
     const utilityWallet = wallets.find(
         acc => acc.primary_status === false || acc.primary_status === 0 || acc.primary_status === '0' || acc.primary_status === 'false'
@@ -139,220 +76,15 @@ const AddFundRequest = () => {
         }
     }, [utilityWallet]);
 
-    // Initiate payment helper
-    const initiatePaymentFlow = useCallback(async (targetAccountId, targetAmount) => {
-        const finalAccountId = targetAccountId || utilityWallet?.id;
-
-        if (!finalAccountId) {
-            toast.error('Utility wallet not found');
-            return;
-        }
-
-        if (!targetAmount || parseFloat(targetAmount) < 1) {
-            toast.error('Amount must be at least ₹1');
-            return;
-        }
-
-        if (!easebuzzLoaded || !window.EasebuzzCheckout) {
-            toast.error('Payment gateway is loading. Please try again.');
-            return;
-        }
-
-        setLoading(true);
-
-        try {
-            const formData = new FormData();
-            formData.append('amount', targetAmount);
-            formData.append('account_id', finalAccountId);
-
-            const response = await apiService.vPost(
-                '/api/add-money/request',
-                formData,
-                true,
-                true
-            );
-
-            const { data } = response;
-            console.log('Payment API Response:', data);
-
-            const accessKey =
-                data?.data?.access_key ||
-                data?.access_key ||
-                data?.data?.payment?.access_key;
-
-            const merchantKey =
-                data?.data?.key ||
-                data?.key ||
-                data?.data?.merchant_key ||
-                'OXWCT9JKVV';
-
-            const activeEnv = data?.data?.env || easebuzzEnv;
-
-            if (!accessKey) {
-                throw new Error(
-                    data?.message ||
-                    'Payment access key not received from server'
-                );
-            }
-
-            const easebuzzCheckout = new window.EasebuzzCheckout(
-                merchantKey,
-                activeEnv
-            );
-
-            const options = {
-                access_key: accessKey,
-
-                onResponse: async (response) => {
-                    console.log('Easebuzz Payment Response:', response);
-
-                    if (
-                        response.status === 'success' ||
-                        response.status === true ||
-                        response.status === 1
-                    ) {
-                        toast.success('Payment completed successfully');
-
-                        try {
-                            const verifyData = new FormData();
-                            verifyData.append('txnid', data?.data?.txnid || response.txnid || '');
-                            verifyData.append('status', 'success');
-                            verifyData.append('easepayid', response.easepayid || '');
-
-                            await apiService.vPost('/api/add-money/verify', verifyData, true, true);
-                            fetchWallets(); // Refresh wallet balance
-                        } catch (vErr) {
-                            console.error('Error verifying payment with backend:', vErr);
-                        }
-
-                        setAmount('');
-                    } else if (
-                        response.status === 'userCancelled' ||
-                        response.result === 'userCancelled'
-                    ) {
-                        toast.info('Payment was cancelled');
-                    } else {
-                        toast.error(response.error_Message || 'Payment failed or declined');
-                    }
-
-                    setLoading(false);
-                },
-
-                theme: '#123456'
-            };
-
-            easebuzzCheckout.initiatePayment(options);
-
-        } catch (err) {
-            console.error('Error submitting fund request:', err);
-
-            const errorMessage =
-                err?.response?.data?.message ||
-                err?.message ||
-                'Failed to initiate payment';
-
-            toast.error(errorMessage);
-            setLoading(false);
-        }
-    }, [easebuzzLoaded, easebuzzEnv, utilityWallet, fetchWallets]);
-
     // Handle URL search params on page load
     useEffect(() => {
         const urlAmount = searchParams.get('amount');
-        const urlAccountId = searchParams.get('account_id') || searchParams.get('accountId');
-
         if (urlAmount) {
             setAmount(urlAmount);
         }
+    }, [searchParams]);
 
-        if (urlAmount && (urlAccountId || utilityWallet?.id) && easebuzzLoaded && !hasAutoTriggered && !loading) {
-            setHasAutoTriggered(true);
-            initiatePaymentFlow(urlAccountId || utilityWallet?.id, urlAmount);
-        }
-    }, [searchParams, easebuzzLoaded, hasAutoTriggered, loading, initiatePaymentFlow, utilityWallet]);
-
-    const handleSubmit = async (e) => {
-
-        toast.error('Service temporarily down please try after some time');
-        return;
-
-        // e.preventDefault();
-        // await initiatePaymentFlow(accountId || utilityWallet?.id, amount);
-    };
-
-    // Quick amount setter
-    const addPresetAmount = (val) => {
-        const current = parseFloat(amount || 0);
-        setAmount(String(current + val));
-    };
-
-    // QR Code Generation on Button Click (/api/va/generate-qr)
-    const handleGenerateQrSubmit = async (e) => {
-        e.preventDefault();
-        if (!qrForm.name || !qrForm.account_number || !qrForm.account_ifsc) {
-            toast.error('Please enter Account Holder Name, Account Number and IFSC Code');
-            return;
-        }
-        setQrLoading(true);
-        try {
-            const response = await apiService.vPost('/api/va/generate-qr', {
-                name: qrForm.name,
-                account_number: qrForm.account_number,
-                account_ifsc: qrForm.account_ifsc
-            });
-            if (response?.data?.status === 1) {
-                toast.success(response.data.message || 'QR Code Generated Successfully!');
-                setVaData(response.data.data);
-            } else {
-                toast.error(response?.data?.message || 'Failed to generate QR Code');
-            }
-        } catch (error) {
-            console.error('Error generating QR:', error);
-            toast.error(error?.response?.data?.message || 'Failed to generate QR Code');
-        } finally {
-            setQrLoading(false);
-        }
-    };
-
-    const handleCopy = (text, fieldName) => {
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text);
-            setCopiedField(fieldName);
-            toast.success('Copied to clipboard!');
-            setTimeout(() => setCopiedField(''), 2000);
-        }
-    };
-
-    const handleShare = (text, title) => {
-        if (navigator.share) {
-            navigator.share({ title: title, text: text }).catch(() => { });
-        } else {
-            handleCopy(text, title);
-        }
-    };
-
-    const handleDownloadPdf = () => {
-        if (vaData?.qrcode_pdf) {
-            window.open(vaData.qrcode_pdf, '_blank');
-        } else if (vaData?.qrcode_image) {
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <html>
-                    <head><title>QR Code</title></head>
-                    <body style="text-align:center; padding: 40px;">
-                        <h2>UPI Payment QR Code</h2>
-                        <img src="${vaData.qrcode_image}" style="max-width:300px; margin-top:20px;" />
-                        <p style="font-size:18px; font-weight:bold; margin-top:15px;">${vaData.virtual_upi_handle || ''}</p>
-                        <script>window.onload = function() { window.print(); }</script>
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
-        } else {
-            toast.error('QR Image/PDF not available');
-        }
-    };
-
+    // Currency Formatter
     const formatCurrency = (val) => {
         const num = parseFloat(val || 0);
         return new Intl.NumberFormat('en-IN', {
@@ -362,11 +94,204 @@ const AddFundRequest = () => {
         }).format(num);
     };
 
-    const qrImageUrl = vaData?.qrcode_image || (
-        vaData?.virtual_upi_handle ?
-            `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=${vaData.virtual_upi_handle}&pn=${encodeURIComponent(vaData.username || 'Merchant')}`
-            : null
-    );
+    // Timer Formatter (MM:SS)
+    const formatTimer = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Preset amount buttons
+    const presetAmounts = [100, 500, 1000, 2000, 5000];
+    const handlePresetClick = (preset) => {
+        setAmount(String(preset));
+    };
+
+    // Step 1: Initiate UPI Intent (/api/add-fund/upi-intent)
+    const handleInitiatePayment = async (e) => {
+        e.preventDefault();
+
+        const numAmount = parseFloat(amount);
+        if (!amount || isNaN(numAmount) || numAmount < 10) {
+            toast.error('Minimum amount must be ₹10');
+            return;
+        }
+
+        if (numAmount > 50000) {
+            toast.error('Maximum allowed amount is ₹50,000');
+            return;
+        }
+
+        const targetAccountId = accountId || utilityWallet?.id;
+        if (!targetAccountId) {
+            toast.error('Utility wallet not found. Please refresh page.');
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const payload = {
+                amount: numAmount,
+                account_id: targetAccountId,
+                device_id: getDeviceId()
+            };
+
+            const response = await apiService.vPost('/api/add-fund/upi-intent', payload);
+
+            if (response?.data?.status === 1 && response?.data?.data) {
+                setQrData(response.data.data);
+                setTimeLeft(300); // 5 minutes countdown
+                toast.success('QR Code generated. Please scan to complete payment.');
+            } else {
+                const errMsg = response?.data?.message || 'Failed to initiate UPI transaction';
+                fireSwal({
+                    title: 'Payment Failed',
+                    text: errMsg,
+                    icon: 'error',
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#EF4444'
+                });
+            }
+        } catch (err) {
+            console.error('Error initiating UPI intent:', err);
+            const errMsg = err?.response?.data?.message || err?.message || 'Something went wrong while initiating payment';
+            fireSwal({
+                title: 'Payment Failed',
+                text: errMsg,
+                icon: 'error',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#EF4444'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Step 2: Poll verifyPayment (/api/add-fund/verify) every second while QR is showing
+    useEffect(() => {
+        if (!qrData || !qrData.txnid) return;
+
+        let isMounted = true;
+        let isChecking = false;
+
+        const intervalId = setInterval(async () => {
+            if (isChecking) return;
+            isChecking = true;
+
+            try {
+                const response = await apiService.vPost('/api/add-fund/verify', {
+                    txnid: qrData.txnid
+                });
+
+                if (!isMounted) return;
+
+                const resData = response?.data;
+
+                // Case 1: Payment Complete / Success
+                if (resData?.status === 1) {
+                    clearInterval(intervalId);
+
+                    await fireSwal({
+                        title: 'Payment Successful!',
+                        text: resData.message || 'Payment has been completed successfully. Fund credited to your wallet!',
+                        icon: 'success',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#10B981',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+
+                    // On OK click, return to clean Add Fund Request state
+                    if (isMounted) {
+                        setQrData(null);
+                        setAmount('');
+                        fetchWallets();
+                    }
+                    return;
+                }
+
+                // Case 2: Payment Failed
+                if (resData?.status === 2 || resData?.failed === true) {
+                    clearInterval(intervalId);
+
+                    await fireSwal({
+                        title: 'Payment Failed',
+                        text: resData.message || 'Payment has failed or was cancelled.',
+                        icon: 'error',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#EF4444',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+
+                    if (isMounted) {
+                        setQrData(null);
+                    }
+                    return;
+                }
+
+                // If status is 0 (Pending), continue next polling tick
+            } catch (err) {
+                console.error('Verify payment poll error:', err);
+            } finally {
+                isChecking = false;
+            }
+        }, 1000); // Verify API runs every second
+
+        return () => {
+            isMounted = false;
+            clearInterval(intervalId);
+        };
+    }, [qrData, apiService, fetchWallets]);
+
+    // Countdown Timer for QR Expiry (5 minutes)
+    useEffect(() => {
+        if (!qrData) return;
+
+        const timerId = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timerId);
+                    fireSwal({
+                        title: 'Payment Timed Out',
+                        text: 'QR Code has expired. Please generate a new QR code to try again.',
+                        icon: 'warning',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#F59E0B',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        setQrData(null);
+                    });
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timerId);
+    }, [qrData]);
+
+    // Cancel current QR code session
+    const handleCancelPayment = () => {
+        setQrData(null);
+    };
+
+    // Copy to clipboard helper
+    const handleCopy = (text, fieldName) => {
+        if (!text) return;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+            setCopiedField(fieldName);
+            toast.success(`Copied ${fieldName} to clipboard!`);
+            setTimeout(() => setCopiedField(''), 2000);
+        }
+    };
+
+    const qrImageUrl = qrData?.upi_intent ?
+        `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrData.upi_intent)}`
+        : null;
 
     return (
         <>
@@ -382,312 +307,273 @@ const AddFundRequest = () => {
                 <div className="page-content-box-inner">
                     <div className="row g-3 justify-content-center">
 
-                        {/* LEFT COLUMN: ADD FUND FORM (ORIGINAL DESIGN) */}
-                        <div className="col-lg-5 col-md-6">
-                            <div className="card border-0 rounded-4 shadow-sm">
-                                <div className="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
-                                    <span className="d-flex align-items-center">
-                                        <i className="bi bi-wallet2 text-primary me-2" style={{ fontSize: '1.3rem' }}></i>
-                                        <h5 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.1rem' }}>
-                                            Add Fund
-                                        </h5>
-                                    </span>
-
-                                    <Link
-                                        to="/banking/add-fund-history"
-                                        className="btn btn-outline-primary btn-sm rounded-pill d-flex align-items-center px-3"
-                                    >
-                                        <i className="fa fa-list me-1"></i>
-                                        History
-                                    </Link>
-                                </div>
-
-                                <div className="card-body p-4">
-                                    <form onSubmit={handleSubmit}>
-
-                                        {/* UTILITY WALLET BALANCE DISPLAY BOX */}
-                                        <div className="p-3 mb-4 rounded-3 border" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
-                                            <div className="d-flex justify-content-between align-items-baseline">
-                                                <div>
-
-
-                                                    <div className="d-flex align-items-center gap-2 my-1">
-                                                        <span className="badge bg-primary text-white mb-1 px-2 py-1" style={{ fontSize: '10px' }}>
-                                                            UTILITY WALLET
-                                                        </span>
-                                                        <small className="text-muted" style={{ fontSize: '11.5px' }}></small>
-                                                        {/* RELOAD BALANCE BUTTON RIGHT AFTER AVAILABLE BALANCE */}
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-sm btn-light border rounded-circle p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
-                                                            onClick={fetchWallets}
-                                                            disabled={refreshingBalance}
-                                                            title="Reload Balance"
-                                                            style={{ width: '24px', height: '24px' }}
-                                                        >
-                                                            <i className={`fa fa-refresh text-primary ${refreshingBalance ? 'fa-spin' : ''}`} style={{ fontSize: '11px' }}></i>
-                                                        </button>
-                                                    </div>
-
-                                                    <h3 className="fw-bold mb-0 text-dark" style={{ fontSize: '1.5rem', color: '#0F172A' }}>
-                                                        {formatCurrency(utilityWallet?.raw_available_balance ?? utilityWallet?.available_balance ?? utilityWallet?.balance)}
-                                                    </h3>
-                                                </div>
-
-                                                {utilityWallet?.number && (
-                                                    <div className="text-end">
-                                                        <small className="text-muted d-block" style={{ fontSize: '10px' }}>Acc No.</small>
-                                                        <span className="font-monospace fw-bold text-dark" style={{ fontSize: '12px' }}>
-                                                            {utilityWallet.number}
-                                                        </span>
-                                                    </div>
-                                                )}
+                        {/* CASE 1: AMOUNT INPUT FORM (When QR is NOT yet generated) */}
+                        {!qrData ? (
+                            <div className="col-lg-6 col-md-8 col-sm-10 col-12">
+                                <div className="card border-0 rounded-4 shadow-sm bg-white overflow-hidden">
+                                    <div className="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
+                                        <span className="d-flex align-items-center">
+                                            <div className="bg-primary-subtle text-primary rounded-3 p-2 me-2.5 d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px' }}>
+                                                <i className="bi bi-wallet2 text-primary" style={{ fontSize: '1.2rem' }}></i>
                                             </div>
-                                        </div>
+                                            <h5 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.1rem' }}>
+                                                Add Fund
+                                            </h5>
+                                        </span>
 
-                                        {/* AMOUNT INPUT (No Wallet Select) */}
-                                        <div className="mb-4">
-                                            <label htmlFor="amount" className="form-label fw-semibold text-dark" style={{ fontSize: '13px' }}>
-                                                Enter Amount (₹)
-                                            </label>
-
-                                            <div className="input-group">
-                                                <span className="input-group-text bg-white fw-bold text-muted">₹</span>
-                                                <input
-                                                    type="number"
-                                                    id="amount"
-                                                    className="form-control form-control-lg fw-bold"
-                                                    value={amount}
-                                                    onChange={(e) => setAmount(e.target.value)}
-                                                    placeholder="Enter amount to add"
-                                                    step="0.01"
-                                                    min="1"
-                                                    required
-                                                    style={{ fontSize: '1.1rem' }}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* PROCEED TO PAY BUTTON */}
-                                        <button
-                                            type="submit"
-                                            className="btn btn-primary w-100 rounded-pill py-2.5 fw-bold text-white shadow-sm"
-                                            disabled={loading || !easebuzzLoaded}
-                                            style={{ fontSize: '1rem', background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)', border: 'none' }}
+                                        <Link
+                                            to="/banking/add-fund-history"
+                                            className="btn btn-outline-primary btn-sm rounded-pill d-flex align-items-center px-3"
                                         >
-                                            {loading ? (
-                                                <>
-                                                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                                    Processing Payment...
-                                                </>
-                                            ) : !easebuzzLoaded ? (
-                                                <>
-                                                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                                    Loading Payment Gateway...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <i className="bi bi-cash-coin me-2"></i>
-                                                    Proceed to Pay
-                                                </>
-                                            )}
-                                        </button>
-
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* RIGHT COLUMN: QR CODE SECTION */}
-                        <div className="col-lg-7 col-md-6">
-                            <div className="card border-0 rounded-4 shadow-sm bg-white overflow-hidden">
-                                <div className="card-header bg-white border-bottom p-3">
-                                    <div className="d-flex align-items-center">
-                                        <div className="bg-success-subtle text-success rounded-3 p-2 me-2.5 d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px' }}>
-                                            <iconify-icon icon="solar:qr-code-bold-duotone" style={{ fontSize: '22px' }}></iconify-icon>
-                                        </div>
-                                        <div className='me-2'>
-                                            <h6 className="mb-0 fw-bold text-dark" style={{ fontSize: '15px' }}>
-                                                &nbsp;UPI Virtual QR Code
-                                            </h6>
-                                            <small className="text-muted" style={{ fontSize: '11px' }}>&nbsp;&nbsp;&nbsp;&nbsp;Linked with Verified KYC Account</small>
-                                        </div>
+                                            <i className="fa fa-list me-1"></i>
+                                            History
+                                        </Link>
                                     </div>
-                                </div>
 
-                                <div className="card-body p-3.5">
-                                    {vaData ? (
-                                        /* AFTER GENERATING DATA: QR AUTOMATICALLY SHOWS INLINE WITH DOWNLOAD & SHARE BUTTONS */
-                                        <div className="d-flex flex-column align-items-center justify-content-between text-center">
-                                            {/* QR IMAGE (AUTO SHOW) */}
-                                            {qrImageUrl ? (
-                                                <div className="p-2.5 bg-white rounded-4 border shadow-sm my-1 position-relative" style={{ maxWidth: '210px' }}>
-                                                    <img
-                                                        src={qrImageUrl}
-                                                        alt="UPI QR Code"
-                                                        className="img-fluid rounded-3"
-                                                        style={{ width: '180px', height: '180px', objectFit: 'contain' }}
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <div className="p-3 bg-light rounded-3 my-1 text-muted fw-bold">
-                                                    QR Code Ready
-                                                </div>
-                                            )}
+                                    <div className="card-body p-4">
+                                        <form onSubmit={handleInitiatePayment}>
 
-                                            {/* UPI ID BOX CARD */}
-                                            <div className="p-2.5 rounded-3 border my-2 shadow-xs w-100" style={{ backgroundColor: '#F8FAFC', borderColor: '#CBD5E1', maxWidth: '320px' }}>
-                                                <div className="d-flex justify-content-between align-items-center mb-1">
-                                                    <span className="text-muted fw-bold text-uppercase d-flex align-items-center" style={{ fontSize: '9.5px', letterSpacing: '0.5px' }}>
-                                                        <iconify-icon icon="solar:wallet-money-bold-duotone" className="me-1 text-primary" style={{ fontSize: '13px' }}></iconify-icon>
-                                                        Virtual UPI ID
-                                                    </span>
-                                                    {copiedField === 'upi' && (
-                                                        <span className="badge bg-success-subtle text-success fw-bold px-1.5 py-0.5" style={{ fontSize: '8.5px' }}>
-                                                            ✓ Copied
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="d-flex justify-content-between align-items-center gap-1">
-                                                    <span className="fw-bold text-dark font-monospace text-truncate user-select-all" style={{ fontSize: '13px', color: '#0F172A' }} title={vaData.virtual_upi_handle}>
-                                                        {vaData.virtual_upi_handle || 'N/A'}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-sm btn-white border rounded-pill px-2.5 py-0.5 d-flex align-items-center text-primary shadow-xs flex-shrink-0"
-                                                        onClick={() => handleCopy(vaData.virtual_upi_handle, 'upi')}
-                                                        title="Copy UPI ID"
-                                                        style={{ fontSize: '11px', fontWeight: '600', backgroundColor: '#FFFFFF' }}
-                                                    >
-                                                        <iconify-icon icon="solar:check-circle-bold" className="me-1" style={{ fontSize: '13px', color: copiedField === 'upi' ? '#10B981' : '#2563EB' }}></iconify-icon>
-                                                        {copiedField === 'upi' ? 'Copied' : 'Copy'}
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <p className="text-muted mb-3" style={{ fontSize: '11px' }}>
-                                                Scan using Google Pay, PhonePe, or Paytm to add funds.
-                                            </p>
-
-                                            {/* ACTION BUTTONS: DOWNLOAD PDF & SHARE QR */}
-                                            <div className="d-flex flex-wrap justify-content-center gap-2.5 w-100" style={{ maxWidth: '320px' }}>
-                                                {/* 1. DOWNLOAD PDF */}
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-success btn-sm rounded-pill px-3 py-2 fw-bold d-flex align-items-center justify-content-center text-white shadow-sm flex-fill"
-                                                    onClick={handleDownloadPdf}
-                                                    style={{ fontSize: '12px', background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', border: 'none' }}
-                                                >
-                                                    <iconify-icon icon="solar:download-minimalistic-bold-duotone" className="me-1.5 fs-5"></iconify-icon>
-                                                    Download QR
-                                                </button>
-
-                                                {/* 2. SHARE QR */}
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-outline-primary btn-sm rounded-pill px-3 py-2 fw-bold d-flex align-items-center justify-content-center shadow-sm flex-fill"
-                                                    onClick={() => handleShare(`UPI ID: ${vaData.virtual_upi_handle || ''}`, 'Share Payment QR')}
-                                                    style={{ fontSize: '12px', borderColor: '#2563EB', color: '#2563EB' }}
-                                                >
-                                                    <iconify-icon icon="solar:share-bold-duotone" className="me-1.5 fs-5"></iconify-icon>
-                                                    Share QR
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        /* BEFORE GENERATING DATA: COMPACT HIGH-CONTRAST CARD WITH HIDDEN INPUTS & CREATE BUTTON */
-                                        <form onSubmit={handleGenerateQrSubmit} className="d-flex flex-column justify-content-between">
-                                            {/* Hidden Inputs for Name, Account Number, IFSC */}
-                                            <input type="hidden" name="name" value={qrForm.name} />
-                                            <input type="hidden" name="account_number" value={qrForm.account_number} />
-                                            <input type="hidden" name="account_ifsc" value={qrForm.account_ifsc} />
-
-                                            {/* Compact Account Details Display Box */}
-                                            <div className="d-flex flex-column gap-2 mb-2">
-                                                <div className="d-flex justify-content-between align-items-center">
-                                                    <span className="text-muted fw-bold text-uppercase" style={{ fontSize: '10px', letterSpacing: '0.4px' }}>Verified Bank Account</span>
-                                                    <span className="badge bg-success-subtle text-success border border-success-subtle fw-bold px-2 py-1" style={{ fontSize: '9px', borderRadius: '6px' }}>
-                                                        ✓ KYC VERIFIED
-                                                    </span>
-                                                </div>
-
-                                                {/* 1. Account Holder Name */}
-                                                <div className="p-2 rounded-3 border bg-light" style={{ borderColor: '#E2E8F0' }}>
-                                                    <div className="d-flex align-items-center">
-                                                        <div className="rounded-circle bg-primary-subtle text-primary p-1.5 me-2 d-flex align-items-center justify-content-center" style={{ width: '28px', height: '28px', minWidth: '28px' }}>
-                                                            <iconify-icon icon="solar:user-bold-duotone" style={{ fontSize: '16px' }}></iconify-icon>
+                                            {/* UTILITY WALLET BALANCE DISPLAY BOX */}
+                                            <div className="p-3 mb-4 rounded-3 border" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
+                                                <div className="d-flex justify-content-between align-items-baseline">
+                                                    <div>
+                                                        <div className="d-flex align-items-center gap-2 my-1">
+                                                            <span className="badge bg-primary text-white mb-1 px-2 py-1" style={{ fontSize: '10px' }}>
+                                                                UTILITY WALLET
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-sm btn-light border rounded-circle p-0 d-inline-flex align-items-center justify-content-center shadow-xs"
+                                                                onClick={fetchWallets}
+                                                                disabled={refreshingBalance}
+                                                                title="Reload Balance"
+                                                                style={{ width: '24px', height: '24px' }}
+                                                            >
+                                                                <i className={`fa fa-refresh text-primary ${refreshingBalance ? 'fa-spin' : ''}`} style={{ fontSize: '11px' }}></i>
+                                                            </button>
                                                         </div>
-                                                        <div className="w-100 overflow-hidden">
-                                                            <span className="text-muted d-block fw-bold text-uppercase" style={{ fontSize: '8.5px' }}>Account Holder</span>
-                                                            <span className="fw-bold text-dark text-truncate d-block" style={{ fontSize: '12px' }}>
-                                                                {qrForm.name || 'N/A'}
+
+                                                        <h3 className="fw-bold mb-0 text-dark" style={{ fontSize: '1.5rem', color: '#0F172A' }}>
+                                                            {formatCurrency(utilityWallet?.raw_available_balance ?? utilityWallet?.available_balance ?? utilityWallet?.balance)}
+                                                        </h3>
+                                                    </div>
+
+                                                    {utilityWallet?.number && (
+                                                        <div className="text-end">
+                                                            <small className="text-muted d-block" style={{ fontSize: '10px' }}>Acc No.</small>
+                                                            <span className="font-monospace fw-bold text-dark" style={{ fontSize: '12px' }}>
+                                                                {utilityWallet.number}
                                                             </span>
                                                         </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* 2. Account Number & IFSC Code (50% - 50%) */}
-                                                <div className="row g-2">
-                                                    {/* Account Number */}
-                                                    <div className="col-6">
-                                                        <div className="p-2 rounded-3 border bg-light" style={{ borderColor: '#E2E8F0' }}>
-                                                            <div className="d-flex align-items-center">
-                                                                <div className="rounded-circle bg-success-subtle text-success p-1.5 me-1.5 d-flex align-items-center justify-content-center" style={{ width: '26px', height: '26px', minWidth: '26px' }}>
-                                                                    <iconify-icon icon="solar:card-bold-duotone" style={{ fontSize: '14px' }}></iconify-icon>
-                                                                </div>
-                                                                <div className="w-100 overflow-hidden">
-                                                                    <span className="text-muted d-block fw-bold text-uppercase text-truncate" style={{ fontSize: '8.5px' }}>Acc No</span>
-                                                                    <span className="fw-bold text-dark font-monospace text-truncate d-block" style={{ fontSize: '11px' }}>
-                                                                        {qrForm.account_number || 'N/A'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* IFSC Code */}
-                                                    <div className="col-6">
-                                                        <div className="p-2 rounded-3 border bg-light" style={{ borderColor: '#E2E8F0' }}>
-                                                            <div className="d-flex align-items-center">
-                                                                <div className="rounded-circle bg-info-subtle text-info p-1.5 me-1.5 d-flex align-items-center justify-content-center" style={{ width: '26px', height: '26px', minWidth: '26px' }}>
-                                                                    <iconify-icon icon="solar:banknote-bold-duotone" style={{ fontSize: '14px' }}></iconify-icon>
-                                                                </div>
-                                                                <div className="w-100 overflow-hidden">
-                                                                    <span className="text-muted d-block fw-bold text-uppercase text-truncate" style={{ fontSize: '8.5px' }}>IFSC</span>
-                                                                    <span className="fw-bold text-primary font-monospace text-truncate d-block" style={{ fontSize: '11px' }}>
-                                                                        {qrForm.account_ifsc || 'N/A'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                                    )}
                                                 </div>
                                             </div>
 
-                                            {/* Click to Generate Virtual QR Button */}
+                                            {/* AMOUNT INPUT */}
+                                            <div className="mb-3">
+                                                <div className="d-flex justify-content-between align-items-center mb-1">
+                                                    <label htmlFor="amount" className="form-label fw-semibold text-dark mb-0" style={{ fontSize: '13px' }}>
+                                                        Enter Amount (₹)
+                                                    </label>
+                                                    <span className="text-muted" style={{ fontSize: '11px' }}>
+                                                        Min ₹10 • Max ₹50,000
+                                                    </span>
+                                                </div>
+
+                                                <div className="input-group">
+                                                    <span className="input-group-text bg-light fw-bold text-dark">₹</span>
+                                                    <input
+                                                        type="number"
+                                                        id="amount"
+                                                        className="form-control form-control-lg fw-bold"
+                                                        value={amount}
+                                                        onChange={(e) => setAmount(e.target.value)}
+                                                        placeholder="Enter amount to add"
+                                                        step="1"
+                                                        min="10"
+                                                        max="50000"
+                                                        required
+                                                        style={{ fontSize: '1.2rem' }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* QUICK PRESET AMOUNT CHIPS */}
+                                            <div className="mb-4">
+                                                <small className="text-muted d-block mb-1.5 fw-semibold" style={{ fontSize: '11px' }}>
+                                                    Quick Select Amount:
+                                                </small>
+                                                <div className="d-flex flex-wrap gap-2">
+                                                    {presetAmounts.map((val) => (
+                                                        <button
+                                                            key={val}
+                                                            type="button"
+                                                            className={`btn btn-sm rounded-pill px-3 py-1 fw-bold ${parseFloat(amount) === val ? 'btn-primary text-white' : 'btn-outline-secondary'}`}
+                                                            onClick={() => handlePresetClick(val)}
+                                                            style={{ fontSize: '12px' }}
+                                                        >
+                                                            +₹{val.toLocaleString('en-IN')}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* SUBMIT BUTTON */}
                                             <button
                                                 type="submit"
-                                                disabled={qrLoading}
-                                                className="btn btn-success w-100 rounded-pill py-2.5 fw-bold text-white shadow-sm mt-2"
-                                                style={{ background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', border: 'none', fontSize: '0.95rem' }}
+                                                className="btn btn-primary w-100 rounded-pill py-2.5 fw-bold text-white shadow-sm d-flex align-items-center justify-content-center"
+                                                disabled={loading}
+                                                style={{ fontSize: '1rem', background: 'linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)', border: 'none' }}
                                             >
-                                                {qrLoading ? (
+                                                {loading ? (
                                                     <>
                                                         <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                                        Generating...
+                                                        Generating QR Code...
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <iconify-icon icon="solar:qr-code-bold" class="me-1.5 fs-5 align-middle"></iconify-icon>
-                                                        Click to Generate Virtual QR
+                                                        <iconify-icon icon="solar:qr-code-bold" class="me-2 fs-5 align-middle"></iconify-icon>
+                                                        Proceed to Pay with QR
                                                     </>
                                                 )}
                                             </button>
+
                                         </form>
-                                    )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            /* CASE 2: ACTIVE DYNAMIC UPI QR CODE SCREEN */
+                            <div className="col-lg-6 col-md-8 col-sm-10 col-12">
+                                <div className="card border-0 rounded-4 shadow-sm bg-white overflow-hidden">
+                                    <div className="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
+                                        <div className="d-flex align-items-center">
+                                            <div className="bg-success-subtle text-success rounded-3 p-2 me-2.5 d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px' }}>
+                                                <iconify-icon icon="solar:qr-code-bold-duotone" style={{ fontSize: '22px' }}></iconify-icon>
+                                            </div>
+                                            <div>
+                                                <h6 className="mb-0 fw-bold text-dark" style={{ fontSize: '15px' }}>
+                                                    Scan & Pay via UPI
+                                                </h6>
+                                                <small className="text-muted" style={{ fontSize: '11px' }}>
+                                                    Pay ₹{parseFloat(qrData.amount).toFixed(2)} to Utility Wallet
+                                                </small>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            className="btn btn-light btn-sm rounded-circle d-flex align-items-center justify-content-center shadow-xs"
+                                            onClick={handleCancelPayment}
+                                            title="Cancel & Go Back"
+                                            style={{ width: '32px', height: '32px' }}
+                                        >
+                                            <i className="fa fa-times text-muted"></i>
+                                        </button>
+                                    </div>
+
+                                    <div className="card-body p-4 text-center">
+
+                                        {/* AMOUNT HEADER BANNER */}
+                                        <div className="p-2.5 rounded-3 border mb-3 shadow-xs d-flex justify-content-between align-items-center" style={{ backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>
+                                            <div className="text-start">
+                                                <small className="text-muted text-uppercase fw-bold d-block" style={{ fontSize: '10px' }}>Payable Amount</small>
+                                                <h4 className="fw-bold mb-0 text-success" style={{ fontSize: '1.4rem' }}>
+                                                    ₹{parseFloat(qrData.amount).toFixed(2)}
+                                                </h4>
+                                            </div>
+                                            <div className="text-end">
+                                                <span className="badge bg-danger-subtle text-danger fw-bold px-2 py-1" style={{ fontSize: '11px' }}>
+                                                    <i className="fa fa-clock-o me-1"></i> Expires in {formatTimer(timeLeft)}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {/* QR CODE CONTAINER */}
+                                        <div className="d-flex justify-content-center my-3">
+                                            <div className="p-3 bg-white rounded-4 border shadow-sm position-relative d-inline-block">
+                                                {qrImageUrl ? (
+                                                    <img
+                                                        src={qrImageUrl}
+                                                        alt="UPI Payment QR Code"
+                                                        className="img-fluid rounded-3"
+                                                        style={{ width: '220px', height: '220px', objectFit: 'contain' }}
+                                                    />
+                                                ) : (
+                                                    <div className="d-flex align-items-center justify-content-center bg-light rounded-3" style={{ width: '220px', height: '220px' }}>
+                                                        <span className="spinner-border text-primary" role="status"></span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* VERIFY POLLING STATUS LIVE INDICATOR */}
+                                        <div className="d-inline-flex align-items-center gap-2 px-3 py-1.5 rounded-pill mb-3" style={{ backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                                            <span className="spinner-grow spinner-grow-sm text-primary" role="status" style={{ width: '9px', height: '9px' }}></span>
+                                            <span className="fw-semibold text-primary" style={{ fontSize: '11.5px' }}>
+                                                Awaiting payment confirmation... checking automatically
+                                            </span>
+                                        </div>
+
+                                        {/* TRANSACTION ID BOX */}
+                                        <div className="p-2.5 rounded-3 border mb-3 shadow-xs text-start" style={{ backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }}>
+                                            <div className="d-flex justify-content-between align-items-center mb-1">
+                                                <small className="text-muted fw-bold text-uppercase" style={{ fontSize: '9.5px' }}>
+                                                    Transaction ID
+                                                </small>
+                                                {copiedField === 'txnid' && (
+                                                    <span className="badge bg-success-subtle text-success fw-bold px-1.5 py-0.5" style={{ fontSize: '8.5px' }}>
+                                                        ✓ Copied
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="d-flex justify-content-between align-items-center gap-2">
+                                                <span className="font-monospace fw-bold text-dark text-truncate user-select-all" style={{ fontSize: '12px' }}>
+                                                    {qrData.txnid}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-sm btn-white border rounded-pill px-2.5 py-0.5 text-primary shadow-xs flex-shrink-0"
+                                                    onClick={() => handleCopy(qrData.txnid, 'txnid')}
+                                                    style={{ fontSize: '11px', fontWeight: '600', backgroundColor: '#FFFFFF' }}
+                                                >
+                                                    <i className="fa fa-copy me-1"></i> Copy
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* MOBILE UPI APP INTENT BUTTON (For mobile devices) */}
+                                        {qrData.upi_intent && (
+                                            <div className="mb-3 d-block d-md-none">
+                                                <a
+                                                    href={qrData.upi_intent}
+                                                    className="btn btn-success w-100 rounded-pill py-2.5 fw-bold text-white shadow-sm d-flex align-items-center justify-content-center"
+                                                    style={{ background: 'linear-gradient(135deg, #059669 0%, #10B981 100%)', border: 'none' }}
+                                                >
+                                                    <iconify-icon icon="solar:wallet-money-bold-duotone" class="me-2 fs-5"></iconify-icon>
+                                                    Pay via UPI App (GPay / PhonePe / Paytm)
+                                                </a>
+                                            </div>
+                                        )}
+
+                                        <p className="text-muted mb-3" style={{ fontSize: '11.5px' }}>
+                                            Scan using any UPI App (Google Pay, PhonePe, Paytm, BHIM, etc.) to complete payment.
+                                        </p>
+
+                                        {/* CANCEL BUTTON */}
+                                        <button
+                                            type="button"
+                                            className="btn btn-outline-danger btn-sm rounded-pill px-4 py-2 fw-semibold w-100"
+                                            onClick={handleCancelPayment}
+                                            style={{ fontSize: '12px' }}
+                                        >
+                                            Cancel Transaction
+                                        </button>
+
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                     </div>
                 </div>

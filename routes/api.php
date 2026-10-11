@@ -1168,15 +1168,11 @@ Route::middleware('api.token.auth')->group(function () {
     });
 
    
-    // Secure Add Fund Routes (Throttled)
-    Route::middleware('throttle:6,1')->group(function () {
-        // Secure UPI Add Fund Routes
-        Route::prefix('add-fund')->group(function () {
-            Route::post('/upi-intent', [\App\Http\Controllers\Banking\AddFundController::class, 'initiateUpiIntent']);
-            Route::post('/verify', [\App\Http\Controllers\Banking\AddFundController::class, 'verifyPayment']);
-            Route::post('/history', [\App\Http\Controllers\Banking\AddFundController::class, 'getHistory']);
-        });
-        
+    // Secure UPI Add Fund Routes
+    Route::prefix('add-fund')->group(function () {
+        Route::post('/upi-intent', [\App\Http\Controllers\Banking\AddFundController::class, 'initiateUpiIntent']);
+        Route::post('/verify', [\App\Http\Controllers\Banking\AddFundController::class, 'verifyPayment']);
+        Route::post('/history', [\App\Http\Controllers\Banking\AddFundController::class, 'getHistory']);
     });
 
 

@@ -85,8 +85,14 @@ class AddFundController extends Controller
             $admin=User::where('id', $account->admin_id)->first();
             
         } else {
-            $user = $request->get('user');
+            $user = $request->get('user') ?? auth()->user();
             $admin = $request->get('admin');
+            if (!$admin && $user) {
+                $admin = User::where('mid', $user->admin_mid)->first();
+            }
+            if (!$admin) {
+                $admin = User::where('role', 1)->first() ?? $user;
+            }
         }
 
         
@@ -219,14 +225,15 @@ class AddFundController extends Controller
         $addFund = AddFund::where('txnid', $txnid)->first();
 
         if ($addFund->status === 'success') {
-            return response()->json(['status' => 1, 'message' => 'Transaction already successful', 'data' => ['utr' => $addFund->utr]]);
+            return response()->json(['status' => 1, 'message' => 'Transaction already successful', 'data' => ['utr' => $addFund->utr, 'amount' => $addFund->amount]]);
+        }
+
+        if ($addFund->status === 'failed') {
+            return response()->json(['status' => 2, 'message' => 'Transaction has failed or expired', 'data' => []]);
         }
 
         if(isset($addFund->member_id) && !empty($addFund->member_id)){
-            $account = FinancialAccount::where('id', $addFund->account_id)->first();
-            if (!$account) {
-                $account = FinancialAccount::where('member_id', $addFund->member_id)->where('service_type', 'SAVING')->first();
-            }
+            $account = FinancialAccount::where('member_id', $addFund->member_id)->where('service_type', 'SAVING')->first();
             if (!$account) {
                 return response()->json(['status' => 0, 'message' => 'Member Saving Account not found.'], 200);
             }
@@ -291,9 +298,6 @@ class AddFundController extends Controller
                 $addFund->status = 'success';
                 $addFund->utr = $responseArray['BANKTXNID'] ?? $responseArray['TXNID'];
                 $addFund->save();
-
-
-
                
 
                 if (isset($addFund->member_id) && !empty($addFund->member_id)){
@@ -334,25 +338,6 @@ class AddFundController extends Controller
 
                 }
 
-                if (!isset($addFund->member_id) || empty($addFund->member_id)) {
-                    $accounts = Account::where('user_id', $admin->id)
-                        ->where('primary_status', false)
-                        ->first();
-
-                    if ($accounts) {
-                        createTransaction([
-                            'account_id' => $accounts->id,
-                            'type' => 'CR',
-                            'amount' => $addFund->amount,
-                            'description' => 'Add Fund UPI ' . ($addFund->utr ? 'UTR: '.$addFund->utr : ''),
-                            'transaction_id' => 'ADM-'.$txnid,
-                            'created_by' => $admin->id,
-                            'admin_id' => $admin->id, // Default admin
-                            'user_id' => $admin->id,
-                            'category_code' => 'ADD_FUND'
-                        ]);
-                    }
-                }
 
                 DB::commit();
 
@@ -372,13 +357,20 @@ class AddFundController extends Controller
             }
 
         } else {
-            // Check if failed
-            if ($responseArray && isset($responseArray['STATUS']) && ($responseArray['STATUS'] == 'TXN_FAILURE' || $responseArray['STATUS'] == 'TXN_FAILURE')) {
+            $respCode = (string)($responseArray['RESPCODE'] ?? '');
+            $statusStr = (string)($responseArray['STATUS'] ?? '');
+
+            // Pending response codes in Paytm status API (user has not scanned / completed yet)
+            $pendingCodes = ['227', '331', '400', '402', ''];
+
+            if ($statusStr === 'TXN_FAILURE' && !in_array($respCode, $pendingCodes)) {
                 $addFund->status = 'failed';
                 $addFund->save();
+                $msg = $responseArray['RESPMSG'] ?? 'Payment Failed';
+                return response()->json(['status' => 2, 'message' => $msg]);
             }
             
-            $msg = $responseArray['RESPMSG'] ?? 'Payment Pending or Failed';
+            $msg = $responseArray['RESPMSG'] ?? 'Payment Pending';
             return response()->json(['status' => 0, 'message' => $msg]);
         }
     }

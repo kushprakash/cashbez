@@ -440,55 +440,6 @@ class UtilityController extends Controller
                     ], 200);
                 }
 
-                $admin = User::where('id', $savingAcc->admin_id)->first();
-
-                $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
-                   
-                $requestDatass=[
-                    'account_id' => $accounts->id,
-                    'type' => 'DR',
-                    'amount' => $request->amount,
-                    'description' => $desc.' - Member - '.$request->number,
-                    'transaction_id' => 'RECH' . rand(111111, 999999),
-                    'created_by' => $accounts->admin_id,
-                    'admin_id' => $accounts->admin_id,
-                    'user_id' => $accounts->admin_id,
-                    'category_code' => 'RECHARGE'
-                ];
-                
-                $resResponse=createTransaction($requestDatass);
-
-
-                if (empty($resResponse['status']) || $resResponse['status'] != 1) {
-
-                    $transactionData = [
-                        'account_id' => $savingAcc->id,
-                        'mpin_status' => false,
-                        'mpin' => $request->mpin ?? '',
-                        'type' => 'CR',
-                        'service_type'=>'SAVING',
-                        'txn_type' => 'RECHARGE',
-                        'payment_type' => 'SELF',
-                        'charges' => 0,
-                        'amount' => $request->amount,
-                        'transaction_amount' => $request->amount,
-                        'description' => $desc.' - '.$request->number,
-                        'transaction_id' => $txnid
-                    ];
-
-
-                    processMemberTransaction($request, $transactionData);
-
-
-                    return response()->json([
-                        'status' => 0,
-                        'message' => 'Some Technical Issue. Please try again.',
-                        'data' => null
-                    ], 200);
-                } 
-    
-
-
             }
 
 
@@ -798,24 +749,6 @@ class UtilityController extends Controller
 
 
                     processMemberTransaction($request, $transactionData);
-
-
-                    $requestDatass=[
-                        'account_id' => $accounts->id,
-                        'type' => 'CR',
-                        'amount' => $request->amount,
-                        'description' => 'RECH-REFUND - '.$desc.' - '.$request->number,
-                        'transaction_id' => 'RECH-REFUND-' . $request->transaction_id,
-                        'created_by' => $savingAcc->admin_id,
-                        'admin_id' => $savingAcc->admin_id,
-                        'user_id' => $savingAcc->admin_id,
-                        'category_code' => 'RECHARGE'
-                    ];
-                    
-                    createTransaction($requestDatass);
-
-
-
 
                     return response()->json([
                         'status' => 0,
@@ -1151,55 +1084,6 @@ class UtilityController extends Controller
                     ], 200);
                 }
 
-                $user = $request->get('user');
-                $admin = $request->get('admin');
-
-                $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
-                    
-                if($accounts && $accounts->user_id != $user->id) {
-                   
-                    $requestDatass=[
-                        'account_id' => $accounts->id,
-                        'type' => 'DR',
-                        'amount' => $request->amount,
-                        'description' => $desc.' - '.$request->number,
-                        'transaction_id' => 'RECH' . rand(111111, 999999),
-                        'created_by' => $user->id,
-                        'admin_id' => $admin->id,
-                        'user_id' => $admin->id,
-                        'category_code' => 'RECHARGE'
-                    ];
-                    
-                    $resResponse=createTransaction($requestDatass);
-
-
-                    if (empty($resResponse['status']) || $resResponse['status'] != 1) {
-
-                        $transactionData = [
-                            'account_id' => $request->account_id,
-                            'mpin' => $request->mpin,
-                            'type' => 'CR',
-                            'amount' => $request->amount,
-                            'transaction_amount' => $request->amount,
-                            'description' => 'Recharge Failed. Refund of amount '.$desc.' - '.$request->number,
-                            'transaction_id' => 'REF_'.$txnid,
-                            'category_code' => 'RECHARGE'
-                        ];
-
-                      
-                        $transactionData = processTransaction($request, $transactionData);
-
-
-                        return response()->json([
-                            'status' => 0,
-                            'message' => 'Some Technical Issue. Please try again.',
-                            'data' => null
-                        ], 200);
-                    } 
-                    
-                }
-
-
             }
 
 
@@ -1507,34 +1391,6 @@ class UtilityController extends Controller
 
                     $keysToRemove = ['Bal', 'bal', 'balance', 'utilityBalance', 'mainBalance', 'aepsBalance'];
                     $rj1 = is_array($rj) ? array_diff_key($rj, array_flip($keysToRemove)) : $rj;
-
-
-
-                    $user = $request->get('user');
-                    $admin = $request->get('admin');
-
-                    $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
-                        
-                    if($accounts && $accounts->user_id != $user->id) {
-                    
-                        $requestDatass=[
-                            'account_id' => $accounts->id,
-                            'type' => 'CR',
-                            'amount' => $request->amount,
-                            'description' => 'RECH-REFUND - '.$desc.' - '.$request->number,
-                            'transaction_id' => 'RECH-REFUND-' . $request->transaction_id,
-                            'created_by' => $user->id,
-                            'admin_id' => $admin->id,
-                            'user_id' => $admin->id,
-                            'category_code' => 'RECHARGE'
-                        ];
-                        
-                        createTransaction($requestDatass);
-
-
-                    }
-
-
 
 
                     return response()->json([
@@ -2020,29 +1876,6 @@ class UtilityController extends Controller
                     }
                 }
 
-
-                $admin = User::find($recharge->admin_id);
-                if ($admin && $recharge->user_id != $recharge->admin_id) {
-                    $accounts = DB::table('accounts')->where('user_id', $admin->id)->where('primary_status', false)->first();
-
-                    if ($accounts) {
-                        $refundTxnId = $recharge->txnid . '-ADMIN';
-
-                        $transactionData = [
-                            'account_id'     => $accounts->id,
-                            'type'           => 'CR',
-                            'amount'         => $recharge->amount,
-                            'description'    => 'Recharge Failed & Refunded: ' . $recharge->number,
-                            'transaction_id' => $refundTxnId,
-                            'created_by'     => $user->id,
-                            'admin_id'       => $recharge->admin_id,
-                            'user_id'        => $admin->id,
-                            'category_code'  => 'RECHARGE',
-                        ];
-
-                        createTransaction($transactionData);
-                    }
-                }
             }
 
             // Handle API Partner Callback if configured

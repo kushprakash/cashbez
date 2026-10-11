@@ -1022,28 +1022,7 @@ class ManageUserReportController extends Controller
                 'updated_at' => now()
             ]);
 
-            if ($account) {
-                $adminAccount = Account::where('user_id', $adminId)->where('primary_status', $account->primary_status)->first();
-                if ($adminAccount) {
-                    $latestTxn1 = Passbook::where('user_id', $adminId)->where('account_id', $adminAccount->id)->orderBy('id', 'DESC')->first();
-                    $preBal1 = $latestTxn1 ? $latestTxn1->balance : 0;
-                    Passbook::create([
-                        'user_id' => $adminId,
-                        'account_id' => $adminAccount->id,
-                        'transaction_id' => 'Admin-'.$txnId,
-                        'type' => $type,
-                        'amount' => $amount,
-                        'balance' => $preBal1 + $amount,
-                        'pre_balance' => $preBal1,
-                        'description' => "Admin " . ucfirst($action) . " (" . ($account->name ?? 'Wallet') . "): " . $desc,
-                        'status' => 1,
-                        'created_by' => auth()->id() ?? 1,
-                        'admin_id' => $adminId,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
-                }
-            }
+
 
             // Re-fetch all accounts list with updated balances
             $accounts = Account::where('user_id', $userId)->orderBy('primary_status', 'desc')->get();

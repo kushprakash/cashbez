@@ -470,54 +470,6 @@ class PanCardController extends Controller
             }
 
 
-            $admin = $request->get('admin');
-
-            $accounts = Account::where('user_id', $admin->id)->where('primary_status', false)->first();
-                
-            if($accounts && $accounts->user_id != $user->id) {
-                
-                $requestDatass=[
-                    'account_id' => $accounts->id,
-                    'type' => 'DR',
-                    'amount' => $amount,
-                    'description' => "PAN Card Fund Request Debit ({$txnId})",
-                    'transaction_id' => 'ADMIN-'.$txnId,
-                    'created_by' => $user->id,
-                    'admin_id' => $admin->id,
-                    'user_id' => $admin->id,
-                    'category_code' => 'CHARGE'
-                ];
-                
-                $resResponse=createTransaction($requestDatass);
-
-
-                if (empty($resResponse['status']) || $resResponse['status'] != 1) {
-
-                    $requestDatass11=[
-                        'account_id' => $utilityWallet->id,
-                        'type' => 'CR',
-                        'amount' => $amount,
-                        'description' => "PAN Card Fund Request Faiiled & Refund ({$txnId})",
-                        'transaction_id' => 'REFUND-'.$txnId,
-                        'created_by' => $user->id,
-                        'admin_id' => $admin->id,
-                        'user_id' => $user->id,
-                        'category_code' => 'CHARGE'
-                    ];
-                    
-                    createTransaction($requestDatass11);
-
-
-
-                    return response()->json([
-                        'status' => 0,
-                        'message' => 'Some Technical Issue. Please try again.',
-                        'data' => null
-                    ], 200);
-                } 
-                
-            }
-
 
             if(!empty($transactionData['status']) && $transactionData['status'] == 1) {
 
@@ -599,20 +551,6 @@ class PanCardController extends Controller
                     ];
                     
                     createTransaction($requestDatass11);
-
-                    $requestDatass=[
-                        'account_id' => $admin->id,
-                        'type' => 'CR',
-                        'amount' => $amount,
-                        'description' => 'PAN Card Fund Request Failed & Refund ('. $txnId .')',
-                        'transaction_id' => 'TRNF' . $txnId,
-                        'created_by' => $user->id,
-                        'admin_id' => $accounts->admin_id,
-                        'user_id' => $accounts->user_id,
-                        'category_code' => 'CHARGE'
-                    ];
-                    
-                    $resResponse=createTransaction($requestDatass);
 
                     return response()->json(['status' => 0, 'message' => $json_response['message'] ?? 'Transaction failed', 'data' => NULL], 200);
 
