@@ -917,13 +917,13 @@ class VaController extends Controller
 
 
                         $is_api_partner = false;
-                        $adminData = User::where('id',$accounts->admin_id)->first();
+                        $adminData = User::where('id',$agent->admin_id)->first();
                         if($adminData && $adminData->is_api_partner==true) {
                             $is_api_partner = true;
                         } 
 
                         if($is_api_partner == true){
-                            $setting = Setting::where('user_id', $accounts->admin_id)->first();
+                            $setting = Setting::where('user_id', $agent->admin_id)->first();
                             if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
                                 // Send callback to partner URL
                                 try {

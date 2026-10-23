@@ -940,34 +940,14 @@ class PanCardController extends Controller
 
 
 
-                    $accounts = DB::table('accounts')->where('user_id', $agent->admin_id)->where('primary_status', false)->first();
-
-                    if($accounts && $agent->user_id != $agent->admin_id){
-
-                        $commissionTransactionData = [
-                            'user_id' => $accounts->user_id,
-                            'account_id' => $accounts->id,
-                            'amount' => 0,
-                            'sub_module_id' => 84,
-                            'category_code' => 'PAN',
-                            'description' => 'PAN Card Commission - '.$applicationNo,
-                            'admin_id' => $accounts->admin_id
-                        ];
-
-                        processCommissionCharge($commissionTransactionData);
-
-                    }
-
-
-
                     $is_api_partner = false;
-                    $adminData = User::where('id',$accounts->admin_id)->first();
+                    $adminData = User::where('id',$agent->admin_id)->first();
                     if($adminData && $adminData->is_api_partner==true) {
                         $is_api_partner = true;
                     } 
 
                     if($is_api_partner == true){
-                        $setting = Setting::where('user_id', $accounts->admin_id)->first();
+                        $setting = Setting::where('user_id', $agent->admin_id)->first();
                         if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
                             // Send callback to partner URL
                             try {

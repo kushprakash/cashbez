@@ -32,43 +32,11 @@ class CashDepositController extends Controller
     private const SUPER_MERCHANT_GST_IN   = '19AAVCA0758M1ZW';
     private const IP_ADDRESS              = '194.164.148.127';
     private const API_TIMEOUT             = 30;
-    private const SECRET_KEY = "6149c45503d6d3a60c5b775b56adc52b533fa428b060109c4d59e935e6d1524";
+    private const BASE_URL = 'https://icchhamatidataservice.com/api/';
+    private const MID = "AGENT1475";
+    private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
 
-    private const PUBLIC_RSA_KEY =  '-----BEGIN CERTIFICATE-----
-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
------END CERTIFICATE-----';
+
 
     private function encryptMD5($password)
     {
@@ -408,16 +376,51 @@ IqLI220tUFpA8SJepQQKahs0ZG2S2PqyrrH0nM0++2sm3ETfxZKDFOylBPmrrbSW
                 ], 200);
             }
 
-            $amount1=$amount+100;
+            $amount1=$amount;
 
 
             if($balanceAccount->balance < $amount1){
-                return response()->json([
+               return response()->json([
                     'status'  => 0,
-                    'message' => 'Insufficient balance in your wallet. 100.00 INR is required for Cash Deposit. Your Bal '.$balanceAccount->balance,
+                    'message' => 'Insufficient balance in your wallet. Your Bal '.$balanceAccount->balance,
                     'data'    => null
                 ], 200);
             }
+
+
+            
+            $account = Account::where('user_id', $credit_user_id)->where('primary_status', true)->first();
+            
+            // Determine category based on AEPS type
+            $categoryCode = 'CASH_DEPOSIT';
+            $type = 'CD';
+            
+            
+            // Step 1: Prepare transaction data
+            $transactionData1 = [
+                'account_id' => $account->id,
+                'type' => 'DR',
+                'amount' => $amount,
+                'description' => $type.' - Transaction '.$aadhaarNumber,
+                'transaction_id' => $merchantTranId,
+                'created_by' => $existingUser->created_by,
+                'admin_id' => $existingUser->admin_id,
+                'user_id' => $credit_user_id,
+                'category_code' => $categoryCode
+            ];
+
+            // Step 2: Create the transaction
+            $transactionData = createTransaction($transactionData1);
+
+            if($transactionData['status'] == 0){
+                return response()->json([
+                    'status'  => 0,
+                    'message' => 'Insufficient balance in your wallet. Your Bal '.$balanceAccount->balance,
+                    'data'    => null
+                ], 200);
+            }
+
+
           
 
             $timestamp = date('YmdHis');
@@ -443,93 +446,20 @@ IqLI220tUFpA8SJepQQKahs0ZG2S2PqyrrH0nM0++2sm3ETfxZKDFOylBPmrrbSW
                 'merchant_txn_id' => $merchantTranId,
             ]);
 
-            // ✅ Parse XML to structured array using standard transform (0 defaults for unused counts)
-            $transformedResponse = $this->transformXmlResponse($request->xml);
+            $url = self::BASE_URL."v2/cash-deposit/process";
 
-            $isFacialTan = $transformedResponse['fType'] == "0" ? true : false;
-            // $isIRISTxn =  false; // Removed as not in spec
-
-            $payload = [
-                "isFacialTan" => $isFacialTan, // needed for face txns
-                // "isIRISTxn" => $isIRISTxn, // needed for eye txns (removed)
-                "captureResponse" => $transformedResponse,
-                "cardnumberORUID" => [
-                    "nationalBankIdentificationNumber" => $request->bankID,
-                    "indicatorforUID" => 0, // integer
-                    "adhaarNumber" => $request->aadhaarNumber,
-                    // "virtualId" // not needed
-                ],
-                "languageCode" => "en",
-                "latitude" => floatval($existingUser->latitude),
-                "longitude" => floatval($existingUser->longitude),
-                "mobileNumber" => $request->customerMobile,
-                "paymentType" => "B",
-                "timestamp" => $timestamp2,
-                "merchantUserName" => $merchantLoginId,
-                "merchantPin" => md5($existingUser->phone),
-                "superMerchantId" => self::SUPER_MERCHANT_ID,
-                "requestRemarks" => "Cash Deposit",
-                "transactionType" => "CD",
-                "transactionAmount" => (float)$amount,
-                "merchantTranId" => "$merchantTranId",
+         
+            $data = [
+                "outletId"         => $existingUser->bmid,
+                "customerMobile"   => $existingUser->phone,
+                "aadhaarNumber"    => $request->aadhaarNumber,
+                "bankID"           => (string) $request->bankID,
+                "bankName"         => $request->bankName,
+                "deviceType"       => $request->deviceType,
+                "aepsType"         => $request->aepsType,
+                "amount"           => $request->amount,   
+                "xml" => $request->xml,
             ];
-
-            // ✅ Additional validation for Aadhaar number format
-            $aadhaarNumber = $payload['cardnumberORUID']['adhaarNumber'];
-            if (!empty($aadhaarNumber)) {
-                // Remove spaces and validate length
-                $cleanAadhaar = str_replace(' ', '', $aadhaarNumber);
-                if (strlen($cleanAadhaar) !== 12 || !ctype_digit($cleanAadhaar)) {
-                    \Log::error('Invalid Aadhaar format:', ['aadhaar' => $aadhaarNumber]);
-                    return response()->json([
-                        'status' => false,
-                        'message' => 'Invalid Aadhaar number format. Must be 12 digits.',
-                        'statusCode' => 10002
-                    ], 400);
-                }
-                // Update payload with clean Aadhaar
-                $payload['cardnumberORUID']['adhaarNumber'] = $cleanAadhaar;
-            }
-
-
-
-           
-
-            // ✅ Validate JSON serialization
-            $jsonPayload = json_encode($payload);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return response()->json([
-                    'status' => false,
-                    'message' => 'Invalid payload format: ' . json_last_error_msg(),
-                    'statusCode' => 10002
-                ], 400);
-            }
-
-            // ✅ Hash Generation per Cash Deposit spec: BASE64(SHA256(JSON + SECRET_KEY))
-            $concatenated = $jsonPayload . self::SECRET_KEY;
-            $hash = base64_encode(hash('sha256', $concatenated, true));
-
-            // ✅ Generate AES session key
-            $sessionKey = random_bytes(16);
-            $eskey = $this->encryptSessionKey($sessionKey);
-
-            // ✅ Encrypt Body with AES-128-CBC
-            $encryptedBody = $this->encryptPayload($jsonPayload, $sessionKey);
-
-            $url = 'https://fingpayap.tapits.in/fpaepsservice/api/CashDeposit/merchant/deposit';
-
-            // ✅ Prepare headers
-            // Fix trnTimestamp to dd/MM/yyyy HH:mm:ss
-            $headers = [
-                "Accept"        => "application/json",
-                "Content-Type"  => "application/json",
-                "trnTimestamp"  => $merchantTranId,
-                "hash"          => $hash,
-                "deviceIMEI"    => $existingUser->deviceIMEI,
-                "eskey"         => $eskey,
-                "superMerchantId" => self::SUPER_MERCHANT_ID
-            ];
-
 
 
             
@@ -541,219 +471,166 @@ IqLI220tUFpA8SJepQQKahs0ZG2S2PqyrrH0nM0++2sm3ETfxZKDFOylBPmrrbSW
                 'headers'      => json_encode([
                     'Accept'       => 'application/json',
                     'Content-Type' => 'application/json',
-                    'trnTimestamp' => $merchantTranId,
-                    'hash'         => $hash,
-                    'deviceIMEI'   => $existingUser->deviceIMEI,
-                    'eskey'        => $eskey,
+                    'trnTimestamp' => $merchantTranId
                 ]),
-                'request_data'  => json_encode($payload),
+                'request_data'  => json_encode($data),
                 'url'           => $url,
                 'txnid'         => $merchantTranId,
                 'status'        => 0
             ]);
 
 
-            $account = Account::where('user_id', $credit_user_id)->where('primary_status', true)->first();
-            
-            // Determine category based on AEPS type
-            $categoryCode = 'CASH_DEPOSIT';
-            $type = 'CD';
-            
-            
-            // Step 1: Prepare transaction data
-            $transactionData1 = [
-                'account_id' => $account->id,
-                'type' => 'DR',
-                'amount' => $amount,
-                'description' => $type.' - Transaction '.$aadhaarNumber,
-                'transaction_id' => $merchantTranId,
-                'created_by' => $existingUser->created_by,
-                'admin_id' => $existingUser->admin_id,
-                'user_id' => $credit_user_id,
-                'category_code' => $categoryCode
-            ];
 
-            // Step 2: Create the transaction
-            $transactionData = createTransaction($transactionData1);
+            $ch = curl_init($url);
+
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($data),
+                CURLOPT_HTTPHEADER     => [
+                    "Content-Type: application/json",
+                    "Accept: application/json",
+                    "mid: ".self::MID,
+                    "mkey: ".self::MKEY
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_CONNECTTIMEOUT => 20
+            ]);
+
+            $response = curl_exec($ch);
 
 
+            $responseJson = json_decode($response, true);
 
-            if($transactionData['status'] == 1 ) {
+            DB::table('logs')
+            ->where('txnid', $merchantTranId)
+            ->update([
+                'response_data' => json_encode($responseJson),
+                'status'        => $responseJson['status'] ?? 0,
+                'updated_at'    => now(),
+            ]);
 
-                // ✅ Call Cash Deposit API via raw cURL (encrypted Base64 body)
-                $ch = curl_init($url);
-                curl_setopt_array($ch, [
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_POST           => true,
-                    CURLOPT_POSTFIELDS     => $encryptedBody,
-                    CURLOPT_TIMEOUT        => self::AEPS_API_TIMEOUT,
-                    CURLOPT_CONNECTTIMEOUT => 30,
-                    CURLOPT_HTTPHEADER     => [
-                        'Accept: application/json',
-                        'Content-Type: application/json',
-                        'trnTimestamp: ' . $merchantTranId,
-                        'hash: ' . $hash,
-                        'deviceIMEI: ' . $existingUser->deviceIMEI,
-                        'eskey: ' . $eskey,
-                        'superMerchantId: ' . self::SUPER_MERCHANT_ID,
-                    ],
-                ]);
-                $rawResponse = curl_exec($ch);
-                $curlError = curl_error($ch);
-                curl_close($ch);
 
-                if ($curlError) {
-                    \Log::error('Cash Deposit cURL error', ['error' => $curlError]);
-                    return response()->json([
-                        'status'  => 0,
-                        'message' => 'Connection error: ' . $curlError,
-                        'data'    => null
-                    ], 200);
+            $history->update([
+                "request" => json_encode($data),
+                "response" => json_encode($responseJson),
+                "response_status" => $responseJson['data']['status'] ?? null,
+                "response_status_code" => $responseJson['data']['statusCode'] ?? null,
+                "response_message" => $responseJson['data']['message'] ?? null,
+                "auth3way" => 0
+            ]);
+
+
+            if($is_api_partner == true){
+                $setting = Setting::where('user_id', $credit_user_id)->first();
+                if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
+                    // Send callback to partner URL
+                    try {
+                        $history->update([
+                            "response_status_code" => 1
+                        ]);
+
+                        $db_response_data = DB::table('aeps_transactions')->where('id', $history->id)
+                        ->select(
+                            'mid as outletId',
+                            'customer_mobile',
+                            'aadhaar_number',
+                            'bank_id',
+                            'bank_name',
+                            'device_type',
+                            'aeps_type',
+                            'amount',
+                            'merchant_txn_id',
+                            'response'
+                        )
+                        ->first();
+
+                        $postData = [
+                            "type" => "aeps_transaction",
+                            "data" => $db_response_data
+                        ];
+
+                        // Initialize cURL
+                        $ch = curl_init($setting->call_back_url);
+
+                        // Encode POST data as JSON
+                        $payload = json_encode($postData);
+
+                        // Set cURL options
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_POST, true);
+                        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                            'Content-Type: application/json',
+                            'Content-Length: ' . strlen($payload)
+                        ]);
+                        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+
+                        // Execute and get response
+                        $response = curl_exec($ch);
+                        
+                    } catch (\Exception $e) {
+                        \Log::error('Callback to API partner failed: ' . $e->getMessage());
+                    }   
+
                 }
-
-                $responseJson = json_decode($rawResponse, true);
-
-                DB::table('logs')
-                ->where('txnid', $merchantTranId)
-                ->update([
-                    'response_data' => json_encode($responseJson),
-                    'status'        => $responseJson['status'] ?? 0,
-                    'updated_at'    => now(),
-                ]);
-
-
-
-                $history->update([
-                    "request" => json_encode($payload),
-                    "response" => json_encode($responseJson),
-                    "response_status" => $responseJson['status'] ?? null,
-                    "response_status_code" => $responseJson['statusCode'] ?? null,
-                    "response_message" => $responseJson['message'] ?? null,
-                    "auth3way" => 0
-                ]);
-
-
-                if($is_api_partner == true){
-                    $setting = Setting::where('user_id', $credit_user_id)->first();
-                    if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
-                        // Send callback to partner URL
-                        try {
-                            
-
-                            $history->update([
-                                "response_status_code" => 1
-                            ]);
-
-                            
-                            $db_response_data = DB::table('aeps_transactions')->where('id', $history->id)
-                            ->select(
-                                'mid as outletId',
-                                'customer_mobile',
-                                'aadhaar_number',
-                                'bank_id',
-                                'bank_name',
-                                'device_type',
-                                'aeps_type',
-                                'amount',
-                                'merchant_txn_id',
-                                'response'
-                            )
-                            ->first();
-
-            
-                            $postData = [
-                                "type" => "aeps_transaction",
-                                "data" => $db_response_data
-                            ];
-
-                            // Initialize cURL
-                            $ch = curl_init($setting->call_back_url);
-
-                            // Encode POST data as JSON
-                            $payload = json_encode($postData);
-
-                            // Set cURL options
-                            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($ch, CURLOPT_POST, true);
-                            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                                'Content-Type: application/json',
-                                'Content-Length: ' . strlen($payload)
-                            ]);
-                            curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-
-                            // Execute and get response
-                            $response = curl_exec($ch);
-                            
-                        } catch (\Exception $e) {
-                            \Log::error('Callback to API partner failed: ' . $e->getMessage());
-                        }   
-
-                    }
-                }
-
-            
-
-                // ✅ Update user status
-                if ($responseJson['status'] === true && $responseJson['statusCode'] === 10000) {
-                    
-                      
-                    $commissionTransactionData = [
-                        'user_id' => $credit_user_id,
-                        'amount' => $amount,
-                        'sub_module_id' => 52, // AEPS Cash Deposit
-                        'category_code' => 'CASH_DEPOSIT',
-                        'description' => 'CD - Commission '.$aadhaarNumber,
-                        'admin_id' => $existingUser->admin_id
-                    ];
-
-                    processCommissionCharge($commissionTransactionData);
-
-
-            
-                    return response()->json([
-                        'status'  => 1,
-                        'message' => 'Transaction successful',
-                        'data'    => $responseJson,
-                        'logo'    => $this->getCompanyLogo($request->get('user')->id)
-                    ]);
-
-                } 
-                else 
-                {
-                
-                    $statusCode = $responseJson['statusCode'] ?? null;
-                    $errorMessage = $responseJson['message'] ?? 'API request failed';
-
-                    // Step 1: Prepare transaction data
-                    $transactionData1 = [
-                        'account_id' => $account->id,
-                        'type' => 'CR',
-                        'amount' => $amount,
-                        'description' => $type.' - Failed & Refund '.$aadhaarNumber,
-                        'transaction_id' => $merchantTranId,
-                        'created_by' => $existingUser->created_by,
-                        'admin_id' => $existingUser->admin_id,
-                        'user_id' => $credit_user_id,
-                        'category_code' => $categoryCode
-                    ];
-
-                    // Step 2: Create the transaction
-                    $transactionData = createTransaction($transactionData1);
-
-                    
-        
-                    
-                    return response()->json([
-                        'status'  => 0,
-                        'message' => $errorMessage,
-                        'data'    => $responseJson
-                    ]);
-                }
-
-            } else {
-                return response()->json(['status' => 0, 'message' => $transactionData['message'], 'data' => NULL], 200);
             }
 
+            // ✅ Update user status
+            if ($responseJson['data']['status'] === true && $responseJson['data']['statusCode'] === 10000) {
+                
+                    
+                $commissionTransactionData = [
+                    'user_id' => $credit_user_id,
+                    'amount' => $amount,
+                    'sub_module_id' => 52, // AEPS Cash Deposit
+                    'category_code' => 'CASH_DEPOSIT',
+                    'description' => 'CD - Commission '.$aadhaarNumber,
+                    'admin_id' => $existingUser->admin_id
+                ];
+
+                processCommissionCharge($commissionTransactionData);
+
+
+        
+                return response()->json([
+                    'status'  => 1,
+                    'message' => 'Transaction successful',
+                    'data'    => $responseJson,
+                    'logo'    => $this->getCompanyLogo($request->get('user')->id)
+                ]);
+
+            } 
+            else 
+            {
+            
+                $statusCode = $responseJson['statusCode'] ?? null;
+                $errorMessage = $responseJson['message'] ?? 'API request failed';
+
+                // Step 1: Prepare transaction data
+                $transactionData1 = [
+                    'account_id' => $account->id,
+                    'type' => 'CR',
+                    'amount' => $amount,
+                    'description' => $type.' - Failed & Refund '.$aadhaarNumber,
+                    'transaction_id' => $merchantTranId,
+                    'created_by' => $existingUser->created_by,
+                    'admin_id' => $existingUser->admin_id,
+                    'user_id' => $credit_user_id,
+                    'category_code' => $categoryCode
+                ];
+
+                // Step 2: Create the transaction
+                $transactionData = createTransaction($transactionData1);
+
+                
+    
+                
+                return response()->json([
+                    'status'  => 0,
+                    'message' => $errorMessage,
+                    'data'    => $responseJson['data']
+                ]);
+            }
 
 
         } catch (\Exception $e) {

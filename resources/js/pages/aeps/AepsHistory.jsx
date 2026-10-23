@@ -104,6 +104,7 @@ const AepsHistory = () => {
       // Build request payload with filters
       const payload = {
         page: page,
+        type: 'aeps',
         per_page: perPage,
         outletId: user.mid,
         ...(filters.from_date && { from_date: filters.from_date }),

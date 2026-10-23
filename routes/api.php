@@ -659,6 +659,13 @@ Route::middleware('api.token.auth')->group(function () {
             Route::post('/history', [CashDepositController::class, 'cashDepositHistory']);
         });
 
+        Route::prefix('upicw')->group(function () {
+            Route::post('/initiate-payment', [UpiCwController::class, 'initiatePayment']);
+            Route::post('/check-status', [UpiCwController::class, 'checkStatus']);
+            Route::get('/history', [UpiCwController::class, 'history']);
+            Route::post('/history', [UpiCwController::class, 'history']);
+        });
+
         Route::prefix('card-download')->group(function () {
             Route::post('/download', [CardDownloadController::class, 'downloadCard']);
             Route::post('/aadhaar-send-otp', [CardDownloadController::class, 'aadhaarSendOtp']);

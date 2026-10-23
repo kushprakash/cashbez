@@ -2751,6 +2751,7 @@ class MerchantController extends Controller
     }
 
 
+    
     public function aepsHistory(Request $request)
     {
         $perPage = min($request->input('per_page', 50), 500);
@@ -2764,7 +2765,7 @@ class MerchantController extends Controller
             'aeps_transactions.id',
             'aeps_transactions.customer_mobile', 'aeps_transactions.aadhaar_number', 'aeps_transactions.bank_name',
             'aeps_transactions.device_type', 'aeps_transactions.aeps_type', 'aeps_transactions.amount',
-            'aeps_transactions.auth3way', 'aeps_transactions.merchant_txn_id', 'aeps_transactions.request', 'aeps_transactions.response',
+            'aeps_transactions.auth3way','aeps_transactions.response_3way', 'aeps_transactions.merchant_txn_id', 'aeps_transactions.request', 'aeps_transactions.response',
             'aeps_transactions.response_status', 'aeps_transactions.response_message', 'aeps_transactions.response_status_code',
             'aeps_transactions.created_at',
             'aeps_drafts.shop_name', 'aeps_drafts.full_name', 'aeps_drafts.phone as shop_phone',
@@ -2775,20 +2776,28 @@ class MerchantController extends Controller
         if(isset($request->type) && $request->type=='matm'){
             $query = AepsTransaction::join('aeps_drafts', 'aeps_drafts.mid', '=', 'aeps_transactions.mid')
             ->join('users', 'users.mid', '=', 'aeps_drafts.mid')
-            ->where(function ($q) {
-                $q->where('aeps_transactions.aeps_type', 'MATMCW')
-                ->orWhere('aeps_transactions.aeps_type', 'MATMBE');
-            })
+            ->whereIn('aeps_transactions.aeps_type', ['MATMCW', 'MATMBE']) 
             ->orderBy('aeps_transactions.id', 'DESC');
-
-
-        } else {
-           
+        } else if(isset($request->type) && $request->type=='upicw'){ 
+            $query = AepsTransaction::join('aeps_drafts', 'aeps_drafts.mid', '=', 'aeps_transactions.mid')
+            ->join('users', 'users.mid', '=', 'aeps_drafts.mid')
+            ->where('aeps_transactions.aeps_type', 'UPICW')
+            ->orderBy('aeps_transactions.id', 'DESC');
+         } else if(isset($request->type) && $request->type=='aeps'){           
+            $query = AepsTransaction::join('aeps_drafts', 'aeps_drafts.mid', '=', 'aeps_transactions.mid')
+            ->join('users', 'users.mid', '=', 'aeps_drafts.mid')
+            ->whereIn('aeps_transactions.aeps_type', ['CW', 'BE', 'MS'])  
+            ->orderBy('aeps_transactions.id', 'DESC');
+         } else if(isset($request->type) && $request->type=='cd'){           
+            $query = AepsTransaction::join('aeps_drafts', 'aeps_drafts.mid', '=', 'aeps_transactions.mid')
+            ->join('users', 'users.mid', '=', 'aeps_drafts.mid')
+            ->where('aeps_transactions.aeps_type', 'CD')  
+            ->orderBy('aeps_transactions.id', 'DESC');
+        }else {
           $query = AepsTransaction::join('aeps_drafts', 'aeps_drafts.mid', '=', 'aeps_transactions.mid')
             ->join('users', 'users.mid', '=', 'aeps_drafts.mid')
             ->whereNotIn('aeps_transactions.aeps_type', ['MATMCW', 'MATMBE'])
             ->orderBy('aeps_transactions.id', 'DESC');
-
         }
         // Base join with aeps_drafts and users
        
@@ -2876,8 +2885,8 @@ class MerchantController extends Controller
         }
 
 
-        
 
+        
 
         // \DB::enableQueryLog(); // put above paginate()
         $data = $query->paginate($perPage, ['*'], 'page', $page);
