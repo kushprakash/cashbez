@@ -52,8 +52,11 @@ const UpiCashWithdrawal = () => {
             timerRef.current = setInterval(() => {
                 setQrExpiry((prev) => {
                     if (prev <= 1) {
+                        toast.error('QR Code Expired');
+                        closeQrModal();
                         clearInterval(timerRef.current);
                         return 0;
+
                     }
                     return prev - 1;
                 });
@@ -460,12 +463,7 @@ const UpiCashWithdrawal = () => {
                                     </div>
                                 )}
 
-                                {/* Status Result Alert if available */}
-                                {txnStatusResult && (
-                                    <div className={`alert ${txnStatusResult.status ? 'alert-success' : 'alert-danger'} py-2 px-3 small text-start mb-3`}>
-                                        <strong>Status: </strong> {txnStatusResult.message || txnStatusResult.responseMessage}
-                                    </div>
-                                )}
+
 
                                 {/* Status Action Buttons */}
                                 <div className="d-flex gap-2">
