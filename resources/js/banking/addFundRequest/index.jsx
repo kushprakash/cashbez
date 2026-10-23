@@ -181,6 +181,11 @@ const AddFundRequest = () => {
             if (isChecking) return;
             isChecking = true;
 
+            if (istrans == false) {
+                clearInterval(intervalId);
+                return;
+            };
+
             try {
                 const response = await apiService.vPost('/api/add-fund/verify', {
                     txnid: qrData.txnid
@@ -460,7 +465,7 @@ const AddFundRequest = () => {
                                     </div>
                                     <center><img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={275} /></center>
                                     <p className="text-black fw-bold">Please don't refresh the page. It will automatically refresh after 5 minutes.</p>
-                                    <center><a href="/banking/add-fund-request" className="btn btn-danger btn-sm mt-3">Cancel Payment</a></center>
+                                    <center><button onClick={() => { setIsTrans(false); setQrData(null); }} className="btn btn-danger btn-sm mt-3">Cancel Payment</button></center>
                                 </div>
 
                             )}
