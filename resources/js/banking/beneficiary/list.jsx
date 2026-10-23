@@ -68,6 +68,18 @@ const BeneficiaryList = () => {
     }
   };
 
+
+  // Trade Wallet (primary_status == 1)
+  const tradeAccount = accounts.find(
+    acc => acc.primary_status == 1 || acc.primary_status === true || acc.primary_status === '1' || acc.is_primary == 1 || acc.is_primary === true
+  );
+
+  useEffect(() => {
+    if (tradeAccount && selectedAccount !== tradeAccount.id) {
+      setSelectedAccount(tradeAccount.id);
+    }
+  }, [tradeAccount, showPaymentModal]);
+
   const fetchBeneficiaries = async () => {
     setLoading(true);
     setError(null);
@@ -922,48 +934,29 @@ const BeneficiaryList = () => {
                   </small>
                 </div>
 
-                <div className="mb-4">
-                  <label className="form-label fw-semibold">Select Account <span className="text-danger">*</span></label>
-                  {!Array.isArray(accounts) || accounts.length === 0 ? (
-                    <div className="text-center p-4 border rounded bg-light">
-                      <i className="fas fa-wallet fa-2x text-muted mb-3"></i>
-                      <p className="text-muted mb-3">No accounts available</p>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={() => {
-                          setShowPaymentModal(false);
-                          setShowCreateAccountModal(true);
-                        }}
-                      >
-                        <i className="fas fa-plus me-2"></i>
-                        Create Account
-                      </button>
+                <div className="mb-3">
+                  <label className="form-label mb-2" style={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>From Account (Trade Wallet)</label>
+                  {tradeAccount ? (
+                    <div
+                      className="d-flex align-items-center justify-content-between p-2.5 mb-1"
+                      style={{
+                        borderRadius: '6px',
+                        border: '1.5px solid #16a34a',
+                        backgroundColor: '#f0fdf4'
+                      }}
+                    >
+                      <div>
+                        <div className="fw-medium" style={{ fontSize: '13px', color: '#1e293b' }}>{tradeAccount.name || 'Trade Wallet'}</div>
+                        <div className="font-monospace" style={{ fontSize: '11px', color: '#64748b' }}>{tradeAccount.number || '-'}</div>
+                      </div>
+                      <div className="d-flex align-items-center">
+                        <span className="fw-semibold me-2" style={{ fontSize: '13px', color: '#1e293b' }}>{tradeAccount.balance || 0}</span>
+                        <i className="fas fa-check-circle" style={{ fontSize: '15px', color: '#16a34a' }}></i>
+                      </div>
                     </div>
                   ) : (
-                    <div className="list-group">
-                      {accounts.map((account) => (
-                        <div
-                          key={account.id}
-                          className={`list-group-item list-group-item-action border rounded mb-2 ${selectedAccount === account.id ? 'active' : ''
-                            }`}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => setSelectedAccount(account.id)}
-                        >
-                          <div className="d-flex justify-content-between align-items-center">
-                            <div>
-                              <h6 className="mb-1">{account.name || 'Unnamed Account'}</h6>
-                              <small className="text-muted">{account.number || '-'}</small>
-                            </div>
-                            <div className="text-end">
-                              <div className="fw-semibold">{account.balance || 0}</div>
-                              {selectedAccount === account.id && (
-                                <i className="fas fa-check-circle text-success"></i>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="text-center py-3" style={{ backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                      <p className="mb-0 text-muted" style={{ fontSize: '12px' }}>No Trade Wallet available</p>
                     </div>
                   )}
                 </div>
