@@ -824,9 +824,180 @@ if (!function_exists('getTransactionHistory')) {
     }
 }
 
+if (!function_exists('checkAdminCommissionExcess')) {
+    /**
+     * Check if a commission being assigned by an admin exceeds the admin's own commission.
+     * 
+     * @param \App\Models\User|int $userOrId Admin or user assigning the commission
+     * @param \App\Models\ModuleCommission|int $commissionOrId Commission being assigned
+     * @return array ['is_excess' => bool, 'admin_commission' => float|null, 'excess_warning' => string|null]
+     */
+    function checkAdminCommissionExcess($userOrId, $commissionOrId)
+    {
+        $user = is_object($userOrId) ? $userOrId : \App\Models\User::find($userOrId);
+        if (!$user) {
+            return ['is_excess' => false, 'admin_commission' => null, 'excess_warning' => null];
+        }
+
+        // Super Admin (role 1 or id 1) is top level, never exceeds parent
+        if ($user->role == 1 || $user->id == 1) {
+            return ['is_excess' => false, 'admin_commission' => null, 'excess_warning' => null];
+        }
+
+        $comm = is_object($commissionOrId) ? $commissionOrId : \App\Models\ModuleCommission::find($commissionOrId);
+        if (!$comm) {
+            return ['is_excess' => false, 'admin_commission' => null, 'excess_warning' => null];
+        }
+
+        // Only check for commission credit time, NOT charge/debit
+        if (strcasecmp($comm->txn_type, 'Commission') !== 0) {
+            return ['is_excess' => false, 'admin_commission' => null, 'excess_warning' => null];
+        }
+
+        // Admin's own assigned commissions (assigned by Super Admin)
+        $adminCommIds = \App\Models\UserRoleCommission::where('user_id', $user->id)
+            ->where('sub_module_id', $comm->sub_module_id)
+            ->where('status', 1)
+            ->pluck('commission_id');
+
+        if ($adminCommIds->isEmpty() && !empty($user->role)) {
+            $adminCommIds = \App\Models\RoleModuleCommission::where('role_id', $user->role)
+                ->where('sub_module_id', $comm->sub_module_id)
+                ->where('status', 1)
+                ->pluck('commission_id');
+        }
+
+        $adminRate = null;
+
+        if ($adminCommIds->isNotEmpty()) {
+            $adminComms = \App\Models\ModuleCommission::whereIn('id', $adminCommIds)
+                ->where(function($q) {
+                    $q->where('txn_type', 'Commission')->orWhereNull('txn_type');
+                })
+                ->get();
+
+            foreach ($adminComms as $ac) {
+                if ($comm->mode == 0 && $ac->mode == 0) {
+                    $adminRate = (float) $ac->commission;
+                    break;
+                } elseif ($comm->mode != 0 && $ac->mode != 0) {
+                    // Match slab range
+                    if ($ac->from_amt <= $comm->from_amt && $ac->to_amt >= $comm->to_amt) {
+                        $adminRate = (float) $ac->commission;
+                        break;
+                    } elseif ($ac->from_amt == $comm->from_amt && $ac->to_amt == $comm->to_amt) {
+                        $adminRate = (float) $ac->commission;
+                        break;
+                    }
+                }
+            }
+
+            if ($adminRate === null && $adminComms->isNotEmpty()) {
+                $adminRate = (float) $adminComms->max('commission');
+            }
+        }
+
+        $availableRate = $adminRate !== null ? (float)$adminRate : 0.0;
+        $assignedRate = (float) $comm->commission;
+
+        $isExcess = ($assignedRate > $availableRate);
+        $warning = $isExcess
+            ? "आप अपने commission (" . $availableRate . ") से ज्यादा (" . $assignedRate . ") assign कर रहे हैं! आपके user को commission skip हो जाएगा and आपका debit भी हो जाएगा।"
+            : null;
+
+        return [
+            'is_excess' => $isExcess,
+            'admin_commission' => $availableRate,
+            'excess_warning' => $warning
+        ];
+    }
+}
+
+if (!function_exists('calculateCommissionForUser')) {
+    /**
+     * Helper to calculate commission or charge for a specific user
+     *
+     * @param int $userId
+     * @param int $sub_module_id
+     * @param float $amount
+     * @param string|null $preferredTxnType 'Commission' or 'Charge'
+     * @return array ['amount' => float, 'txn_type' => string]
+     */
+    function calculateCommissionForUser($userId, $sub_module_id, $amount, $preferredTxnType = null)
+    {
+        $user = \App\Models\User::find($userId);
+        if (!$user) return ['amount' => 0.0, 'txn_type' => $preferredTxnType ?? 'Commission'];
+
+        $amount = floatval($amount);
+
+        // 1. Direct UserRoleCommission
+        $commIds = \App\Models\UserRoleCommission::where('user_id', $userId)
+            ->where('sub_module_id', $sub_module_id)
+            ->where('status', 1)
+            ->pluck('commission_id');
+
+        // 2. Fallback to RoleModuleCommission
+        if ($commIds->isEmpty() && !empty($user->role)) {
+            $commIds = \App\Models\RoleModuleCommission::where('role_id', $user->role)
+                ->where('sub_module_id', $sub_module_id)
+                ->where('status', 1)
+                ->pluck('commission_id');
+        }
+
+        if ($commIds->isEmpty()) {
+            return ['amount' => 0.0, 'txn_type' => $preferredTxnType ?? 'Commission'];
+        }
+
+        $query = \App\Models\ModuleCommission::whereIn('id', $commIds);
+        if ($preferredTxnType) {
+            $checkMatch = clone $query;
+            if ($checkMatch->where('txn_type', $preferredTxnType)->exists()) {
+                $query->where('txn_type', $preferredTxnType);
+            }
+        }
+        $moduleCommissions = $query->get();
+
+        $calculated = 0.0;
+        $foundTxnType = $preferredTxnType ?? 'Commission';
+
+        foreach ($moduleCommissions as $commission) {
+            $foundTxnType = $commission->txn_type;
+            $temp = 0.0;
+
+            if ($commission->mode == 0) {
+                if ($commission->commission_type == 1) {
+                    $temp = ($amount * floatval($commission->commission)) / 100;
+                } else {
+                    $temp = floatval($commission->commission);
+                }
+            } else {
+                if ($amount >= $commission->from_amt && $amount <= $commission->to_amt) {
+                    if ($commission->commission_type == 1) {
+                        $temp = ($amount * floatval($commission->commission)) / 100;
+                    } else {
+                        $temp = floatval($commission->commission);
+                    }
+                }
+            }
+            $calculated += $temp;
+        }
+
+        return ['amount' => (float)$calculated, 'txn_type' => $foundTxnType];
+    }
+}
+
 if (!function_exists('processCommissionCharge')) {
     /**
-     * Global function to process commission charges for a transaction
+     * Global function to process commission charges for a transaction.
+     * 
+     * Handles:
+     * 1. 'debit' / 'charge' / 'dr': Direct fee/charge deduction from user wallet (Admin wallet untouched).
+     * 2. 'refund': Refund of fee/charge (credited back to user) or reversal of commission.
+     * 3. Commission Credit:
+     *    - Admin receives first (no TDS).
+     *    - User receives commission (capped at admin's commission).
+     *    - Admin debited for user commission.
+     *    - User credited for final commission (TDS applied where applicable).
      * 
      * @param array $commissionTransactionData
      * @return array
@@ -835,213 +1006,426 @@ if (!function_exists('processCommissionCharge')) {
     {
         try {
             $accountId = $commissionTransactionData['account_id'] ?? '';
-            $txnType = $commissionTransactionData['txn_type'] ?? '';
+            $rawTxnType = strtolower(trim($commissionTransactionData['txn_type'] ?? ''));
             $userId = $commissionTransactionData['user_id'] ?? '';
             $category_code = $commissionTransactionData['category_code'] ?? 'COMMISSION';
-            $amount = $commissionTransactionData['amount'] ?? 0;
+            $amount = floatval($commissionTransactionData['amount'] ?? 0);
             $sub_module_id = $commissionTransactionData['sub_module_id'] ?? 0;
             $description = $commissionTransactionData['description'] ?? 'Commission & Charge';
             $adminId = $commissionTransactionData['admin_id'] ?? null;
-            
-            $users = \App\Models\User::where('id', $userId)->first();
 
-            if ($users) {
-                $rootUsers1 = $userId.','.$users->root;
-                $rootUsers = explode(',', $rootUsers1);
-
-             
-
-                $txnStatus = 0;
-
-                // Start database transaction
-                \DB::beginTransaction();
-
-                
-
-                try {
-                    foreach ($rootUsers as $rootUserId) {
-
-
-                        
-                        $amount = floatval($amount);
-
-                        $UserRoleCommissionsIds = \App\Models\UserRoleCommission::where('user_id', $rootUserId)
-                            ->where('sub_module_id', $sub_module_id)
-                            ->pluck('commission_id');
-                        
-
-                        $ModuleCommissions = \App\Models\ModuleCommission::whereIn('id', $UserRoleCommissionsIds)
-                            ->get();
-
-                        
-
-                        $calculatedCommission = 0;
-                        $commissionTxnType = '';
-
-                        // Process commission charges
-                        foreach ($ModuleCommissions as $commission) {
-                            $commissionTxnType = $commission->txn_type;
-                            $tempCommission = 0;
-
-                            if($commission->mode == 0){
-                                if($commission->commission_type == 1) {
-                                    // Calculate percentage-based commission
-                                    $tempCommission = ($amount * $commission->commission) / 100;
-                                } else {
-                                    // Fixed amount commission
-                                    $tempCommission = $commission->commission;
-                                }
-                            } else {
-                                // For mode 1, calculate based on from_amt and to_amt
-                                if ($amount >= $commission->from_amt && $amount <= $commission->to_amt) {
-                                    if($commission->commission_type == 1) {
-                                        // Calculate percentage-based commission
-                                        $tempCommission = ($amount * $commission->commission) / 100;
-                                    } else {
-                                        // Fixed amount commission
-                                        $tempCommission = $commission->commission;
-                                    }
-                                } 
-                            }
-
-                            // Accumulate commission instead of overwriting
-                            $calculatedCommission += $tempCommission;
-                        }
-
-                        if($calculatedCommission > 0) {
-                            $txnStatus = 1;
-
-                            if($accountId!=''){
-                                $account = \App\Models\Account::where('id', $accountId)->first();
-                            } else {
-                                $account = \App\Models\Account::where('user_id', $rootUserId)->where('primary_status', 1)->first();
-                            }
-                            
-                            if($account){
-                                $currentBalance = $account->balance;
-                                
-                                if($txnType == 'refund'){
-                                    if($commissionTxnType == 'Commission') {
-                                        $newBalance = $currentBalance - $calculatedCommission;
-                                        $ttype = 'DR';
-                                    } else {
-                                        $newBalance = $currentBalance + $calculatedCommission;
-                                        $ttype = 'CR';
-                                    }
-                                } else {
-                                    if($commissionTxnType == 'Commission') {
-                                        $newBalance = $currentBalance + $calculatedCommission;
-                                        $ttype = 'CR';
-                                    } else {
-                                        $newBalance = $currentBalance - $calculatedCommission;
-                                        $ttype = 'DR';
-                                    }
-                                }
-
-                                // Check for negative balance in case of debit
-                                if($ttype == 'DR' && $newBalance < 0) {
-                                    \DB::rollBack();
-                                    return [
-                                        'status' => 0,
-                                        'message' => 'Insufficient balance for charge deduction'
-                                    ];
-                                }
-
-                                // Get COMMISSION category ID
-                                $commissionCategoryId = getCategoryIdByCode($category_code);
-
-                                $passbookData = [
-                                    'account_id' => $account->id,
-                                    'transaction_id' => mt_rand(11111111,99999999),
-                                    'type' => $ttype,
-                                    'pre_balance' => $currentBalance,
-                                    'amount' => $calculatedCommission,
-                                    'balance' => $newBalance,
-                                    'description' => $description,
-                                    'category_id' => $commissionCategoryId,
-                                    'created_by' => $adminId,
-                                    'admin_id' => $adminId,
-                                    'user_id' => $rootUserId ?? null,
-                                    'created_at' => now(),
-                                    'updated_at' => now()
-                                ];
-                               
-                                $passbook = \App\Models\Passbook::create($passbookData);
-
-                                if($category_code == 'AEPS' || $category_code == 'CASH_DEPOSIT' || $category_code == 'MATM'){
-                                    $tds = $calculatedCommission/100*2;
-                                    $passbookData = [
-                                        'account_id' => $account->id,
-                                        'transaction_id' => mt_rand(11111111,99999999),
-                                        'type' => 'DR',
-                                        'pre_balance' => $newBalance,
-                                        'amount' => $tds,
-                                        'balance' => $newBalance - $tds,
-                                        'description' => 'TDS',
-                                        'category_id' => $commissionCategoryId,
-                                        'created_by' => $adminId,
-                                        'admin_id' => $adminId,
-                                        'user_id' => $rootUserId ?? null,
-                                        'created_at' => now(),
-                                        'updated_at' => now()
-                                    ];
-                                
-                                    $passbook = \App\Models\Passbook::create($passbookData);
-                                }
-
-                                // // recharge tds added on 12-01-2026 20:58 // disabled 13-01-2026 20:58
-                                // if($category_code == 'RECHARGE'){
-
-                                //     $tds = $calculatedCommission/100*2;
-                                //     $passbookData = [
-                                //         'account_id' => $account->id,
-                                //         'transaction_id' => mt_rand(11111111,99999999),
-                                //         'type' => 'DR',
-                                //         'pre_balance' => $newBalance,
-                                //         'amount' => $tds,
-                                //         'balance' => $newBalance - $tds,
-                                //         'description' => 'TDS',
-                                //         'category_id' => $commissionCategoryId,
-                                //         'created_by' => $adminId,
-                                //         'admin_id' => $adminId,
-                                //         'user_id' => $rootUserId ?? null,
-                                //         'created_at' => now(),
-                                //         'updated_at' => now()
-                                //     ];
-                                
-                                //     $passbook = \App\Models\Passbook::create($passbookData);
-                                // }
-
-                                
-
-                            }
-                        }
-
-                        if($commissionTxnType == 'Charge' && $rootUserId == $userId){
-                            \DB::commit();
-                            return [
-                                'status' => 1,
-                                'message' => 'Charge applied successfully'
-                            ];        
-                        }
-                    }
-
-                    \DB::commit();
-                    return [
-                        'status' => 1,
-                        'message' => 'Commission generated successfully'
-                    ];
-
-                } catch (\Exception $e) {
-                    \DB::rollBack();
-                    throw $e;
-                }
-               
-            } else {
+            $user = \App\Models\User::where('id', $userId)->first();
+            if (!$user) {
                 return [
                     'status' => 0,
                     'message' => 'User Not Found : Failed to generate commission/charge'
                 ];
+            }
+
+            $commissionCategoryId = getCategoryIdByCode($category_code);
+
+            // Determine if incoming request is explicit DEBIT, REFUND, or COMMISSION
+            $isExplicitDebit = in_array($rawTxnType, ['debit', 'charge', 'dr']);
+            $isExplicitRefund = ($rawTxnType === 'refund');
+
+            // =========================================================================
+            // CASE 1: EXPLICIT DEBIT / CHARGE (e.g., DMT Charge, Payout Transfer Charge)
+            // =========================================================================
+            if ($isExplicitDebit) {
+                $userCommResult = calculateCommissionForUser($user->id, $sub_module_id, $amount, 'Charge');
+                $chargeAmount = (float) $userCommResult['amount'];
+
+                if ($chargeAmount <= 0) {
+                    return ['status' => 1, 'message' => 'No charge applicable'];
+                }
+
+                \DB::beginTransaction();
+                try {
+                    $account = !empty($accountId)
+                        ? \App\Models\Account::where('id', $accountId)->first()
+                        : (\App\Models\Account::where('user_id', $user->id)->where('primary_status', 1)->first() ?? \App\Models\Account::where('user_id', $user->id)->first());
+
+                    if (!$account) {
+                        \DB::rollBack();
+                        return ['status' => 0, 'message' => 'Account not found for charge deduction'];
+                    }
+
+                    $currentBalance = (float) $account->balance;
+                    $newBalance = $currentBalance - $chargeAmount;
+
+                    if ($newBalance < 0) {
+                        \DB::rollBack();
+                        return ['status' => 0, 'message' => 'Insufficient balance for charge deduction'];
+                    }
+
+                    \App\Models\Passbook::create([
+                        'account_id' => $account->id,
+                        'transaction_id' => mt_rand(11111111, 99999999),
+                        'type' => 'DR',
+                        'pre_balance' => $currentBalance,
+                        'amount' => $chargeAmount,
+                        'balance' => $newBalance,
+                        'description' => $description,
+                        'category_id' => $commissionCategoryId,
+                        'created_by' => $adminId ?? $user->id,
+                        'admin_id' => $adminId ?? $user->id,
+                        'user_id' => $user->id,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                    // Admin wallet is untouched during debit/charge
+                    \DB::commit();
+                    return ['status' => 1, 'message' => 'Charge applied successfully'];
+                } catch (\Exception $e) {
+                    \DB::rollBack();
+                    throw $e;
+                }
+            }
+
+            // =========================================================================
+            // CASE 2: REFUND (Charge refund or Commission reverse on failure)
+            // =========================================================================
+            if ($isExplicitRefund) {
+                $calc = calculateCommissionForUser($user->id, $sub_module_id, $amount);
+                $refundAmount = (float) $calc['amount'];
+                $itemTxnType = $calc['txn_type'];
+
+                if ($refundAmount <= 0) {
+                    return ['status' => 1, 'message' => 'No refund applicable'];
+                }
+
+                \DB::beginTransaction();
+                try {
+                    $account = !empty($accountId)
+                        ? \App\Models\Account::where('id', $accountId)->first()
+                        : (\App\Models\Account::where('user_id', $user->id)->where('primary_status', 1)->first() ?? \App\Models\Account::where('user_id', $user->id)->first());
+
+                    if (!$account) {
+                        \DB::rollBack();
+                        return ['status' => 0, 'message' => 'Account not found for refund'];
+                    }
+
+                    $currentBalance = (float) $account->balance;
+                    // If Charge refund: credit back (CR). If Commission reverse: debit (DR).
+                    $isChargeRefund = (strcasecmp($itemTxnType, 'Charge') === 0) || (stripos($description, 'charge') !== false);
+
+                    if ($isChargeRefund) {
+                        $newBalance = $currentBalance + $refundAmount;
+                        $ttype = 'CR';
+                    } else {
+                        $newBalance = $currentBalance - $refundAmount;
+                        $ttype = 'DR';
+                    }
+
+                    \App\Models\Passbook::create([
+                        'account_id' => $account->id,
+                        'transaction_id' => mt_rand(11111111, 99999999),
+                        'type' => $ttype,
+                        'pre_balance' => $currentBalance,
+                        'amount' => $refundAmount,
+                        'balance' => $newBalance,
+                        'description' => $description,
+                        'category_id' => $commissionCategoryId,
+                        'created_by' => $adminId ?? $user->id,
+                        'admin_id' => $adminId ?? $user->id,
+                        'user_id' => $user->id,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                    \DB::commit();
+                    return ['status' => 1, 'message' => 'Refund processed successfully'];
+                } catch (\Exception $e) {
+                    \DB::rollBack();
+                    throw $e;
+                }
+            }
+
+            // =========================================================================
+            // CASE 3: CONFIGURED AS CHARGE (when txn_type not specified)
+            // =========================================================================
+            $userCommResult = calculateCommissionForUser($user->id, $sub_module_id, $amount);
+            $commissionTxnType = $userCommResult['txn_type'];
+            $userCommission = (float) $userCommResult['amount'];
+
+            if (strcasecmp($commissionTxnType, 'Charge') === 0) {
+                if ($userCommission <= 0) {
+                    return ['status' => 1, 'message' => 'No charge applicable'];
+                }
+
+                \DB::beginTransaction();
+                try {
+                    $account = !empty($accountId)
+                        ? \App\Models\Account::where('id', $accountId)->first()
+                        : (\App\Models\Account::where('user_id', $user->id)->where('primary_status', 1)->first() ?? \App\Models\Account::where('user_id', $user->id)->first());
+
+                    if (!$account) {
+                        \DB::rollBack();
+                        return ['status' => 0, 'message' => 'Account not found for charge deduction'];
+                    }
+
+                    $currentBalance = (float) $account->balance;
+                    $newBalance = $currentBalance - $userCommission;
+
+                    if ($newBalance < 0) {
+                        \DB::rollBack();
+                        return ['status' => 0, 'message' => 'Insufficient balance for charge deduction'];
+                    }
+
+                    \App\Models\Passbook::create([
+                        'account_id' => $account->id,
+                        'transaction_id' => mt_rand(11111111, 99999999),
+                        'type' => 'DR',
+                        'pre_balance' => $currentBalance,
+                        'amount' => $userCommission,
+                        'balance' => $newBalance,
+                        'description' => $description,
+                        'category_id' => $commissionCategoryId,
+                        'created_by' => $adminId ?? $user->id,
+                        'admin_id' => $adminId ?? $user->id,
+                        'user_id' => $user->id,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                    \DB::commit();
+                    return ['status' => 1, 'message' => 'Charge applied successfully'];
+                } catch (\Exception $e) {
+                    \DB::rollBack();
+                    throw $e;
+                }
+            }
+
+            // =========================================================================
+            // CASE 4: COMMISSION DISTRIBUTION (Credit time with Admin hierarchy)
+            // =========================================================================
+
+            // Determine parent Admin:
+            $admin = null;
+            if ($user->role != 1 && $user->role != 2) {
+                if (!empty($user->admin_mid)) {
+                    $admin = \App\Models\User::where('mid', $user->admin_mid)->first();
+                }
+            }
+
+            \DB::beginTransaction();
+            try {
+                // If user is under an Admin (Retailer -> Admin relationship):
+                if ($admin && $admin->id != $user->id) {
+                    // 1. Resolve User account first to match its primary_status:
+                    $userAccount = !empty($accountId)
+                        ? \App\Models\Account::where('id', $accountId)->first()
+                        : (\App\Models\Account::where('user_id', $user->id)->where('primary_status', 1)->first() ?? \App\Models\Account::where('user_id', $user->id)->first());
+
+                    // User account's primary_status (e.g., 1 for Trade Wallet, 0 for Utility):
+                    // "agar user ka account primary_status=1 hoga to admin ka bhi same account se debit hoga"
+                    $targetPrimaryStatus = $userAccount ? $userAccount->primary_status : 1;
+
+                    // 2. Admin account matching the exact SAME primary_status:
+                    $adminAccount = \App\Models\Account::where('user_id', $admin->id)->where('primary_status', $targetPrimaryStatus)->first()
+                        ?? \App\Models\Account::where('user_id', $admin->id)->first();
+
+                    // 3. Calculate Admin's commission
+                    $adminCommResult = calculateCommissionForUser($admin->id, $sub_module_id, $amount, 'Commission');
+                    $adminCommission = (float) ($adminCommResult['amount'] ?? 0);
+
+                    if($adminAccount){
+                        $adminLastPassbook = \App\Models\Passbook::where('account_id', $adminAccount->id ?? '')->orderBy('id', 'desc')->first();
+                        $adminBal = $adminLastPassbook ? (float) $adminLastPassbook->balance : 0.0;
+                    } else {
+                        $adminBal = 0.0;
+                    }
+
+                    // A) Sabse pahle Admin ko milega:
+                    if ($adminCommission > 0 && $adminAccount) {
+                        $preBal = $adminBal;
+                        $adminBal = $adminBal + $adminCommission;
+
+                        \App\Models\Passbook::create([
+                            'account_id' => $adminAccount->id,
+                            'transaction_id' => mt_rand(11111111, 99999999),
+                            'type' => 'CR',
+                            'pre_balance' => $preBal,
+                            'amount' => $adminCommission,
+                            'balance' => $adminBal,
+                            'description' => 'Commission received for ' . $description,
+                            'category_id' => $commissionCategoryId,
+                            'created_by' => $admin->id,
+                            'admin_id' => $admin->id,
+                            'user_id' => $admin->id,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+                    }
+
+                    // B) User commission capped at Admin's available commission:
+                    // "agar admin ke commission se jyada hoga to commission utna hi milega jo admin ke pass available hai"
+
+                    $root=$user->root;
+                    $root=$root.','.$user->id;
+                    $rootArray=explode(',', $root);
+
+                    if (in_array($admin->id, $rootArray)) {
+                        $rootArray = array_values(array_diff($rootArray, [$admin->id]));
+                    }
+
+
+                    foreach ($rootArray as $userId) {
+                        $userId = trim($userId);
+
+                        $userData= \App\Models\User::where('id',$userId)->first();
+
+                        if($userData){
+
+                            $userCommResult = calculateCommissionForUser($userData->id, $sub_module_id, $amount);
+                            $userCommission = (float) $userCommResult['amount'];
+
+
+                            $userAccount = \App\Models\Account::where('user_id', $userId)->where('primary_status', 1)->first();
+                            if ($userAccount && $userCommission > 0) {
+
+                                $targetPrimaryStatus = $userAccount ? $userAccount->primary_status : 1;
+
+                                $adminAccount = \App\Models\Account::where('user_id', $admin->id)->where('primary_status', $targetPrimaryStatus)->first();
+
+                               
+                                if($adminAccount){
+                                    $adminLastPassbook = \App\Models\Passbook::where('account_id', $adminAccount->id ?? '')->orderBy('id', 'desc')->first();
+                                    $adminBal = $adminLastPassbook ? (float) $adminLastPassbook->balance : 0.0;
+                                } else {
+                                    $adminBal = 0.0;
+                                }
+
+
+                                if ($adminBal >= $userCommission && $adminAccount) {
+
+                                    $preDebitBal = $adminBal;
+                                    $adminBal = $adminBal - $userCommission;
+
+                                        \App\Models\Passbook::create([
+                                        'account_id' => $adminAccount->id,
+                                        'transaction_id' => mt_rand(11111111, 99999999),
+                                        'type' => 'DR',
+                                        'pre_balance' => $preDebitBal,
+                                        'amount' => $userCommission,
+                                        'balance' => $adminBal,
+                                        'description' => 'Commission debited for user ' . ($userData->name ?? $userData->mid) . ' - ' . $description,
+                                        'category_id' => $commissionCategoryId,
+                                        'created_by' => $admin->id,
+                                        'admin_id' => $admin->id,
+                                        'user_id' => $admin->id,
+                                        'created_at' => now(),
+                                        'updated_at' => now()
+                                        ]);
+
+                                    
+                                        $userLastPassbook = \App\Models\Passbook::where('account_id', $userAccount->id)->orderBy('id', 'desc')->first();
+                                        $userCurBal = $userLastPassbook ? (float) $userLastPassbook->balance : 0.0;
+                                        $userNewBal = $userCurBal + $userCommission;
+
+                                        \App\Models\Passbook::create([
+                                        'account_id' => $userAccount->id,
+                                        'transaction_id' => mt_rand(11111111, 99999999),
+                                        'type' => 'CR',
+                                        'pre_balance' => $userCurBal,
+                                        'amount' => $userCommission,
+                                        'balance' => $userNewBal,
+                                        'description' => $description,
+                                        'category_id' => $commissionCategoryId,
+                                        'created_by' => $admin->id,
+                                        'admin_id' => $admin->id,
+                                        'user_id' => $userData->id,
+                                        'created_at' => now(),
+                                        'updated_at' => now()
+                                    ]);
+
+                                    // User TDS (2% for AEPS, Cash Deposit, MATM)
+                                    if (in_array($category_code, ['AEPS', 'CASH_DEPOSIT', 'MATM'])) {
+                                        $userLastPassbook = \App\Models\Passbook::where('account_id', $userAccount->id)->orderBy('id', 'desc')->first();
+                                        $userCurBal = $userLastPassbook ? (float) $userLastPassbook->balance : 0.0;
+                                        $userTds = ($userCommission / 100) * 2;
+                                        $userNewBal = $userCurBal - $userTds;
+                                            \App\Models\Passbook::create([
+                                            'account_id' => $userAccount->id,
+                                            'transaction_id' => mt_rand(11111111, 99999999),
+                                            'type' => 'DR',
+                                            'pre_balance' => $userCurBal,
+                                            'amount' => $userTds,
+                                            'balance' => $userNewBal,
+                                            'description' => 'TDS',
+                                            'category_id' => $commissionCategoryId,
+                                            'created_by' => $admin->id,
+                                            'admin_id' => $admin->id,
+                                            'user_id' => $userData->id,
+                                            'created_at' => now(),
+                                            'updated_at' => now()
+                                        ]);
+                                    }
+                                }
+                            }
+                        }
+
+                       
+                    }
+
+                } else {
+                    // Direct Admin / Super Admin (no parent admin):
+                    if ($userCommission > 0) {
+                        $userAccount = !empty($accountId)
+                            ? \App\Models\Account::where('id', $accountId)->first()
+                            : (\App\Models\Account::where('user_id', $user->id)->where('primary_status', 1)->first() ?? \App\Models\Account::where('user_id', $user->id)->first());
+
+                        if ($userAccount) {
+                            $userCurBal = (float) $userAccount->balance;
+                            $userNewBal = $userCurBal + $userCommission;
+
+                            \App\Models\Passbook::create([
+                                'account_id' => $userAccount->id,
+                                'transaction_id' => mt_rand(11111111, 99999999),
+                                'type' => 'CR',
+                                'pre_balance' => $userCurBal,
+                                'amount' => $userCommission,
+                                'balance' => $userNewBal,
+                                'description' => $description,
+                                'category_id' => $commissionCategoryId,
+                                'created_by' => $adminId ?? $user->id,
+                                'admin_id' => $adminId ?? $user->id,
+                                'user_id' => $user->id,
+                                'created_at' => now(),
+                                'updated_at' => now()
+                            ]);
+
+                            if ($user->role != 1 && $user->role != 2 && in_array($category_code, ['AEPS', 'CASH_DEPOSIT', 'MATM'])) {
+                                $userTds = ($userCommission / 100) * 2;
+                                \App\Models\Passbook::create([
+                                    'account_id' => $userAccount->id,
+                                    'transaction_id' => mt_rand(11111111, 99999999),
+                                    'type' => 'DR',
+                                    'pre_balance' => $userNewBal,
+                                    'amount' => $userTds,
+                                    'balance' => $userNewBal - $userTds,
+                                    'description' => 'TDS',
+                                    'category_id' => $commissionCategoryId,
+                                    'created_by' => $adminId ?? $user->id,
+                                    'admin_id' => $adminId ?? $user->id,
+                                    'user_id' => $user->id,
+                                    'created_at' => now(),
+                                    'updated_at' => now()
+                                ]);
+                            }
+                        }
+                    }
+                }
+
+                \DB::commit();
+                return [
+                    'status' => 1,
+                    'message' => 'Commission processed successfully'
+                ];
+            } catch (\Exception $e) {
+                \DB::rollBack();
+                throw $e;
             }
 
         } catch (\Exception $e) {

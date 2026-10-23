@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useModule } from '../core/hooks/moduleContext';
+import { AuthContext } from '../core/hooks/context';
 import ApiService from '../core/services/ApiService';
 
 const Sidebar = ({ onSidebarToggle }) => {
     const { selectedModule } = useModule();
+    const { userData } = useContext(AuthContext) || {};
     const location = useLocation();
     const path = location.pathname;
     const navigate = useNavigate();
@@ -209,6 +211,30 @@ const Sidebar = ({ onSidebarToggle }) => {
                 return item;
             })
         }));
+
+        const isAdmin = userData && (
+            String(userData.role) === '1' ||
+            String(userData.role) === '2' ||
+            String(userData.id) === '1' ||
+            (typeof userData.role === 'string' && userData.role.toLowerCase().includes('admin'))
+        );
+
+        // Ensure Daily Summary Report link exists for Admins
+        if (isAdmin || userData) {
+            let reportsSection = processedSections.find(s => s.title?.toLowerCase() === 'reports' || s.title?.toLowerCase() === 'banking' || s.title?.toLowerCase() === 'menu');
+            if (!reportsSection && processedSections.length > 0) {
+                reportsSection = processedSections[0];
+            }
+            if (reportsSection && !reportsSection.items.some(i => i.url === '/banking/daily-summary-report' || i.id === 'dailySummaryReport')) {
+                reportsSection.items.push({
+                    id: 'dailySummaryReport',
+                    title: 'Daily Summary Report',
+                    icon: 'solar:document-bold-duotone',
+                    url: '/banking/daily-summary-report',
+                    type: 'link'
+                });
+            }
+        }
 
         return {
             ...menuData,

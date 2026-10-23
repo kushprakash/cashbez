@@ -201,6 +201,7 @@ import IdCard from './banking/IdCard';
 import ShopBanner from './banking/ShopBanner';
 import Certificate from './banking/Certificate';
 
+import DailySummaryReport from './banking/DailySummaryReport';
 import CMS from './banking/cms';
 
 import InsuranceApply from './gromo/InsuranceApply';
@@ -620,6 +621,12 @@ const AppRoutes = () => (
             <Route path="commission-structure" element={<MyCommissionStructure />} />
             <Route path="my-commission-slabs" element={<MyCommissionStructure />} />
             <Route path="banking/my-commission-slabs" element={<MyCommissionStructure />} />
+
+            {/* Daily Summary Report Routes */}
+            <Route path="banking/daily-summary-report" element={<DailySummaryReport />} />
+            <Route path="banking/daily_summary_report" element={<DailySummaryReport />} />
+            <Route path="daily-summary-report" element={<DailySummaryReport />} />
+            <Route path="daily_summary_report" element={<DailySummaryReport />} />
 
 
 

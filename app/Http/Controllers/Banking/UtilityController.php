@@ -1403,51 +1403,18 @@ class UtilityController extends Controller
                 // ✅ Step 11: Handle Success Recharge (Process Commission)
                 if ($sts === 1) {
                     $userObj = $request->get('user');
-
-                    $taems=$userObj->root;
-                    $userid=$userObj->id;
-                    $string1 = $userid . ',' . $taems;
-
-                    $rootArrays = explode(",",$string1);
-                    
-
-                    foreach($rootArrays as $user)
-                    {
-
-                        $user=User::where('id',$user)->first();
-
-                        if ($user) {
-                            $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
-                                $user,
-                                $apiSetting->id ?? null,
-                                $mainServiceType ?? 'Prepaid',
-                                $operatorInput ?? 'ALL',
-                                $circal ?? 'ALL',
-                                $amount
-                            );
-
-                            $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
-
-                        
-                            $transactionData13 = [
-                                'account_id' => $account->id,
-                                'type' => 'CR',
-                                'amount' => $commResult['calculated_commission'],
-                                'description' => $request->type == 3 ? 'Bill Payment Commission' : 'Recharge Commission',
-                                'transaction_id' => $request->transaction_id.'_comm',
-                                'created_by' => $account->user_id,
-                                'admin_id' => $account->admin_id,
-                                'user_id' => $account->user_id,
-                                'category_code' => 'RECHARGE'
-                            ];
-
-                            $transactionData2 = createTransaction($transactionData13);
-                        }
-                        
-                    }
-
-                   
-                    
+                    $this->processUtilityCommission(
+                        $userObj,
+                        $apiSetting->id ?? null,
+                        $mainServiceType ?? 'Prepaid',
+                        $operatorInput ?? 'ALL',
+                        $circal ?? 'ALL',
+                        $amount,
+                        $request->transaction_id,
+                        $request->type ?? 1,
+                        $request->number ?? '',
+                        $admin ?? null
+                    );
                 }
 
                 // ✅ Step 12: Return Final Response
@@ -1754,6 +1721,7 @@ class UtilityController extends Controller
             }
 
             // Update Recharge DB record
+            $rechargeStatus = $recharge->status;
             $recharge->status = $localStatus;
             $recharge->oprator = $oprTxn ?: $recharge->oprator;
             $recharge->rrmarks = $rem;
@@ -1792,67 +1760,50 @@ class UtilityController extends Controller
                 if ($recharge->type == 1) {
                     $desc = 'Mobile Recharge Commission';
                     $mainServiceType = 'Prepaid';
+                    $typeLabel = 'Mobile Recharge';
                 } elseif ($recharge->type == 2) {
                     $desc = 'DTH Recharge Commission';
                     $mainServiceType = 'DTH';
+                    $typeLabel = 'DTH Recharge';
                 } elseif ($recharge->type == 3) {
                     $desc = 'Bill Pay Commission';
                     $mainServiceType = 'BillPay';
+                    $typeLabel = 'Bill Payment';
                 } else {
                     $desc = 'Recharge Commission';
                     $mainServiceType = 'Other';
+                    $typeLabel = 'Other';
                 }
 
-                
-                if ($userObj) {
-
-                    $taems=$userObj->root;
-                    $userid=$userObj->id;
-                    $string1 = $userid . ',' . $taems;
-
-                    $rootArrays = explode(",",$string1);
-                    
-
-                    foreach($rootArrays as $userId)
-                    {
-
-                        $user=User::where('id',$userId)->first();
-
-                        if ($user) {
-                            $commResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
-                                $user,
-                                $recharge->api_id ?? null,
-                                $mainServiceType ?? 'Prepaid',
-                                $recharge->operator ?? 'ALL',
-                                $recharge->circle ?? 'ALL',
-                                $recharge->amount
-                            );
-
-
-                            $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
-
-                        
-                            $transactionData13 = [
-                                'account_id' => $account->id,
-                                'type' => 'CR',
-                                'amount' => $commResult['calculated_commission'],
-                                'description' => $desc . ' ' . $recharge->number,
-                                'transaction_id' => $recharge->txnid.'_comm',
-                                'created_by' => $account->user_id,
-                                'admin_id' => $account->admin_id,
-                                'user_id' => $account->user_id,
-                                'category_code' => 'RECHARGE'
-                            ];
-
-                            createTransaction($transactionData13);
-                        }
-                        
-                    }
+                if ($rechargeStatus !== 'success') {
+                    $admin = User::find($recharge->admin_id);
+                    $this->processUtilityCommission(
+                        $userObj,
+                        $recharge->api_id ?? null,
+                        $mainServiceType ?? 'Prepaid',
+                        $recharge->operatorInput ?? $recharge->oprator ?? 'ALL',
+                        $recharge->circle ?? 'ALL',
+                        $recharge->amount,
+                        $recharge->txnid ?: $recharge->oid,
+                        $recharge->type ?? 1,
+                        $recharge->number ?? '',
+                        $admin ?? null
+                    );
                 }
             }
 
-            // Handle FAILED (Wallet Refund)
-            if ($localStatus === 'failed') {
+            // Handle FAILED / REFUNDED (Wallet Refund & Commission Reversal)
+            if ($localStatus === 'failed' || $localStatus === 'refunded') {
+                // If previously status was success, reverse the commission that was distributed
+                if ($rechargeStatus === 'success') {
+                    $this->reverseUtilityCommission(
+                        $recharge,
+                        $mainServiceType ?? 'Prepaid',
+                        $desc ?? 'Recharge Commission',
+                        $recharge->number ?? ''
+                    );
+                }
+
                 $user = User::find($recharge->user_id);
                 if ($user) {
                     $account = DB::table('accounts')->where('user_id', $user->id)->where('primary_status', false)->first();
@@ -1875,7 +1826,6 @@ class UtilityController extends Controller
                         createTransaction($transactionData);
                     }
                 }
-
             }
 
             // Handle API Partner Callback if configured
@@ -1919,6 +1869,287 @@ class UtilityController extends Controller
                 'error' => ['message'=>$e->getMessage(), 'code'=>$e->getCode(), 'line'=>$e->getLine(), 'file'=>$e->getFile()],
                 'raw_response' => null
             ];
+        }
+    }
+
+    /**
+     * Resolve parent admin for a given user
+     */
+    private function resolveParentAdmin($user, $fallbackAdminId = null)
+    {
+        if (!$user) {
+            return !empty($fallbackAdminId) ? User::find($fallbackAdminId) : null;
+        }
+
+        $admin = null;
+        if (!empty($user->admin_mid)) {
+            $admin = User::where('mid', $user->admin_mid)->first()
+                  ?? User::where('id', $user->admin_mid)->first();
+        }
+
+        if (!$admin && !empty($fallbackAdminId)) {
+            $admin = User::find($fallbackAdminId);
+        }
+
+        if (!$admin) {
+            $account = DB::table('accounts')->where('user_id', $user->id)->first();
+            if ($account && !empty($account->admin_id) && $account->admin_id != $user->id) {
+                $admin = User::find($account->admin_id);
+            }
+        }
+
+        if (!$admin && !empty($user->root)) {
+            $rootArray = array_filter(explode(',', $user->root));
+            foreach ($rootArray as $rItem) {
+                $pAdmin = User::where('mid', $rItem)->orWhere('id', $rItem)->first();
+                if ($pAdmin && ($pAdmin->role == 2 || $pAdmin->role == 1) && $pAdmin->id != $user->id) {
+                    $admin = $pAdmin;
+                    break;
+                }
+            }
+        }
+
+        return $admin;
+    }
+
+    /**
+     * Process Utility Commission (Mobile / DTH / Bill Payment)
+     * Admin gets credited first, then debited when user gets credited.
+     * Capped at Admin's available commission.
+     */
+    private function processUtilityCommission($userObj, $apiId, $mainServiceType, $operatorCode, $circle, $amount, $txnId, $type = 1, $number = '', $adminObj = null)
+    {
+        if (!$userObj) {
+            return;
+        }
+
+        $commTxnId = $txnId . '_comm';
+        $alreadyProcessed = DB::table('passbooks')->where('transaction_id', $commTxnId)->exists();
+        if ($alreadyProcessed) {
+            Log::info("Utility commission already processed for TxnID: {$txnId}");
+            return;
+        }
+
+        $admin = $adminObj ?: $this->resolveParentAdmin($userObj);
+        $amount = (float) $amount;
+
+        if ($type == 3) {
+            $descLabel = 'Bill Payment Commission';
+        } elseif ($type == 2) {
+            $descLabel = 'DTH Commission';
+        } else {
+            $descLabel = 'Recharge Commission';
+        }
+        $descSuffix = !empty($number) ? ' - ' . $number : '';
+
+        // Case A: User has a parent Admin (Retailer -> Admin relationship)
+        if ($admin) {
+
+            $adminAccount = DB::table('accounts')->where('user_id', $admin->id)->where('primary_status', false)->first();
+
+            if (!$adminAccount) {
+                Log::warning("Utility commission account missing for TxnID {$txnId}. AdminAcc: null");
+                return;
+            }
+
+            // Calculate Admin Commission
+            $adminCommResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
+                $admin,
+                $apiId,
+                $mainServiceType,
+                $operatorCode,
+                $circle,
+                $amount
+            );
+            $adminCommission = round((float)($adminCommResult['calculated_commission'] ?? 0), 2);
+
+            // Step 1: Admin ko pehle credit hoga
+            if ($adminCommission > 0) {
+                $adminCrData = [
+                    'account_id' => $adminAccount->id,
+                    'type' => 'CR',
+                    'amount' => $adminCommission,
+                    'description' => $descLabel . $descSuffix,
+                    'transaction_id' => $txnId . '_comm_adm_cr',
+                    'created_by' => $admin->id,
+                    'admin_id' => $admin->id,
+                    'user_id' => $admin->id,
+                    'category_code' => 'RECHARGE'
+                ];
+                createTransaction($adminCrData);
+            }
+
+            $root = $userObj->root;
+            $root = $root . ',' . $userObj->id;
+            $rootArray = array_values(array_filter(array_map('trim', explode(',', $root))));
+
+            if (in_array($admin->id, $rootArray)) {
+                $rootArray = array_values(array_diff($rootArray, [$admin->id]));
+            }
+
+            foreach ($rootArray as $userId) {
+                $userId = trim($userId);
+
+                $userData = User::where('id', $userId)->first();
+
+                if ($userData) {
+
+                    $userCommResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
+                        $userData,
+                        $apiId,
+                        $mainServiceType,
+                        $operatorCode,
+                        $circle,
+                        $amount
+                    );
+
+                    $userCommission = round((float)($userCommResult['calculated_commission'] ?? 0), 2);
+
+                    $adminDrData = [
+                        'account_id' => $adminAccount->id,
+                        'type' => 'DR',
+                        'amount' => $userCommission,
+                        'description' => 'Commission debited for ' . ($userData ? ($userData->name ?? $userData->mid ?? '') : '') . $descSuffix,
+                        'transaction_id' => $txnId . '_comm_adm_dr_' . $userId,
+                        'created_by' => $admin->id,
+                        'admin_id' => $admin->id,
+                        'user_id' => $adminAccount->user_id,
+                        'category_code' => 'RECHARGE'
+                    ];
+                    $debitRes = createTransaction($adminDrData);
+
+                    if (isset($debitRes['status']) && $debitRes['status'] == 1) {
+
+                        $userAccount = DB::table('accounts')->where('user_id', $userData->id)->where('primary_status', false)->first();
+
+                        if ($userAccount) {
+
+                            $userCrData = [
+                                'account_id' => $userAccount->id,
+                                'type' => 'CR',
+                                'amount' => $userCommission,
+                                'description' => $descLabel . $descSuffix,
+                                'transaction_id' => $txnId . '_comm_' . $userId,
+                                'created_by' => $userAccount->user_id,
+                                'admin_id' => $admin->id,
+                                'user_id' => $userAccount->user_id,
+                                'category_code' => 'RECHARGE'
+                            ];
+                            createTransaction($userCrData);
+
+                        }
+                    }
+
+                }
+            }
+        }
+    }
+
+    /**
+     * Reverse Utility Commission upon failure/refund after previous success
+     */
+    private function reverseUtilityCommission($recharge, $mainServiceType, $descLabel, $number)
+    {
+        $commTxnId = $recharge->txnid . '_comm';
+        $userCommPassbook = DB::table('passbooks')->where('transaction_id', $commTxnId)->first();
+
+        // If no commission was ever credited to user, nothing to reverse
+        if (!$userCommPassbook) {
+            return;
+        }
+
+        $revUserTxnId = $recharge->txnid . '_comm_rev';
+        if (DB::table('passbooks')->where('transaction_id', $revUserTxnId)->exists()) {
+            Log::info("Utility commission already reversed for TxnID: {$recharge->txnid}");
+            return;
+        }
+
+        $userObj = User::find($recharge->user_id);
+        $admin = $this->resolveParentAdmin($userObj, $recharge->admin_id);
+        $descSuffix = !empty($number) ? ' - ' . $number : '';
+        $creditedUserCommission = (float) $userCommPassbook->amount;
+
+        // 1. Reverse User Commission (DR from user utility account)
+        if ($creditedUserCommission > 0 && $userObj) {
+            $userAccount = DB::table('accounts')->where('user_id', $userObj->id)->where('primary_status', false)->first()
+                ?? DB::table('accounts')->where('user_id', $userObj->id)->first();
+
+            if ($userAccount) {
+                $userDrData = [
+                    'account_id' => $userAccount->id,
+                    'type' => 'DR',
+                    'amount' => $creditedUserCommission,
+                    'description' => 'Commission Reversed: ' . $descLabel . $descSuffix,
+                    'transaction_id' => $revUserTxnId,
+                    'created_by' => $userObj->id,
+                    'admin_id' => $recharge->admin_id,
+                    'user_id' => $userObj->id,
+                    'category_code' => 'RECHARGE'
+                ];
+                createTransaction($userDrData);
+            }
+        }
+
+        // 2. Reverse Admin transactions if Admin was involved
+        if ($admin && $userObj && $admin->id != $userObj->id) {
+            $adminAccount = DB::table('accounts')->where('user_id', $admin->id)->where('primary_status', false)->first()
+                ?? DB::table('accounts')->where('user_id', $admin->id)->first();
+
+            if ($adminAccount) {
+                // A) Credit back the user commission that was debited from admin
+                if ($creditedUserCommission > 0) {
+                    $revAdminCrTxnId = $recharge->txnid . '_comm_adm_rev_cr';
+                    if (!DB::table('passbooks')->where('transaction_id', $revAdminCrTxnId)->exists()) {
+                        $adminCrData = [
+                            'account_id' => $adminAccount->id,
+                            'type' => 'CR',
+                            'amount' => $creditedUserCommission,
+                            'description' => 'User Commission Debit Reversed for ' . ($userObj ? ($userObj->name ?? $userObj->mid ?? '') : '') . $descSuffix,
+                            'transaction_id' => $revAdminCrTxnId,
+                            'created_by' => $admin->id,
+                            'admin_id' => $admin->id,
+                            'user_id' => $admin->id,
+                            'category_code' => 'RECHARGE'
+                        ];
+                        createTransaction($adminCrData);
+                    }
+                }
+
+                // B) Debit the original admin commission that admin received from provider
+                $adminCrPassbook = DB::table('passbooks')->where('transaction_id', $recharge->txnid . '_comm_adm_cr')->first();
+                $creditedAdminCommission = $adminCrPassbook ? (float) $adminCrPassbook->amount : 0;
+
+                // Fallback to calculation if not in passbook
+                if ($creditedAdminCommission <= 0) {
+                    $adminCommResult = \App\Http\Controllers\Banking\CommissionMasterController::calculateUserCommission(
+                        $admin,
+                        $recharge->api_id ?? null,
+                        $mainServiceType,
+                        $recharge->operatorInput ?? $recharge->oprator ?? 'ALL',
+                        $recharge->circle ?? 'ALL',
+                        $recharge->amount
+                    );
+                    $creditedAdminCommission = round((float)($adminCommResult['calculated_commission'] ?? 0), 2);
+                }
+
+                if ($creditedAdminCommission > 0) {
+                    $revAdminDrTxnId = $recharge->txnid . '_comm_adm_rev_dr';
+                    if (!DB::table('passbooks')->where('transaction_id', $revAdminDrTxnId)->exists()) {
+                        $adminDrData = [
+                            'account_id' => $adminAccount->id,
+                            'type' => 'DR',
+                            'amount' => $creditedAdminCommission,
+                            'description' => 'Admin Commission Reversed: ' . $descLabel . $descSuffix,
+                            'transaction_id' => $revAdminDrTxnId,
+                            'created_by' => $admin->id,
+                            'admin_id' => $admin->id,
+                            'user_id' => $admin->id,
+                            'category_code' => 'RECHARGE'
+                        ];
+                        createTransaction($adminDrData);
+                    }
+                }
+            }
         }
     }
 

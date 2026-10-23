@@ -60,6 +60,7 @@ use App\Http\Controllers\Banking\AepsVideoKycController;
 use App\Http\Controllers\Banking\VerificationController;
 use App\Http\Controllers\Banking\CashDepositController;
 use App\Http\Controllers\Banking\UpiCwController;
+use App\Http\Controllers\Banking\DailySummaryReportController;
 use App\Http\Controllers\Banking\P2pController;
 use App\Http\Controllers\Banking\TeleCallingController;
 use App\Http\Controllers\DashboardController;
@@ -246,6 +247,10 @@ Route::middleware('api.token.auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::match(['get', 'post'], '/agent/commission-report', [\App\Http\Controllers\Admin\CommissionReportController::class, 'index']);
     
+    // Daily Summary Report Routes
+    Route::get('/daily-summary-report/admins', [DailySummaryReportController::class, 'getAdminList']);
+    Route::get('/daily-summary-report', [DailySummaryReportController::class, 'getDailySummaryReport']);
+
     Route::post('/createMpin', [AuthController::class, 'createMpin']);
     Route::post('/forgetMpin', [AuthController::class, 'forgetMpin']);
     Route::post('/verifyMpin', [AuthController::class, 'verifyMpin']);
