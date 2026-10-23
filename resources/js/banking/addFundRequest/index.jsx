@@ -448,17 +448,11 @@ const AddFundRequest = () => {
                                 <>
                                     <div className="text-center mb-4">
                                         <h3 className="text-primary fw-bold">Pay with QR</h3>
-                                        <p className="text-muted">Scan this code using any UPI app</p>
+                                        <p className="text-muted">Scan this code using any UPI app for INR {formatCurrency(amount)}</p>
                                     </div>
 
                                     <div className="card border-0 rounded-4 p-4">
-                                        <img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" />
-                                        <p className="text-muted mb-1"><strong>UPI ID:</strong></p>
-
-                                        <p className="text-muted mb-1"><strong>Amount:</strong></p>
-                                        <div className="input-group">
-                                            <input type="text" className="form-control" value={formatCurrency(amount)} readOnly />
-                                        </div>
+                                        <img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={250} />
                                     </div>
                                 </>
                             )}
