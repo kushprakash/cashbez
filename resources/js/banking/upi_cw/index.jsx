@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import ApiService from '../../core/services/ApiService';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Pageheader from '../../layouts/Pageheader';
 import { AuthContext } from '../../core/hooks/context';
 import UpiHistory from './history';
 
@@ -241,6 +242,7 @@ const UpiCashWithdrawal = () => {
     return (
         <div className="container-fluid py-4" style={{ backgroundColor: '#f4f6f9', minHeight: '90vh' }}>
             <ToastContainer position="top-right" autoClose={4000} />
+            <Pageheader mainheading="UPI Cash Withdrawal" parentfolder="UPI" activepage="Withdrawal" />
 
             {/* Top Navigation & Header */}
             <div className="d-flex flex-wrap align-items-center justify-content-between mb-4 bg-white p-3 rounded-4 shadow-sm border">
