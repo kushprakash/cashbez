@@ -59,6 +59,7 @@ use App\Http\Controllers\Banking\CMSController;
 use App\Http\Controllers\Banking\AepsVideoKycController;
 use App\Http\Controllers\Banking\VerificationController;
 use App\Http\Controllers\Banking\CashDepositController;
+use App\Http\Controllers\Banking\UpiCwController;
 use App\Http\Controllers\Banking\P2pController;
 use App\Http\Controllers\Banking\TeleCallingController;
 use App\Http\Controllers\DashboardController;
