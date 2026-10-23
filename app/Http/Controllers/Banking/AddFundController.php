@@ -178,7 +178,6 @@ class AddFundController extends Controller
         // upi://pay?pa=paytm.s1lcife%40pty&pn=INDIA&am=1.00&tn=PG3711770582162&tr=ATr8l8hEZo1770582162
         
 
-        $cleanUpiId = str_replace('%40', '@', urldecode($upiId));
         $paytmIntent = "paytmmp://cash_wallet?pa=" . rawurlencode($upiId) .
             "&pn=" . rawurlencode("INDIA") .
             "&am=" . $amount .
@@ -189,12 +188,14 @@ class AddFundController extends Controller
             "&sign=" . rawurlencode($paytmSign) .
             "&featuretype=money_transfer";
 
-        $fallbackIntent = "upi://pay?pa=" . $cleanUpiId .
+        $fallbackIntent = "upi://pay?pa=" . rawurlencode($upiId) .
             "&pn=" . rawurlencode("INDIA") .
             "&am=" . $amount .
-            "&cu=INR" .
             "&tn=" . rawurlencode($tn) .
             "&tr=" . rawurlencode($orderId);
+
+
+        $upiqr = QrCode::size(300)->generate($fallbackIntent);
 
         return response()->json([
             'status' => 1,
@@ -204,6 +205,7 @@ class AddFundController extends Controller
                 'order_id' => $orderId,
                 'paytm_intent' => $paytmIntent,
                 'upi_intent' => $fallbackIntent,
+                'qrurl' => $upiqr,
                 'amount' => $amount
             ]
         ]);
@@ -361,39 +363,19 @@ class AddFundController extends Controller
         } else {
             $respCode = (string)($responseArray['RESPCODE'] ?? '');
             $statusStr = (string)($responseArray['STATUS'] ?? '');
-            $respMsg = (string)($responseArray['RESPMSG'] ?? '');
 
             // Pending response codes in Paytm status API (user has not scanned / completed yet)
-            // 334 = Invalid Order Id (order not yet submitted / scanned by user on UPI)
-            // 330 = Record not found
-            // 294 = User has not completed transaction
-            // 331 = In progress
-            // 400 = Transaction status not confirmed yet
-            // 402 = Looks like the payment is not complete
-            // '' = Empty
-            $pendingCodes = ['334', '330', '294', '331', '400', '402', ''];
+            $pendingCodes = ['227', '331', '400', '402', ''];
 
-            $isPending = in_array($respCode, $pendingCodes) 
-                || stripos($respMsg, 'Invalid Order') !== false 
-                || stripos($respMsg, 'not found') !== false 
-                || stripos($respMsg, 'not complete') !== false;
-
-            // Check if transaction has expired (older than 10 minutes)
-            $isExpired = $addFund->created_at && $addFund->created_at->diffInMinutes(now()) >= 10;
-            if ($isExpired) {
+            if ($statusStr === 'TXN_FAILURE' && !in_array($respCode, $pendingCodes)) {
                 $addFund->status = 'failed';
                 $addFund->save();
-                return response()->json(['status' => 2, 'message' => 'Transaction has expired', 'data' => []]);
-            }
-
-            if ($statusStr === 'TXN_FAILURE' && !$isPending) {
-                $addFund->status = 'failed';
-                $addFund->save();
-                $msg = $respMsg ?: 'Payment Failed';
-                return response()->json(['status' => 2, 'message' => $msg, 'data' => []]);
+                $msg = $responseArray['RESPMSG'] ?? 'Payment Failed';
+                return response()->json(['status' => 2, 'message' => $msg]);
             }
             
-            return response()->json(['status' => 0, 'message' => $respMsg ?: 'Payment Pending', 'data' => []]);
+            $msg = $responseArray['RESPMSG'] ?? 'Payment Pending';
+            return response()->json(['status' => 0, 'message' => $msg]);
         }
     }
 
