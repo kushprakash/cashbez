@@ -116,11 +116,7 @@ class UpiCwController extends Controller
                 'platform'     => 'WEB',
                 'headers'      => json_encode([
                     'Accept'          => 'application/json',
-                    'Content-Type'    => 'application/json',
-                    'trnTimestamp'    => $trnTimestamp,
-                    'hash'            => $hash,
-                    'eskey'           => $eskey,
-                    'superMerchantId' => self::SUPER_MERCHANT_ID,
+                    'Content-Type'    => 'application/json'
                 ]),
                 'request_data'  => json_encode($data),
                 'url'           => $url,
