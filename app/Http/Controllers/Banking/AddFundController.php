@@ -195,7 +195,6 @@ class AddFundController extends Controller
             "&tr=" . rawurlencode($orderId);
 
 
-        $upiqr = QrCode::size(300)->generate($fallbackIntent);
 
         return response()->json([
             'status' => 1,
@@ -205,7 +204,6 @@ class AddFundController extends Controller
                 'order_id' => $orderId,
                 'paytm_intent' => $paytmIntent,
                 'upi_intent' => $fallbackIntent,
-                'qrurl' => $upiqr,
                 'amount' => $amount
             ]
         ]);

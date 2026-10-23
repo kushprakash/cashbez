@@ -289,7 +289,9 @@ const AddFundRequest = () => {
         }
     };
 
-    const qrImageUrl = qrData?.qrurl ?? null;
+    const qrImageUrl = qrData?.upi_intent ?
+        `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrData.upi_intent)}`
+        : null;
 
     return (
         <>
@@ -450,7 +452,7 @@ const AddFundRequest = () => {
                                     </div>
 
                                     <div className="card border-0 rounded-4 p-4">
-                                        <img src={qrData.qrImageUrl} alt="QR Code" className="img-fluid mb-4" />
+                                        <img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" />
                                         <p className="text-muted mb-1"><strong>UPI ID:</strong></p>
 
                                         <p className="text-muted mb-1"><strong>Amount:</strong></p>
