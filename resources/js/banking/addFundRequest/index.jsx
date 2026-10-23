@@ -450,13 +450,16 @@ const AddFundRequest = () => {
                         <div className="col-lg-4 d-flex justify-content-center align-items-center">
                             {qrData && istrans && (
                                 <>
-                                    <div className="text-center mb-4">
-                                        <h3 className="text-primary fw-bold">Pay with QR</h3>
-                                        <p className="text-black fw-bold">Scan this code using any UPI app for INR {formatCurrency(amount)}</p>
-                                    </div>
+
 
                                     <div className="card border-0 rounded-4 p-4">
+                                        <div className="text-center mb-4">
+                                            <h3 className="text-primary fw-bold">Pay with QR</h3>
+                                            <p className="text-black fw-bold">Scan this code using any UPI app for INR {formatCurrency(amount)}</p>
+
+                                        </div>
                                         <img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={275} />
+                                        <p className="text-black fw-bold">Please don't refresh the page. It will automatically refresh after 5 minutes.</p>
                                     </div>
                                 </>
                             )}
