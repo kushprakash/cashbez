@@ -92,16 +92,13 @@ const BeneficiaryList = () => {
                 } else if (accountsData && Array.isArray(accountsData.accounts)) {
                     allAccounts = accountsData.accounts;
                 }
+                setAccounts(allAccounts);
 
-                // Only Trade Wallet (filter out Utility Wallet completely)
-                const tradeWallets = allAccounts.filter(
-                    acc => (acc.primary_status === true || acc.primary_status == 1 || acc.primary_status === '1' || acc.is_primary) &&
-                           !(acc.name && acc.name.toLowerCase().includes('utility'))
+                const trade = allAccounts.find(
+                    acc => acc.primary_status == 1 || acc.primary_status === true || acc.primary_status === '1' || acc.is_primary == 1 || acc.is_primary === true
                 );
-                const finalAccounts = tradeWallets.length > 0 ? tradeWallets : allAccounts.filter(acc => !(acc.name && acc.name.toLowerCase().includes('utility')));
-                setAccounts(finalAccounts);
-                if (finalAccounts.length > 0) {
-                    setSelectedAccount(finalAccounts[0].id);
+                if (trade) {
+                    setSelectedAccount(trade.id);
                 }
             } else {
                 setAccounts([]);
@@ -112,17 +109,17 @@ const BeneficiaryList = () => {
         }
     };
 
+    // Trade Wallet (primary_status == 1)
+    const tradeAccount = accounts.find(
+        acc => acc.primary_status == 1 || acc.primary_status === true || acc.primary_status === '1' || acc.is_primary == 1 || acc.is_primary === true
+    );
+
     // Auto-select Trade Wallet whenever accounts or modal state changes
     useEffect(() => {
-        if (accounts.length > 0) {
-            const tradeWallet = accounts.find(
-                acc => (acc.primary_status === true || acc.primary_status == 1 || acc.primary_status === '1' || acc.is_primary)
-            ) || accounts[0];
-            if (tradeWallet && selectedAccount !== tradeWallet.id) {
-                setSelectedAccount(tradeWallet.id);
-            }
+        if (tradeAccount && selectedAccount !== tradeAccount.id) {
+            setSelectedAccount(tradeAccount.id);
         }
-    }, [accounts, showPaymentModal]);
+    }, [tradeAccount, showPaymentModal]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -745,48 +742,30 @@ const BeneficiaryList = () => {
                                     </>
                                 )}
 
-                                {/* Account Selection */}
+                                {/* Account Selection - Trade Wallet Only (No Loop) */}
                                 <div className="mb-3">
                                     <label className="form-label mb-2" style={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>From Account (Trade Wallet)</label>
-                                    {!Array.isArray(accounts) || accounts.length === 0 ? (
-                                        <div className="text-center py-4" style={{ backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-                                            <i className="fas fa-wallet mb-2" style={{ fontSize: '20px', color: '#94a3b8' }}></i>
-                                            <p className="mb-2" style={{ fontSize: '12px', color: '#64748b' }}>No trade wallet available</p>
-                                            <button
-                                                type="button"
-                                                className="btn btn-sm"
-                                                style={{ fontSize: '12px', backgroundColor: '#1e293b', color: '#fff', borderRadius: '6px' }}
-                                                onClick={() => { setShowPaymentModal(false); setShowCreateAccountModal(true); }}
-                                            >
-                                                <i className="fas fa-plus me-1"></i> Add Account
-                                            </button>
+                                    {tradeAccount ? (
+                                        <div
+                                            className="d-flex align-items-center justify-content-between p-2.5 mb-1"
+                                            style={{
+                                                borderRadius: '6px',
+                                                border: '1.5px solid #16a34a',
+                                                backgroundColor: '#f0fdf4'
+                                            }}
+                                        >
+                                            <div>
+                                                <div className="fw-medium" style={{ fontSize: '13px', color: '#1e293b' }}>{tradeAccount.name || 'Trade Wallet'}</div>
+                                                <div className="font-monospace" style={{ fontSize: '11px', color: '#64748b' }}>{tradeAccount.number || '-'}</div>
+                                            </div>
+                                            <div className="d-flex align-items-center">
+                                                <span className="fw-semibold me-2" style={{ fontSize: '13px', color: '#1e293b' }}>{tradeAccount.balance || 0}</span>
+                                                <i className="fas fa-check-circle" style={{ fontSize: '15px', color: '#16a34a' }}></i>
+                                            </div>
                                         </div>
                                     ) : (
-                                        <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
-                                            {accounts.map((account) => (
-                                                <div
-                                                    key={account.id}
-                                                    className="d-flex align-items-center justify-content-between p-2 mb-1"
-                                                    style={{
-                                                        cursor: 'pointer',
-                                                        borderRadius: '6px',
-                                                        border: selectedAccount === account.id ? '1.5px solid #16a34a' : '1px solid #e2e8f0',
-                                                        backgroundColor: selectedAccount === account.id ? '#f0fdf4' : '#fff'
-                                                    }}
-                                                    onClick={() => setSelectedAccount(account.id)}
-                                                >
-                                                    <div>
-                                                        <div className="fw-medium" style={{ fontSize: '13px', color: '#1e293b' }}>{account.name || 'Trade Wallet'}</div>
-                                                        <div className="font-monospace" style={{ fontSize: '11px', color: '#64748b' }}>{account.number || '-'}</div>
-                                                    </div>
-                                                    <div className="d-flex align-items-center">
-                                                        <span className="fw-semibold me-2" style={{ fontSize: '13px', color: '#1e293b' }}>{account.balance || 0}</span>
-                                                        {selectedAccount === account.id && (
-                                                            <i className="fas fa-check-circle" style={{ fontSize: '14px', color: '#16a34a' }}></i>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                        <div className="text-center py-3" style={{ backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                                            <p className="mb-0 text-muted" style={{ fontSize: '12px' }}>No Trade Wallet available</p>
                                         </div>
                                     )}
                                 </div>
