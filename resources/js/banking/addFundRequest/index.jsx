@@ -9,6 +9,7 @@ const AddFundRequest = () => {
     const [searchParams] = useSearchParams();
     const [amount, setAmount] = useState('');
     const [accountId, setAccountId] = useState('');
+    const [istrans, setIsTrans] = useState(true);
     const [loading, setLoading] = useState(false);
     const [wallets, setWallets] = useState([]);
     const [refreshingBalance, setRefreshingBalance] = useState(false);
@@ -137,6 +138,7 @@ const AddFundRequest = () => {
                 device_id: getDeviceId()
             };
 
+
             const response = await apiService.vPost('/api/add-fund/upi-intent', payload);
 
             if (response?.data?.status === 1 && response?.data?.data) {
@@ -174,7 +176,6 @@ const AddFundRequest = () => {
 
         let isMounted = true;
         let isChecking = false;
-
         const intervalId = setInterval(async () => {
             if (isChecking) return;
             isChecking = true;
@@ -214,6 +215,9 @@ const AddFundRequest = () => {
                 // Case 2: Payment Failed
                 if (resData?.status === 2 || resData?.failed === true) {
                     clearInterval(intervalId);
+
+
+                    setIsTrans(false);
 
                     await fireSwal({
                         title: 'Payment Failed',
@@ -443,16 +447,16 @@ const AddFundRequest = () => {
                             </div>
                         </div>
 
-                        <div className="col-lg-4">
-                            {qrData && (
+                        <div className="col-lg-4 d-flex justify-content-center align-items-center">
+                            {qrData && istrans && (
                                 <>
                                     <div className="text-center mb-4">
                                         <h3 className="text-primary fw-bold">Pay with QR</h3>
-                                        <p className="text-muted">Scan this code using any UPI app for INR {formatCurrency(amount)}</p>
+                                        <p className="text-black fw-bold">Scan this code using any UPI app for INR {formatCurrency(amount)}</p>
                                     </div>
 
                                     <div className="card border-0 rounded-4 p-4">
-                                        <img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={250} />
+                                        <img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={275} />
                                     </div>
                                 </>
                             )}
