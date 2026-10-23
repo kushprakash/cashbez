@@ -1173,7 +1173,7 @@ class BeneficiaryController extends Controller
                 ], 200);
             }
 
-            $account = $this->getSelectedOrFundedAccount($user->id, $request->account_id, $request->amount);
+            $account = Account::where('user_id', $user->id)->where('primary_status', 1)->first();
 
             if(!$account) {
                 return response()->json(['status' => 0, 'message' => 'Wallet not found', 'data' => NULL], 200);
@@ -1385,7 +1385,7 @@ class BeneficiaryController extends Controller
             }
 
             $credit_user_id = $request->get('user')->id;
-            $account = $this->getSelectedOrFundedAccount($credit_user_id, $request->account_id, $request->amount);
+            $account = Account::where('user_id', $credit_user_id)->where('primary_status', 1)->first();
         
             if(!$account) {
                 return response()->json(['status' => 0, 'message' => 'Wallet not found', 'data' => NULL], 200);
@@ -1639,7 +1639,7 @@ class BeneficiaryController extends Controller
             }
 
             $credit_user_id = $request->get('user')->id;
-            $account = $this->getSelectedOrFundedAccount($credit_user_id, $request->account_id, $request->amount);
+            $account = Account::where('user_id', $credit_user_id)->where('primary_status', 1)->first();
         
             if(!$account) {
                 return response()->json(['status' => 0, 'message' => 'Wallet not found', 'data' => NULL], 200);

@@ -86,21 +86,43 @@ const BeneficiaryList = () => {
 
             if (response.data && response.data.status === 1) {
                 const accountsData = response.data.data;
+                let allAccounts = [];
                 if (Array.isArray(accountsData)) {
-                    setAccounts(accountsData);
+                    allAccounts = accountsData;
                 } else if (accountsData && Array.isArray(accountsData.accounts)) {
-                    setAccounts(accountsData.accounts);
-                } else {
-                    setAccounts([]);
+                    allAccounts = accountsData.accounts;
+                }
+
+                // Only Trade Wallet (filter out Utility Wallet completely)
+                const tradeWallets = allAccounts.filter(
+                    acc => (acc.primary_status === true || acc.primary_status == 1 || acc.primary_status === '1' || acc.is_primary) &&
+                           !(acc.name && acc.name.toLowerCase().includes('utility'))
+                );
+                const finalAccounts = tradeWallets.length > 0 ? tradeWallets : allAccounts.filter(acc => !(acc.name && acc.name.toLowerCase().includes('utility')));
+                setAccounts(finalAccounts);
+                if (finalAccounts.length > 0) {
+                    setSelectedAccount(finalAccounts[0].id);
                 }
             } else {
                 setAccounts([]);
-            }mpin
+            }
         } catch (error) {
             console.error('Failed to fetch accounts:', error);
             setAccounts([]);
         }
     };
+
+    // Auto-select Trade Wallet whenever accounts or modal state changes
+    useEffect(() => {
+        if (accounts.length > 0) {
+            const tradeWallet = accounts.find(
+                acc => (acc.primary_status === true || acc.primary_status == 1 || acc.primary_status === '1' || acc.is_primary)
+            ) || accounts[0];
+            if (tradeWallet && selectedAccount !== tradeWallet.id) {
+                setSelectedAccount(tradeWallet.id);
+            }
+        }
+    }, [accounts, showPaymentModal]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -179,6 +201,16 @@ const BeneficiaryList = () => {
     // Payment Logic
     const handlePay = (item, type) => {
         setSelectedItem({ ...item, type }); // type: 'beneficiary' or 'distributor'
+
+        // Auto-select Trade Wallet
+        if (accounts.length > 0) {
+            const tradeWallet = accounts.find(
+                acc => (acc.primary_status === true || acc.primary_status == 1 || acc.primary_status === '1' || acc.is_primary)
+            ) || accounts[0];
+            if (tradeWallet) {
+                setSelectedAccount(tradeWallet.id);
+            }
+        }
 
         if (accounts.length === 0) {
             setShowCreateAccountModal(true);
@@ -282,7 +314,10 @@ const BeneficiaryList = () => {
     const closePaymentModals = () => {
         setShowPaymentModal(false);
         setShowCreateAccountModal(false);
-        setSelectedAccount('');
+        const tradeWallet = accounts.find(
+            acc => (acc.primary_status === true || acc.primary_status == 1 || acc.primary_status === '1' || acc.is_primary)
+        ) || accounts[0];
+        setSelectedAccount(tradeWallet ? tradeWallet.id : '');
         setSelectedChannel('1');
         setSelectedTxnType('NEFT'); // Reset to default NEFT
         setMpin('');
@@ -712,11 +747,11 @@ const BeneficiaryList = () => {
 
                                 {/* Account Selection */}
                                 <div className="mb-3">
-                                    <label className="form-label mb-2" style={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>From Account</label>
+                                    <label className="form-label mb-2" style={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>From Account (Trade Wallet)</label>
                                     {!Array.isArray(accounts) || accounts.length === 0 ? (
                                         <div className="text-center py-4" style={{ backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
                                             <i className="fas fa-wallet mb-2" style={{ fontSize: '20px', color: '#94a3b8' }}></i>
-                                            <p className="mb-2" style={{ fontSize: '12px', color: '#64748b' }}>No accounts available</p>
+                                            <p className="mb-2" style={{ fontSize: '12px', color: '#64748b' }}>No trade wallet available</p>
                                             <button
                                                 type="button"
                                                 className="btn btn-sm"
@@ -741,7 +776,7 @@ const BeneficiaryList = () => {
                                                     onClick={() => setSelectedAccount(account.id)}
                                                 >
                                                     <div>
-                                                        <div className="fw-medium" style={{ fontSize: '13px', color: '#1e293b' }}>{account.name || 'Account'}</div>
+                                                        <div className="fw-medium" style={{ fontSize: '13px', color: '#1e293b' }}>{account.name || 'Trade Wallet'}</div>
                                                         <div className="font-monospace" style={{ fontSize: '11px', color: '#64748b' }}>{account.number || '-'}</div>
                                                     </div>
                                                     <div className="d-flex align-items-center">
