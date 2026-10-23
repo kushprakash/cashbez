@@ -320,10 +320,10 @@ const AddFundRequest = () => {
                                     <div className="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
                                         <span className="d-flex align-items-center">
                                             <div className="bg-primary-subtle text-primary rounded-3 p-2 me-2.5 d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px' }}>
-                                                <i className="bi bi-wallet2 text-primary" style={{ fontSize: '1.2rem' }}></i>
+                                                <i className="fas fa-wallet text-primary" style={{ fontSize: '1.2rem' }}></i>
                                             </div>
                                             <h5 className="mb-0 fw-bold text-dark" style={{ fontSize: '1.1rem' }}>
-                                                Add Fund
+                                                &nbsp;Add Fund
                                             </h5>
                                         </span>
 
@@ -460,6 +460,7 @@ const AddFundRequest = () => {
                                     </div>
                                     <center><img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={275} /></center>
                                     <p className="text-black fw-bold">Please don't refresh the page. It will automatically refresh after 5 minutes.</p>
+                                    <center><a href="/banking/add-fund-request" className="btn btn-danger btn-sm mt-3">Cancel Payment</a></center>
                                 </div>
 
                             )}
