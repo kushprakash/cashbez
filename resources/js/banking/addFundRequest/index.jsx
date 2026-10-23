@@ -9,7 +9,7 @@ const AddFundRequest = () => {
     const [searchParams] = useSearchParams();
     const [amount, setAmount] = useState('');
     const [accountId, setAccountId] = useState('');
-    const [istrans, setIsTrans] = useState(true);
+    const [istrans, setIsTrans] = useState(false);
     const [loading, setLoading] = useState(false);
     const [wallets, setWallets] = useState([]);
     const [refreshingBalance, setRefreshingBalance] = useState(false);
@@ -142,6 +142,7 @@ const AddFundRequest = () => {
             const response = await apiService.vPost('/api/add-fund/upi-intent', payload);
 
             if (response?.data?.status === 1 && response?.data?.data) {
+                setIsTrans(true);
                 setQrData(response.data.data);
                 setTimeLeft(300); // 5 minutes countdown
                 toast.success('QR Code generated. Please scan to complete payment.');
@@ -313,7 +314,7 @@ const AddFundRequest = () => {
 
                         {/* CASE 1: AMOUNT INPUT FORM (When QR is NOT yet generated) */}
 
-                        {qrData === null && (
+                        {istrans == false && (
                             <div className="col-lg-5 col-md-8 col-sm-12 col-12">
                                 <div className="card border-0 rounded-4 shadow-sm bg-white overflow-hidden">
                                     <div className="card-header bg-white border-bottom p-3 d-flex justify-content-between align-items-center">
@@ -452,12 +453,12 @@ const AddFundRequest = () => {
                         <div className="col-lg-5 col-md-8 col-sm-12 col-12 d-flex justify-content-center align-items-center">
                             {qrData && istrans && (
 
-                                <div className="card border-0 rounded-4 p-4">
+                                <div className="card border-0 rounded-4 p-4 d-flex justify-content-center align-items-center">
                                     <div className="text-center mb-4">
                                         <h3 className="text-primary fw-bold">Pay with QR</h3>
                                         <p className="text-black fw-bold">Scan this code using any UPI app for INR {formatCurrency(amount)}</p>
                                     </div>
-                                    <img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={275} />
+                                    <center><img src={qrImageUrl} alt="QR Code" className="img-fluid mb-4" width={275} /></center>
                                     <p className="text-black fw-bold">Please don't refresh the page. It will automatically refresh after 5 minutes.</p>
                                 </div>
 
