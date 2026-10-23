@@ -468,12 +468,15 @@ const AgentDashboard = ({ dashboardData, user }) => {
             shadowColor: 'rgba(59, 130, 246, 0.45)'
         },
         { name: 'mATM', icon: 'mdi:credit-card-wireless', link: '/m-atm/withdrawal', bgGradient: 'linear-gradient(145deg, #10B981 0%, #047857 100%)', shadowColor: 'rgba(16, 185, 129, 0.45)' },
+        { name: 'UPI Withdrawal', icon: 'mdi:credit-card-wireless', link: '/banking/upi-cw', bgGradient: 'linear-gradient(145deg, #6366F1 0%, #4338CA 100%)', shadowColor: 'rgba(99, 102, 241, 0.45)' },
         { name: 'Cash Deposit', icon: 'mdi:cash-plus', link: '/cash-deposit', bgGradient: 'linear-gradient(145deg, #F59E0B 0%, #B45309 100%)', shadowColor: 'rgba(245, 158, 11, 0.45)' },
         { name: 'BBPS', icon: 'mdi:lightning-bolt', link: '/banking/bill/payment', bgGradient: 'linear-gradient(145deg, #F97316 0%, #C2410C 100%)', shadowColor: 'rgba(249, 115, 22, 0.45)' },
         { name: 'Recharge', icon: 'mdi:cellphone-wireless', link: '/banking/mobile/recharge', bgGradient: 'linear-gradient(145deg, #EC4899 0%, #BE185D 100%)', shadowColor: 'rgba(236, 72, 153, 0.45)' },
         { name: 'DTH', icon: 'mdi:satellite-variant', link: '/banking/dth-recharge', bgGradient: 'linear-gradient(145deg, #8B5CF6 0%, #6D28D9 100%)', shadowColor: 'rgba(139, 92, 246, 0.45)' },
-        { name: 'PAN Card', icon: 'mdi:card-account-details', link: '#', bgGradient: 'linear-gradient(145deg, #14B8A6 0%, #0F766E 100%)', shadowColor: 'rgba(20, 184, 166, 0.45)' },
+        { name: 'PAN Card', icon: 'mdi:card-account-details', target: '_blank', link: 'https://www.psaonline.utiitsl.com/psapanservices/forms/login.html/loginHome', bgGradient: 'linear-gradient(145deg, #14B8A6 0%, #0F766E 100%)', shadowColor: 'rgba(20, 184, 166, 0.45)' },
         { name: 'DMT', icon: 'mdi:bank-transfer', link: '/banking/beneficiary', bgGradient: 'linear-gradient(145deg, #6366F1 0%, #4338CA 100%)', shadowColor: 'rgba(99, 102, 241, 0.45)' },
+        { name: 'Move To Account', icon: 'mdi:bank-transfer', link: '/banking/move-to', bgGradient: 'linear-gradient(145deg, #6366F1 0%, #4338CA 100%)', shadowColor: 'rgba(99, 102, 241, 0.45)' },
+        { name: 'Financial Services', icon: 'solar:wallet-minimalistic-bold-duotone', link: '/agent/financial-dashboard', bgGradient: 'linear-gradient(145deg, #6366F1 0%, #4338CA 100%)', shadowColor: 'rgba(99, 102, 241, 0.45)' },
     ];
 
     return (
@@ -753,7 +756,7 @@ const AgentDashboard = ({ dashboardData, user }) => {
                                 <div className="row g-2">
                                     {quickServices.map((service, index) => (
                                         <div className="col-3 col-md-auto flex-grow-1 text-center" key={index}>
-                                            <Link to={service.link} className="text-decoration-none group">
+                                            <Link target={service.target} to={service.link} className="text-decoration-none group">
                                                 <div className="position-relative d-flex align-items-center justify-content-center mx-auto mb-2 transition-all hover-scale"
                                                     style={{
                                                         width: '74px',
