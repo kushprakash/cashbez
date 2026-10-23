@@ -185,6 +185,9 @@ import CashDepositEkyc from './banking/cashDeposit/CashDepositEkyc';
 import CashDepositBiometricKyc from './banking/cashDeposit/CashDepositBiometricKyc';
 import CashDepositTwoFactorAuth from './banking/cashDeposit/CashDepositTwoFactorAuth';
 
+import UpiCashWithdrawal from './banking/upi_cw';
+import UpiHistory from './banking/upi_cw/history';
+
 import MAtmWithdrawal from './banking/matm';
 import MAtmHistory from './banking/matm/history';
 import MAtmReceipt from './banking/matm/matmReceipt';
@@ -571,6 +574,10 @@ const AppRoutes = () => (
             <Route path="cash-deposit/ekyc" element={<CashDepositEkyc />} />
             <Route path="cash-deposit/biometric-kyc" element={<CashDepositBiometricKyc />} />
             <Route path="cash-deposit/two-factor-auth" element={<CashDepositTwoFactorAuth />} />
+
+            {/* UPI Cash Withdrawal (UPICW) & Transaction History */}
+            <Route path="banking/upi-cw" element={<UpiCashWithdrawal />} />
+            <Route path="banking/upi-cw/history" element={<UpiHistory />} />
 
             {/* Beneficiary Management */}
             <Route path="banking/beneficiary" element={<BeneficiaryList />} />

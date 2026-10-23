@@ -3,7 +3,6 @@ import ApiService from '../../core/services/ApiService';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthContext } from '../../core/hooks/context';
-import { Icon } from '@iconify/react';
 import UpiHistory from './history';
 
 const UpiCashWithdrawal = () => {
@@ -244,7 +243,7 @@ const UpiCashWithdrawal = () => {
             <div className="d-flex flex-wrap align-items-center justify-content-between mb-4 bg-white p-3 rounded-4 shadow-sm border">
                 <div className="d-flex align-items-center gap-3">
                     <div className="p-3 rounded-3 text-white d-flex align-items-center justify-content-center" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)', width: '52px', height: '52px' }}>
-                        <Icon icon="ic:baseline-qr-code-scanner" width="30" height="30" />
+                        <iconify-icon icon="ic:baseline-qr-code-scanner" width="30" height="30"></iconify-icon>
                     </div>
                     <div>
                         <h4 className="fw-bold mb-1" style={{ color: '#1e293b' }}>UPI Cash Withdrawal (UPICW)</h4>
@@ -258,7 +257,7 @@ const UpiCashWithdrawal = () => {
                         onClick={() => setActiveTab('new')}
                         style={activeTab === 'new' ? { backgroundColor: '#4f46e5', borderColor: '#4f46e5' } : {}}
                     >
-                        <Icon icon="ic:baseline-add-card" className="me-2" width="18" />
+                        <iconify-icon icon="ic:baseline-add-card" className="me-2" width="18"></iconify-icon>
                         New Withdrawal
                     </button>
                     <button
@@ -266,7 +265,7 @@ const UpiCashWithdrawal = () => {
                         onClick={() => setActiveTab('history')}
                         style={activeTab === 'history' ? { backgroundColor: '#4f46e5', borderColor: '#4f46e5' } : {}}
                     >
-                        <Icon icon="ic:baseline-history" className="me-2" width="18" />
+                        <iconify-icon icon="ic:baseline-history" className="me-2" width="18"></iconify-icon>
                         Transaction History
                     </button>
                 </div>
@@ -306,7 +305,7 @@ const UpiCashWithdrawal = () => {
                                             {errors.amount && <div className="invalid-feedback">{errors.amount}</div>}
                                         </div>
                                         <div className="form-text text-muted small mt-1">
-                                            <Icon icon="ic:outline-info" className="me-1" />
+                                            <iconify-icon icon="ic:outline-info" className="me-1"></iconify-icon>
                                             Amount must be in multiples of ₹100. Min: ₹100 | Max: ₹5,000
                                         </div>
                                     </div>
@@ -335,7 +334,7 @@ const UpiCashWithdrawal = () => {
                                             CUSTOMER MOBILE NUMBER (OPTIONAL)
                                         </label>
                                         <div className="input-group">
-                                            <span className="input-group-text bg-light"><Icon icon="ic:baseline-phone" /></span>
+                                            <span className="input-group-text bg-light"><iconify-icon icon="ic:baseline-phone"></iconify-icon></span>
                                             <input
                                                 type="text"
                                                 maxLength="10"
@@ -374,7 +373,7 @@ const UpiCashWithdrawal = () => {
                                             </>
                                         ) : (
                                             <>
-                                                <Icon icon="ic:baseline-qr-code" width="22" height="22" />
+                                                <iconify-icon icon="ic:baseline-qr-code" width="22" height="22"></iconify-icon>
                                                 Generate QR Code & Initiate
                                             </>
                                         )}
@@ -398,7 +397,7 @@ const UpiCashWithdrawal = () => {
                         <div className="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
                             <div className="modal-header text-white py-3 px-4" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' }}>
                                 <h5 className="modal-title fw-bold fs-6 d-flex align-items-center gap-2">
-                                    <Icon icon="ic:baseline-qr-code-scanner" width="22" />
+                                    <iconify-icon icon="ic:baseline-qr-code-scanner" width="22"></iconify-icon>
                                     Scan QR Code to Withdraw Cash
                                 </h5>
                                 <button type="button" className="btn-close btn-close-white" onClick={closeQrModal}></button>
@@ -430,7 +429,7 @@ const UpiCashWithdrawal = () => {
                                         />
                                     ) : (
                                         <div className="d-flex flex-column align-items-center justify-content-center text-muted" style={{ width: '220px', height: '220px' }}>
-                                            <Icon icon="ic:baseline-qr-code-2" width="80" height="80" />
+                                            <iconify-icon icon="ic:baseline-qr-code-2" width="80" height="80"></iconify-icon>
                                             <span className="small mt-2">QR Code Generated</span>
                                         </div>
                                     )}
@@ -456,7 +455,7 @@ const UpiCashWithdrawal = () => {
 
                                 {qrData.qrExpiryNote && (
                                     <div className="alert alert-warning py-2 px-3 small text-start mb-3">
-                                        <Icon icon="ic:baseline-warning" className="me-1" />
+                                        <iconify-icon icon="ic:baseline-warning" className="me-1"></iconify-icon>
                                         {qrData.qrExpiryNote}
                                     </div>
                                 )}
@@ -478,7 +477,7 @@ const UpiCashWithdrawal = () => {
                                         {checkingStatus ? (
                                             <span className="spinner-border spinner-border-sm"></span>
                                         ) : (
-                                            <Icon icon="ic:baseline-refresh" />
+                                            <iconify-icon icon="ic:baseline-refresh"></iconify-icon>
                                         )}
                                         Check Payment Status
                                     </button>
