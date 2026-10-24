@@ -29,7 +29,7 @@ class BannerController extends Controller
     private function hasAccess(Request $request): bool
     {
         $user = $request->user();
-        return $user && ($user->role == 1 || $user->id == 21);
+        return $user && ($user->role == 1 || $user->role == 2);
     }
 
     /**
