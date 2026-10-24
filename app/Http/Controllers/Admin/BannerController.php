@@ -43,8 +43,9 @@ class BannerController extends Controller
 
         try {
             $banners = DB::table('banners')
-                ->orderByDesc('id')
-                ->get();
+            ->where('admin_id',$request->get('admin')->id)
+            ->orderByDesc('id')
+            ->get();
 
             return response()->json([
                 'status' => 1,
