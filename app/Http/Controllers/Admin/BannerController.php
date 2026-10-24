@@ -88,7 +88,7 @@ class BannerController extends Controller
     public function store(Request $request)
     {
         if (!$this->hasAccess($request)) {
-           // return response()->json(['status' => 0, 'message' => 'Unauthorized'], 403);
+            return response()->json(['status' => 0, 'message' => 'Unauthorized'], 403);
         }
 
         $validator = Validator::make($request->all(), [
