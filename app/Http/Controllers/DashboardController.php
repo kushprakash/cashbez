@@ -634,6 +634,7 @@ class DashboardController extends Controller
             // 12. Active Banners for Dashboard
             $activeBanners = DB::table('banners')
                 ->where('status', 1)
+                ->where('admin_id',$request->get('admin')->id)
                 ->where(function($q) {
                     $q->where('type', 'home')->orWhereNull('type')->orWhere('type', '');
                 })
