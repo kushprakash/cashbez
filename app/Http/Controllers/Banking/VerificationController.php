@@ -135,7 +135,12 @@ class VerificationController extends Controller
 
         $rj['refid'] = $rj['data']['request_id']??null;
         $rj['aadhaarno'] = $request->aadhaar_number??null;
-        return response()->json(['status' => 1, 'message' => 'Success', 'data' => $rj], 200);
+
+        $xdata[]=[
+          'refid'=>$rj['refid'],
+          'aadhaarno'=>$rj['aadhaarno'],
+        ];
+        return response()->json(['status' => 1, 'message' => 'Success', 'data' => $xdata], 200);
 
       } 
       else 
