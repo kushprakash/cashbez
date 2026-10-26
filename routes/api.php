@@ -653,8 +653,10 @@ Route::middleware('api.token.auth')->group(function () {
 
         Route::prefix('verify')->group(function () {
             Route::post('/aadhar-send-otp', [VerificationController::class, 'sendAadhaarOtp']);
+            Route::post('/aadhaar-send-otp', [VerificationController::class, 'sendAadhaarOtp']);
             Route::post('/aadhaar-verify-otp', [VerificationController::class, 'verifyAadhaarOtp']);
             Route::post('/pan', [VerificationController::class, 'verifyPan']);
+            Route::post('/verify-pan', [VerificationController::class, 'verifyPan']);
             Route::post('/bank-account', [VerificationController::class, 'verifyBankAccount']);
             Route::post('/ifsc', [VerificationController::class, 'verifyIfscCode']);
         });

@@ -336,6 +336,9 @@ class VerificationController extends Controller
 
           }
 
+
+           $rj['resText']='Aadhar Validated Successfully';
+
           return response()->json(['status' => 1, 'message' => 'Aadhar Validated Successfully', 'data' => $rj], 200);
 
         } else {
