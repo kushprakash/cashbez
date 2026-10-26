@@ -537,7 +537,7 @@ class VerificationController extends Controller
           return response()->json(['status' => 1, 'message' => 'Success', 'data' => $rj], 200);
         } else {
           DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 2]);
-          return response()->json(['status' => 0, 'message' => 'NSDL Server Down. try again..', 'data' => NULL], 200);
+          return response()->json(['status' => 0, 'message' => 'NSDL Server Down. try again..', 'data' => $rj], 200);
         }
         
       } else {
