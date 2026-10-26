@@ -124,7 +124,7 @@ class VerificationController extends Controller
           'user_id'=>$user->id,
           'type'=>'Aadhaar',
           'number'=>$request->aadhaar_number,
-          'refid'=>$rj['request_id'],
+          'refid'=>$rj['data']['request_id'],
           'status'=>0,
           'first_res' => $response,
           'created_at'=>now(),
@@ -133,9 +133,8 @@ class VerificationController extends Controller
 
         DB::table('verifications')->insert($data);
 
-        $rj['refid'] = $rj['request_id'];
-        unset($rj['request_id']);
-
+        $rj['refid'] = $rj['data']['request_id']??null;
+        $rj['aadhaarno'] = $request->aadhaar_number??null;
         return response()->json(['status' => 1, 'message' => 'Success', 'data' => $rj], 200);
 
       } 
@@ -295,9 +294,7 @@ class VerificationController extends Controller
 
         if(isset($rj['status'])  && $rj['status']==1){
 
-          $keysToRemove = ['Fees', 'Bal', 'bal'];
-          $rj = array_diff_key($rj, array_flip($keysToRemove));
-
+          $rj = $rj['data']??[];
           DB::table('verifications')->where('refid', $request->refid)->update(['status' => 1]);
 
           if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
@@ -504,6 +501,7 @@ class VerificationController extends Controller
         }
 
         if (isset($rj['status']) && $rj['status'] == 1) {
+          $rj = $rj['data']??[];
           DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 1]);
 
           if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
@@ -749,10 +747,9 @@ class VerificationController extends Controller
 
         if(isset($rj['status']) && $rj['status']==1){
 
-          $keysToRemove = ['Fees', 'Bal', 'bal'];
-          $rj = array_diff_key($rj, array_flip($keysToRemove));
+         $rj = $rj['data']??[];
 
-          $rj['bank_name'] = $ifsc_data['BANK'];
+          $rj['bank_name'] = $ifsc_data['BANK']??null;
 
           DB::table('verifications')->where('number', $request->accountno)->update(['status' => 1]);
 
