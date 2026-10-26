@@ -27,9 +27,9 @@ use Carbon\Carbon;
 
 class VerificationController extends Controller
 {
-    private const BASE_URL = 'https://icchhamatidataservice.com/api/';
-  private const MID = "AGENT1475";
-  private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
+    private const BASE_URL = 'https://goterpay.com/api/';
+    private const MID = "G195064846";
+    private const MKEY = "PRA3948146";
     
   public function sendAadhaarOtp(Request $request){
 
@@ -140,6 +140,7 @@ class VerificationController extends Controller
           'aadhaarno'=>$rj['aadhaarno'],
           'resText'=>"OTP sent Successfully",
         ];
+
         return response()->json(['status' => 1, 'message' => 'Success', 'data' => $xdata], 200);
 
       } 
@@ -300,6 +301,7 @@ class VerificationController extends Controller
         if(isset($rj['status'])  && $rj['status']==1){
 
           $rj = $rj['data']??[];
+          $rj['resText']='Aadhar Validated Successfully';
           DB::table('verifications')->where('refid', $request->refid)->update(['status' => 1]);
 
           if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
@@ -336,7 +338,7 @@ class VerificationController extends Controller
           }
 
 
-           $rj['resText']='Aadhar Validated Successfully';
+           
 
           return response()->json(['status' => 1, 'message' => 'Aadhar Validated Successfully', 'data' => $rj], 200);
 
@@ -357,7 +359,7 @@ class VerificationController extends Controller
       ]);
     }
   }
-  
+
   public function verifyPan(Request $request){
 
     $user = $request->get('user');
