@@ -27,6 +27,11 @@ use Carbon\Carbon;
 
 class VerificationController extends Controller
 {
+
+  private const BASE_URL = 'https://icchhamatidataservice.com/api/';
+  private const MID = "AGENT1475";
+  private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
+    
   public function sendAadhaarOtp(Request $request){
 
     $user = $request->get('user');
@@ -81,10 +86,30 @@ class VerificationController extends Controller
         // ], 200); die;
       }
 
-      $url = "https://goterpay.in/api/verification/aadhaarotp?mid=$mid&mkey=$mkey&aadhaar=$aadhaarno&txnid=$txnid";
-      //$url = "https://dashboard.goterpay.com/api/v3/verification/aadhaarotp?mid=$mid&mkey=$mkey&subwallet=$wallet&txnid=$txnid&aadhaarno=$aadhaarno";
+      $url = self::BASE_URL."v2/verify/aadhar-send-otp";
+
+      $data = [
+        "aadhaar_number" => $request->aadhaar_number
+      ];
+
+
+    
       $ch = curl_init($url);
-      curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+      curl_setopt_array($ch, [
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_POST           => true,
+          CURLOPT_POSTFIELDS     => json_encode($data),
+          CURLOPT_HTTPHEADER     => [
+              "Content-Type: application/json",
+              "Accept: application/json",
+              "mid: ".self::MID,
+              "mkey: ".self::MKEY
+          ],
+          CURLOPT_TIMEOUT        => 60,
+          CURLOPT_CONNECTTIMEOUT => 20
+      ]);
+
       $response = curl_exec($ch);
 
       if(empty($response)){
@@ -95,7 +120,11 @@ class VerificationController extends Controller
 
       $rj = (json_decode($response, true));
 
-      if(isset($rj['status']) && $rj['status']=='SUCCESS'){
+      if(isset($rj['status']) && $rj['status']==1){
+
+
+
+
         $keysToRemove = ['Fees', 'Bal', 'bal'];
         $rj = array_diff_key($rj, array_flip($keysToRemove));
 
@@ -235,21 +264,41 @@ class VerificationController extends Controller
 
       if($transactionData['status'] === 1) {
 
-        $mid = "G195064846";
-        $mkey = "PRA3948146";
-        $wallet = "G53BD90U9F612K83574F1";
+      
         $refid = $request->refid;
         $otp = $request->otp;
-        $url = "https://goterpay.in/api/verification/aadhaarverify?mid=$mid&mkey=$mkey&refid=$refid&otp=$otp&txnid=$txnid";
+       
+        $url = self::BASE_URL."v2/verify/aadhaar-verify-otp";
+
+        $data = [
+          "refid" => $request->refid,
+          "otp" => $request->otp,
+          "aadhaar_number" => $Draft->number,
+        ];
+
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($data),
+            CURLOPT_HTTPHEADER     => [
+                "Content-Type: application/json",
+                "Accept: application/json",
+                "mid: ".self::MID,
+                "mkey: ".self::MKEY
+            ],
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_CONNECTTIMEOUT => 20
+        ]);
+
         $response = curl_exec($ch);
         $rj = (json_decode($response, true));
 
         DB::table('verifications')->where('refid', $request->refid)->update(['second_res' => $response]);
 
 
-        if(isset($rj['status'])  && $rj['status']=='SUCCESS'){
+        if(isset($rj['status'])  && $rj['status']==1){
 
           $keysToRemove = ['Fees', 'Bal', 'bal'];
           $rj = array_diff_key($rj, array_flip($keysToRemove));
@@ -405,19 +454,28 @@ class VerificationController extends Controller
 
       if($transactionData['status'] === 1) {
 
-        $mid = "G195064846";
-        $mkey = "PRA3948146";
-        $wallet = "G53BD90U9F612K83574F1";
+        $url = self::BASE_URL."v2/verify/verify-pan";
 
-        // use the validated field `pan_number` when building the request
-        $pan_no = $request->pan_number;
-
-        $url = "https://goterpay.in/api/verification/panvalidate?mid=$mid&mkey=$mkey&pan=" . urlencode($pan_no)."&txnid=$txnid";
-        //$url = "https://dashboard.goterpay.com/api/v3/verification/panvalidate?mid=$mid&mkey=$mkey&subwallet=$wallet&txnid=$txnid&pancard=" . urlencode($pan_no);
+        $data = [
+          "pan_number" => $request->pan_number,
+        ];
 
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($data),
+            CURLOPT_HTTPHEADER     => [
+                "Content-Type: application/json",
+                "Accept: application/json",
+                "mid: ".self::MID,
+                "mkey: ".self::MKEY
+            ],
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_CONNECTTIMEOUT => 20
+        ]);
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
@@ -450,10 +508,7 @@ class VerificationController extends Controller
           return response()->json(['status' => 0, 'message' => 'Invalid response from PAN service', 'data' => NULL], 200);
         }
 
-        if (isset($rj['status']) && $rj['status'] == 'SUCCESS') {
-          $keysToRemove = ['Fees', 'Bal', 'bal'];
-          $rj = array_diff_key($rj, array_flip($keysToRemove));
-
+        if (isset($rj['status']) && $rj['status'] == 1) {
           DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 1]);
 
           if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
@@ -637,16 +692,33 @@ class VerificationController extends Controller
           ]);
         }
 
-        $mid = "G195064846";
-        $mkey = "PRA3948146";
-        $wallet = "G53BD90U9F612K83574F1";
-
+     
         $accountno = $request->accountno;
         $ifsccode = $request->ifsccode;
 
-        $url = "https://goterpay.in/api/verification/bankvalidate?mid=$mid&mkey=$mkey&accountno=$accountno&ifsccode=$ifsccode&txnid=$txnid";
+       $url = self::BASE_URL."v2/verify/bank-account";
+
+        $data = [
+          "accountno" => $request->accountno,
+          "ifsccode" => $request->ifsccode,
+        ];
+
         $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($data),
+            CURLOPT_HTTPHEADER     => [
+                "Content-Type: application/json",
+                "Accept: application/json",
+                "mid: ".self::MID,
+                "mkey: ".self::MKEY
+            ],
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_CONNECTTIMEOUT => 20
+        ]);
+
         $response = curl_exec($ch);
 
         $prefixes = [
@@ -680,7 +752,7 @@ class VerificationController extends Controller
         DB::table('verifications')->insert($data);
 
 
-        if(isset($rj['status']) && $rj['status']=='SUCCESS'){
+        if(isset($rj['status']) && $rj['status']==1){
 
           $keysToRemove = ['Fees', 'Bal', 'bal'];
           $rj = array_diff_key($rj, array_flip($keysToRemove));
