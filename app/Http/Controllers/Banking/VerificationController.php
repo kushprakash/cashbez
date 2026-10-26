@@ -116,23 +116,15 @@ class VerificationController extends Controller
         return response()->json(['status' => 0, 'message' => "Aadhar server down", 'data' => NULL], 200);die;
       }
 
-      //{ "txnid":"OTP1", "status":"SUCCESS", "refid":"3995593", "aadhaarno":"999999990019","Fees":"3.00", "balance":"554.24", "message":"" }
-
       $rj = (json_decode($response, true));
 
       if(isset($rj['status']) && $rj['status']==1){
-
-
-
-
-        $keysToRemove = ['Fees', 'Bal', 'bal'];
-        $rj = array_diff_key($rj, array_flip($keysToRemove));
 
         $data = [
           'user_id'=>$user->id,
           'type'=>'Aadhaar',
           'number'=>$request->aadhaar_number,
-          'refid'=>$rj['refid'],
+          'refid'=>$rj['request_id'],
           'status'=>0,
           'first_res' => $response,
           'created_at'=>now(),
