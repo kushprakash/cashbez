@@ -133,6 +133,9 @@ class VerificationController extends Controller
 
         DB::table('verifications')->insert($data);
 
+        $rj['refid'] = $rj['request_id'];
+        unset($rj['request_id']);
+
         return response()->json(['status' => 1, 'message' => 'Success', 'data' => $rj], 200);
 
       } 
