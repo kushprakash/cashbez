@@ -475,8 +475,7 @@ class VerificationController extends Controller
         ]);
 
         $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
+      
         curl_close($ch);
 
         $data = [
@@ -492,21 +491,11 @@ class VerificationController extends Controller
 
         DB::table('verifications')->insert($data);
 
-        // handle curl/network errors or empty responses
-        if ($curlError || empty($response) || $httpCode !== 200) {
-          DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 2]);
-          return response()->json(['status' => 0, 'message' => 'PAN verification service unavailable', 'data' => NULL], 200);
-        }
-
         $rj = json_decode($response, true);
 
-        // ensure we have a valid decoded array before accessing offsets
-        if (!is_array($rj)) {
-          DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 2]);
-          return response()->json(['status' => 0, 'message' => 'Invalid response from PAN service', 'data' => NULL], 200);
-        }
 
         if (isset($rj['status']) && $rj['status'] == 1) {
+          
           $rj = $rj['data']??[];
           DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 1]);
 
@@ -547,16 +536,13 @@ class VerificationController extends Controller
           DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 2]);
           return response()->json(['status' => 0, 'message' => 'NSDL Server Down. try again..', 'data' => NULL], 200);
         }
+        
       } else {
         return response()->json(['status' => 0, 'message' => $transactionData['message'] ?? 'Transaction failed', 'data' => NULL], 200);
       }
 
     } catch (\Exception $e) {
-      Log::error('PAN Verification Error: ' . $e->getMessage(), [
-        'file' => $e->getFile(),
-        'line' => $e->getLine(),
-        'trace' => $e->getTraceAsString()
-      ]);
+    
       return response()->json([
         'status' => 0,
         'message' => 'PAN verification failed',
