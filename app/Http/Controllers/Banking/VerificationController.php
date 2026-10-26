@@ -27,8 +27,7 @@ use Carbon\Carbon;
 
 class VerificationController extends Controller
 {
-
-  private const BASE_URL = 'https://icchhamatidataservice.com/api/';
+    private const BASE_URL = 'https://icchhamatidataservice.com/api/';
   private const MID = "AGENT1475";
   private const MKEY = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
     
@@ -358,7 +357,7 @@ class VerificationController extends Controller
       ]);
     }
   }
-
+  
   public function verifyPan(Request $request){
 
     $user = $request->get('user');
@@ -455,30 +454,22 @@ class VerificationController extends Controller
 
       if($transactionData['status'] === 1) {
 
-        $url = self::BASE_URL."v2/verify/verify-pan";
+        $mid = "G195064846";
+        $mkey = "PRA3948146";
+        $wallet = "G53BD90U9F612K83574F1";
 
-        $data = [
-          "pan_number" => $request->pan_number,
-        ];
+        // use the validated field `pan_number` when building the request
+        $pan_no = $request->pan_number;
+
+        $url = "https://goterpay.in/api/verification/panvalidate?mid=$mid&mkey=$mkey&pan=" . urlencode($pan_no)."&txnid=$txnid";
+        //$url = "https://dashboard.goterpay.com/api/v3/verification/panvalidate?mid=$mid&mkey=$mkey&subwallet=$wallet&txnid=$txnid&pancard=" . urlencode($pan_no);
 
         $ch = curl_init($url);
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($data),
-            CURLOPT_HTTPHEADER     => [
-                "Content-Type: application/json",
-                "Accept: application/json",
-                "mid: ".self::MID,
-                "mkey: ".self::MKEY
-            ],
-            CURLOPT_TIMEOUT        => 60,
-            CURLOPT_CONNECTTIMEOUT => 20
-        ]);
-
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         $response = curl_exec($ch);
-      
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
         $data = [
@@ -494,12 +485,24 @@ class VerificationController extends Controller
 
         DB::table('verifications')->insert($data);
 
+        // handle curl/network errors or empty responses
+        if ($curlError || empty($response) || $httpCode !== 200) {
+          DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 2]);
+          return response()->json(['status' => 0, 'message' => 'PAN verification service unavailable', 'data' => NULL], 200);
+        }
+
         $rj = json_decode($response, true);
 
+        // ensure we have a valid decoded array before accessing offsets
+        if (!is_array($rj)) {
+          DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 2]);
+          return response()->json(['status' => 0, 'message' => 'Invalid response from PAN service', 'data' => NULL], 200);
+        }
 
-        if (isset($rj['status']) && $rj['status'] == 1) {
-          
-          $rj = $rj['data']??[];
+        if (isset($rj['status']) && $rj['status'] == 'SUCCESS') {
+          $keysToRemove = ['Fees', 'Bal', 'bal'];
+          $rj = array_diff_key($rj, array_flip($keysToRemove));
+
           DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 1]);
 
           if($setting && isset($setting->call_back_url) && !empty($setting->call_back_url)){
@@ -537,15 +540,18 @@ class VerificationController extends Controller
           return response()->json(['status' => 1, 'message' => 'Success', 'data' => $rj], 200);
         } else {
           DB::table('verifications')->where('number', $request->pan_number)->update(['status' => 2]);
-          return response()->json(['status' => 0, 'message' => 'NSDL Server Down. try again..', 'data' => $rj], 200);
+          return response()->json(['status' => 0, 'message' => 'NSDL Server Down. try again..', 'data' => NULL], 200);
         }
-        
       } else {
         return response()->json(['status' => 0, 'message' => $transactionData['message'] ?? 'Transaction failed', 'data' => NULL], 200);
       }
 
     } catch (\Exception $e) {
-    
+      Log::error('PAN Verification Error: ' . $e->getMessage(), [
+        'file' => $e->getFile(),
+        'line' => $e->getLine(),
+        'trace' => $e->getTraceAsString()
+      ]);
       return response()->json([
         'status' => 0,
         'message' => 'PAN verification failed',
@@ -680,33 +686,16 @@ class VerificationController extends Controller
           ]);
         }
 
-     
+        $mid = "G195064846";
+        $mkey = "PRA3948146";
+        $wallet = "G53BD90U9F612K83574F1";
+
         $accountno = $request->accountno;
         $ifsccode = $request->ifsccode;
 
-       $url = self::BASE_URL."v2/verify/bank-account";
-
-        $data = [
-          "accountno" => $request->accountno,
-          "ifsccode" => $request->ifsccode,
-        ];
-
+        $url = "https://goterpay.in/api/verification/bankvalidate?mid=$mid&mkey=$mkey&accountno=$accountno&ifsccode=$ifsccode&txnid=$txnid";
         $ch = curl_init($url);
-
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($data),
-            CURLOPT_HTTPHEADER     => [
-                "Content-Type: application/json",
-                "Accept: application/json",
-                "mid: ".self::MID,
-                "mkey: ".self::MKEY
-            ],
-            CURLOPT_TIMEOUT        => 60,
-            CURLOPT_CONNECTTIMEOUT => 20
-        ]);
-
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $response = curl_exec($ch);
 
         $prefixes = [
@@ -740,11 +729,12 @@ class VerificationController extends Controller
         DB::table('verifications')->insert($data);
 
 
-        if(isset($rj['status']) && $rj['status']==1){
+        if(isset($rj['status']) && $rj['status']=='SUCCESS'){
 
-         $rj = $rj['data']??[];
+          $keysToRemove = ['Fees', 'Bal', 'bal'];
+          $rj = array_diff_key($rj, array_flip($keysToRemove));
 
-          $rj['bank_name'] = $ifsc_data['BANK']??null;
+          $rj['bank_name'] = $ifsc_data['BANK'];
 
           DB::table('verifications')->where('number', $request->accountno)->update(['status' => 1]);
 
