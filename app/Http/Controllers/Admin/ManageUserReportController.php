@@ -1150,6 +1150,19 @@ class ManageUserReportController extends Controller
                     $q->orWhere('mid', $userId);
                 });
 
+
+                if($user->role==2 && $user->is_api_partner=1){
+                    $mids = AepsDraft::where('admin_id', $user->id)->pluck('mid')->toArray();
+                    $query->orWhereIn('mid', $mids);
+                }
+
+
+                if($user->role==1){
+                    $userIds = User::where('role', 2)->where('is_api_partner', 1)->pluck('id')->toArray();
+                    $mids = AepsDraft::whereIn('admin_id', $userIds)->pluck('mid')->toArray();
+                    $query->orWhereIn('mid', $mids);
+                }
+
             if ($request->filled('start_date') && $request->filled('end_date')) {
                 $query->whereBetween('created_at', [
                     $request->start_date . ' 00:00:00',
