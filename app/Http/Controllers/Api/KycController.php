@@ -268,7 +268,8 @@ class KycController extends Controller
             } else {
                 return response()->json([
                     'status' => 0,
-                    'message' => $rj['message'] ?? 'Technical Issue try again..'
+                    'message' => $rj['message'] ?? 'Technical Issue try again..',
+                    'data' => $rj
                 ]);
             }
         }
