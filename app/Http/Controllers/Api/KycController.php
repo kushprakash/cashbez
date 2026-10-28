@@ -381,8 +381,8 @@ class KycController extends Controller
                 } elseif ($name1 == '') {
                     return response()->json([
                         'status' => 0,
-                        'message' => 'Pan not verified. Name mismatch.',
-                        'refid' => ''
+                        'message' => 'Pan not verified. Name mismatch. Registerd name is '.$name.' pan name is '.$name1,
+                        'refid' => '',
                     ]);
                 } else {
                     return response()->json([
