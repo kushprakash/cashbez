@@ -222,7 +222,7 @@ class KycController extends Controller
             $rj = json_decode($response, true);
 
             if (isset($rj['status']) && $rj['status'] == 1) {
-                $aadhaarInfo = $rj['data'];
+                $aadhaarInfo = $rj['data']['data'];
                 
                 // Update or create KYC record
                 $kyc = UserKyc::updateOrCreate(
