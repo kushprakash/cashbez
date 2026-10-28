@@ -134,7 +134,7 @@ class VerificationController extends Controller
         $rj['refid'] = $rj['data']['request_id']??null;
         $rj['aadhaarno'] = $request->aadhaar_number??null;
 
-        $xdata[]=[
+        $xdata=[
           'refid'=>$rj['refid'],
           'aadhaarno'=>$rj['aadhaarno'],
           'resText'=>"OTP sent Successfully",
