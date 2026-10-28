@@ -162,10 +162,12 @@ class KycController extends Controller
             'aadhar_number' => 'required|string|size:12',
         ]);
 
+        
         if ($validator->fails()) {
             return response()->json([
                 'status' => 0,
-                'message' => $validator->errors()->first()
+                'message' => $validator->errors()->first(),
+                'data' => 'request error' 
             ]);
         }
 
