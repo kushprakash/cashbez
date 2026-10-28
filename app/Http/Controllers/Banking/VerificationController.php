@@ -163,6 +163,9 @@ class VerificationController extends Controller
     $user = $request->get('user');
     $admin = $request->get('admin');
     $txnid = rand(11111111, 99999999);
+
+    $request->refid = (string) $request->refid;
+
     $validator = Validator::make($request->all(), [
       'refid' => 'required|string',
       'otp'    => 'required|digits:6',
