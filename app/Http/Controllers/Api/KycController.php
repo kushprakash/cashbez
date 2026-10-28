@@ -246,7 +246,7 @@ class KycController extends Controller
                         'response_aadhar' => json_encode([
                             'status' => 1,
                             'message' => 'Success',
-                            'data' => $rj['data']
+                            'data' => $rj['data']['data']
                         ]),
                         'aadhar_verified' => true
                     ]
