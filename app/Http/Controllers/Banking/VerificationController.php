@@ -85,31 +85,32 @@ class VerificationController extends Controller
         // ], 200); die;
       }
 
-      $url = self::BASE_URL."v2/verify/aadhar-send-otp";
+
+
+      $url = "https://icchhamatidataservice.com/api/v2/verify/aadhar-send-otp";
 
       $data = [
-        "aadhaar_number" => $request->aadhaar_number
+          "aadhaar_number" => $request->aadhaar_number
       ];
 
+      $curl = curl_init();
 
-    
-      $ch = curl_init($url);
-
-      curl_setopt_array($ch, [
+      curl_setopt_array($curl, [
+          CURLOPT_URL => $url,
           CURLOPT_RETURNTRANSFER => true,
-          CURLOPT_POST           => true,
-          CURLOPT_POSTFIELDS     => json_encode($data),
-          CURLOPT_HTTPHEADER     => [
+          CURLOPT_POST => true,
+          CURLOPT_POSTFIELDS => json_encode($data),
+          CURLOPT_HTTPHEADER => [
               "Content-Type: application/json",
               "Accept: application/json",
               "mid: ".self::MID,
               "mkey: ".self::MKEY
           ],
-          CURLOPT_TIMEOUT        => 60,
-          CURLOPT_CONNECTTIMEOUT => 20
+          CURLOPT_TIMEOUT => 30,
+          CURLOPT_CONNECTTIMEOUT => 10
       ]);
 
-      $response = curl_exec($ch);
+      $response = curl_exec($curl);
 
       if(empty($response)){
         return response()->json(['status' => 0, 'message' => "Aadhar server down", 'data' => NULL], 200);die;
@@ -268,31 +269,31 @@ class VerificationController extends Controller
         $refid = $request->refid;
         $otp = $request->otp;
        
-        $url = self::BASE_URL."v2/verify/aadhaar-verify-otp";
+        $url = "https://icchhamatidataservice.com/api/v2/verify/aadhaar-verify-otp";
 
         $data = [
-          "refid" => $request->refid,
-          "otp" => $request->otp,
-          "aadhaar_number" => $Draft->number,
+            "refid" => $refid,
+            "otp"   => $otp
         ];
 
-        $ch = curl_init($url);
+        $curl = curl_init();
 
-        curl_setopt_array($ch, [
+        curl_setopt_array($curl, [
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($data),
-            CURLOPT_HTTPHEADER     => [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($data),
+            CURLOPT_HTTPHEADER => [
                 "Content-Type: application/json",
                 "Accept: application/json",
-                "mid: ".self::MID,
-                "mkey: ".self::MKEY
+                "mid: " . self::MID,
+                "mkey: " . self::MKEY
             ],
-            CURLOPT_TIMEOUT        => 60,
-            CURLOPT_CONNECTTIMEOUT => 20
+            CURLOPT_TIMEOUT => 30,
+              CURLOPT_CONNECTTIMEOUT => 10
         ]);
 
-        $response = curl_exec($ch);
+        $response = curl_exec($curl);
         $rj = (json_decode($response, true));
 
         DB::table('verifications')->where('refid', $request->refid)->update(['second_res' => $response]);
