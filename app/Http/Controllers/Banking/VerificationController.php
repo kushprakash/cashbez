@@ -167,7 +167,7 @@ class VerificationController extends Controller
     $request->refid = (string) $request->refid;
 
     $validator = Validator::make($request->all(), [
-      'refid' => 'required|string',
+      'refid' => 'required',
       'otp'    => 'required|digits:6',
     ]);
 
