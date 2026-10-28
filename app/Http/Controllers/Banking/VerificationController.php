@@ -27,10 +27,7 @@ use Carbon\Carbon;
 
 class VerificationController extends Controller
 {
-    private const BASE_URL = 'https://goterpay.com/api/';
-    private const MID = "G195064846";
-    private const MKEY = "PRA3948146";
-    
+  
   public function sendAadhaarOtp(Request $request){
 
     $user = $request->get('user');
@@ -85,7 +82,8 @@ class VerificationController extends Controller
         // ], 200); die;
       }
 
-
+      $mid = "AGENT1475";
+      $mkey = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
 
       $url = "https://icchhamatidataservice.com/api/v2/verify/aadhar-send-otp";
 
@@ -103,8 +101,8 @@ class VerificationController extends Controller
           CURLOPT_HTTPHEADER => [
               "Content-Type: application/json",
               "Accept: application/json",
-              "mid: ".self::MID,
-              "mkey: ".self::MKEY
+              "mid: " . $mid,
+              "mkey: " . $mkey,
           ],
           CURLOPT_TIMEOUT => 30,
           CURLOPT_CONNECTTIMEOUT => 10
@@ -265,7 +263,9 @@ class VerificationController extends Controller
 
       if($transactionData['status'] === 1) {
 
-      
+        $mid = "AGENT1475";
+        $mkey = "8ECgqn6xep6FPdVvzOs4ketqWQxG9qGY";
+
         $refid = $request->refid;
         $otp = $request->otp;
        
@@ -286,11 +286,11 @@ class VerificationController extends Controller
             CURLOPT_HTTPHEADER => [
                 "Content-Type: application/json",
                 "Accept: application/json",
-                "mid: " . self::MID,
-                "mkey: " . self::MKEY
+                "mid: " . $mid,
+                "mkey: " . $mkey,
             ],
             CURLOPT_TIMEOUT => 30,
-              CURLOPT_CONNECTTIMEOUT => 10
+            CURLOPT_CONNECTTIMEOUT => 10
         ]);
 
         $response = curl_exec($curl);
