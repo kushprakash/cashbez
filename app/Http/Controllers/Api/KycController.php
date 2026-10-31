@@ -528,13 +528,13 @@ class KycController extends Controller
 
                     return response()->json([
                         'status' => 1,
-                        'message' => 'Bank account verified successfully',
+                        'message' => 'Bank account verified successfully ',
                         'bank_data' => $bankResponse
                     ]);
                 } elseif ($name1 == '') {
                     return response()->json([
                         'status' => 0,
-                        'message' => 'Account not verified. Name mismatch.',
+                        'message' => 'Account name is ' . $cleanAccountName . ' & ' . "\n" . '  Aadhar name is ' . $name,
                         'refid' => ''
                     ]);
                 } else {
