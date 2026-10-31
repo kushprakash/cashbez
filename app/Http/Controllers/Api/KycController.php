@@ -534,20 +534,20 @@ class KycController extends Controller
                 } elseif ($name1 == '') {
                     return response()->json([
                         'status' => 0,
-                        'message' => 'Account name is ' . $cleanAccountName . ' & ' . "\n" . '  Aadhar name is ' . $name,
+                        'message' => 'Account name is ' . $cleanAccountName . ' & Aadhar name is ' . $name,
                         'refid' => ''
                     ]);
                 } else {
                     return response()->json([
                         'status' => 0,
-                        'message' => 'Account name is ' . $cleanAccountName . ' & ' . "\n" . '  Aadhar name is ' . $name,
+                        'message' => 'Account name is ' . $cleanAccountName . ' & Aadhar name is ' . $name,
                         'refid' => ''
                     ]);
                 }
             } else {
                 return response()->json([
                     'status' => 0,
-                    'message' => 'Account name is ' . $cleanAccountName . ' & ' . "\n" . '  Aadhar name is ' . $name,
+                    'message' => 'Account name is ' . $cleanAccountName . ' & Aadhar name is ' . $name,
                     'refid' => ''
                 ]);
             }
