@@ -547,7 +547,7 @@ class KycController extends Controller
             } else {
                 return response()->json([
                     'status' => 0,
-                    'message' => 'Account name is ' . $cleanAccountName . ' & Aadhar name is ' . $name,
+                    'message' => $rj['message'] ?? 'Verification failled.',
                     'refid' => ''
                 ]);
             }
