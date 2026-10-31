@@ -559,7 +559,10 @@ class KycController extends Controller
             ]);
             return response()->json([
                 'status' => 0,
-                'message' => 'Bank account verification failed'
+                'message' => 'Bank account verification failed',
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
     }
