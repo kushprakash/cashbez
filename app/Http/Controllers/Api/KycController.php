@@ -528,7 +528,7 @@ class KycController extends Controller
 
                     return response()->json([
                         'status' => 1,
-                        'message' => 'Bank account verified successfully ',
+                        'message' => 'Bank account verified successfully',
                         'bank_data' => $bankResponse
                     ]);
                 } elseif ($name1 == '') {
@@ -547,7 +547,7 @@ class KycController extends Controller
             } else {
                 return response()->json([
                     'status' => 0,
-                    'message' => $rj['message'] ?? 'Bank verification failed',
+                    'message' => 'Account name is ' . $cleanAccountName . ' & ' . "\n" . '  Aadhar name is ' . $name,
                     'refid' => ''
                 ]);
             }
@@ -559,10 +559,7 @@ class KycController extends Controller
             ]);
             return response()->json([
                 'status' => 0,
-                'message' => 'Bank account verification failed',
-                'line' => $e->getLine(),
-                'file' => $e->getFile(),
-                'trace' => $e->getTraceAsString()
+                'message' => 'Bank account verification failed'
             ]);
         }
     }
